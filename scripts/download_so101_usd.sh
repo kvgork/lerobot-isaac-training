@@ -121,30 +121,41 @@ success "Found URDF: ${URDF_PATH}"
 info "Creating output directory: ${USD_OUTPUT_DIR}"
 mkdir -p "${USD_OUTPUT_DIR}"
 
-# ── 6. Convert URDF → USD ─────────────────────────────────────────────────────
-info "Converting URDF to USD..."
+# ── 6. Convert URDF → USD via urdf-usd-converter (standalone, Isaac Sim 6.0+) ─
+# Isaac Lab's convert_urdf.py wrapper currently fails to enable the URDF-importer
+# extension under Isaac Sim 6.0 (RuntimeError: Failed to acquire interface).
+# Use the standalone `urdf-usd-converter` PyPI tool that ships in the same wheel.
+USD_OUT_DIR="${USD_OUTPUT_DIR}/so101_converted"
+info "Converting URDF to USD (urdf-usd-converter)..."
 info "  Input:  ${URDF_PATH}"
-info "  Output: ${USD_OUTPUT}"
-info "  Script: ${CONVERT_URDF}"
+info "  Output: ${USD_OUT_DIR}/"
 info "(This runs Isaac Sim headless — may take 1-3 minutes on first run.)"
 
-python3 "${CONVERT_URDF}" \
-    --input "${URDF_PATH}" \
-    --output "${USD_OUTPUT}" \
-    --headless \
+mkdir -p "${USD_OUT_DIR}"
+python3 -m urdf_usd_converter \
+    "${URDF_PATH}" \
+    "${USD_OUT_DIR}" \
     || {
         error "URDF conversion failed."
         error "Check the output above for Isaac Sim/Isaac Lab error messages."
         error "Common issues:"
-        error "  - Isaac Sim not in PATH / PYTHONPATH"
         error "  - GPU not available or driver mismatch"
         error "  - Missing mesh files referenced in URDF"
         exit 3
     }
 
+# Promote the produced .usda file (named after URDF root link) to so101.usd
+PRIMARY_USDA=$(find "${USD_OUT_DIR}" -maxdepth 1 -name "*.usda" -type f | head -1 || true)
+if [[ -n "${PRIMARY_USDA}" && -f "${PRIMARY_USDA}" ]]; then
+    cp "${PRIMARY_USDA}" "${USD_OUTPUT}"
+    success "Copied primary USD: ${PRIMARY_USDA} → ${USD_OUTPUT}"
+fi
+
 # ── 7. Verify output ──────────────────────────────────────────────────────────
 if [[ ! -f "${USD_OUTPUT}" ]]; then
     error "Conversion reported success but ${USD_OUTPUT} not found."
+    error "Output directory contents:"
+    ls -la "${USD_OUT_DIR}" 2>/dev/null || true
     exit 3
 fi
 

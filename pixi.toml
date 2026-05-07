@@ -7,13 +7,11 @@ channels = ["conda-forge", "nvidia"]
 platforms = ["linux-64"]
 
 [dependencies]
-python = ">=3.10,<3.12"
+python = ">=3.10,<3.13"
 pip = "*"
 pyyaml = "*"
-pyarrow = "*"
-pandas = "*"
-numpy = "*"
-h5py = "*"
+# numpy / pyarrow / pandas / h5py: managed by pip (avoids conda RECORD-less numpy
+# blocking pip uninstall when isaacsim/lerobot install their own pinned numpy)
 
 [pypi-dependencies]
 # Sibling packages — editable installs (active in monorepo mode)
@@ -30,8 +28,9 @@ pytest = "*"
 ruff = "*"
 hatchling = "*"
 
-[feature.lerobot.pypi-dependencies]
-lerobot = ">=0.5"
+[feature.lerobot]
+# Pip-install lerobot manually inside this env (gymnasium pin conflicts with sheeprl;
+# cannot co-resolve via pixi). After `pixi shell -e train-policy`: pip install "lerobot[all]"
 
 [feature.realsense.pypi-dependencies]
 pyrealsense2 = "*"
@@ -39,8 +38,9 @@ pyrealsense2 = "*"
 [feature.stable-worldmodel.pypi-dependencies]
 stable-worldmodel = "*"
 
-[feature.dreamerv3.pypi-dependencies]
-sheeprl = ">=0.5"
+[feature.dreamerv3]
+# Pip-install sheeprl manually: pip install "sheeprl[dreamer]>=0.5"
+# (Cannot co-install with lerobot due to gymnasium version conflict.)
 
 [feature.leworldmodel]
 # HF LeWorldModel installed via lerobot's extras or HF directly — pinned at install time

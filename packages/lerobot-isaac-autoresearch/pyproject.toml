@@ -3,9 +3,9 @@ name = "lerobot-isaac-autoresearch"
 version = "0.1.0"
 description = "Autoresearch ML loop wiring: program.md configs and train wrapper for LeRobot policies and world models"
 requires-python = ">=3.10"
-dependencies = [
-  "lerobot-isaac-adapters",
-]
+dependencies = []
+# NOTE: sibling `lerobot-isaac-adapters` is NOT listed — pixi installs it as editable
+# workspace dep via root pixi.toml pypi-dependencies. See [monorepo] extra.
 
 [build-system]
 requires = ["hatchling"]
@@ -19,3 +19,4 @@ lerobot-isaac-train-wrapper = "lerobot_isaac_autoresearch.train_wrapper:main"
 
 [project.optional-dependencies]
 dev = ["pytest", "pyyaml"]
+monorepo = ["lerobot-isaac-adapters"]

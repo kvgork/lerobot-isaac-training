@@ -4,7 +4,15 @@ version = "0.1.0"
 description = "Umbrella package for LeRobot + Isaac Lab training workspace (SO-101)"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = [
+dependencies = []
+# NOTE: sibling workspace packages are NOT listed in [project] dependencies
+# because pixi installs them as editable workspace deps via pypi-dependencies in
+# root pixi.toml (avoids URL-conflict between plain name + editable path).
+# Standalone post-spinout install: also pip install lerobot-isaac-{env,adapters,
+# autoresearch,synthetic,configs,recorder} explicitly, OR use the [monorepo] extra.
+
+[project.optional-dependencies]
+monorepo = [
   "lerobot-isaac-env",
   "lerobot-isaac-adapters",
   "lerobot-isaac-autoresearch",
