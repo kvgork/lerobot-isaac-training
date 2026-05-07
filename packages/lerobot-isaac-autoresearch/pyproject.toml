@@ -1,0 +1,21 @@
+[project]
+name = "lerobot-isaac-autoresearch"
+version = "0.1.0"
+description = "Autoresearch ML loop wiring: program.md configs and train wrapper for LeRobot policies and world models"
+requires-python = ">=3.10"
+dependencies = [
+  "lerobot-isaac-adapters",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lerobot_isaac_autoresearch"]
+
+[project.scripts]
+lerobot-isaac-train-wrapper = "lerobot_isaac_autoresearch.train_wrapper:main"
+
+[project.optional-dependencies]
+dev = ["pytest", "pyyaml"]

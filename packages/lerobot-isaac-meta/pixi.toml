@@ -1,0 +1,28 @@
+# packages/lerobot-isaac-meta/pixi.toml
+# DORMANT in monorepo mode — only active after spinout via git subtree split.
+# In monorepo mode the root pixi.toml governs all environments.
+#
+# [workspace.metadata]
+# note = "lerobot-isaac-meta depends on all 5 sibling packages. In standalone mode,
+#         those siblings must be installed separately (e.g. via pip install -e ../lerobot-isaac-env).
+#         This pixi.toml only covers the meta package itself; sibling deps must be
+#         resolved manually after spinout."
+
+[workspace]
+name = "lerobot-isaac-meta"
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[dependencies]
+python = ">=3.10,<3.12"
+pip = "*"
+
+[pypi-dependencies]
+lerobot-isaac-meta = { path = ".", editable = true }
+
+[feature.dev.dependencies]
+pytest = "*"
+hatchling = "*"
+
+[environments]
+default = ["dev"]

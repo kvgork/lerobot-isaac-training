@@ -1,0 +1,19 @@
+# Workspace umbrella — uv workspace definition
+# See Section 11.4 of the build plan for rationale.
+# This file coordinates the 6 packages under packages/; it is NOT installable itself.
+[project]
+name = "lerobot-isaac-workspace"
+version = "0.1.0"
+description = "Monorepo for LeRobot + Isaac Lab + LeWorldModel training on SO-101"
+requires-python = ">=3.10"
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+lerobot-isaac-meta = { workspace = true }
+lerobot-isaac-env = { workspace = true }
+lerobot-isaac-adapters = { workspace = true }
+lerobot-isaac-autoresearch = { workspace = true }
+lerobot-isaac-synthetic = { workspace = true }
+lerobot-isaac-configs = { workspace = true }

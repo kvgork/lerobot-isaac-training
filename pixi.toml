@@ -1,0 +1,58 @@
+[workspace]
+name = "lerobot-isaac-training"
+version = "0.1.0"
+description = "Modular monorepo for LeRobot + Isaac Lab + LeWorldModel training (SO-101)"
+authors = ["Koen van Gorkom <kvgorkom@smart-robotics.nl>"]
+channels = ["conda-forge", "nvidia"]
+platforms = ["linux-64"]
+
+[dependencies]
+python = ">=3.10,<3.12"
+pip = "*"
+pyyaml = "*"
+pyarrow = "*"
+pandas = "*"
+numpy = "*"
+h5py = "*"
+
+[pypi-dependencies]
+# Sibling packages — editable installs (active in monorepo mode)
+lerobot-isaac-meta = { path = "packages/lerobot-isaac-meta", editable = true }
+lerobot-isaac-env = { path = "packages/lerobot-isaac-env", editable = true }
+lerobot-isaac-adapters = { path = "packages/lerobot-isaac-adapters", editable = true }
+lerobot-isaac-autoresearch = { path = "packages/lerobot-isaac-autoresearch", editable = true }
+lerobot-isaac-synthetic = { path = "packages/lerobot-isaac-synthetic", editable = true }
+lerobot-isaac-configs = { path = "packages/lerobot-isaac-configs", editable = true }
+
+[feature.dev.dependencies]
+pytest = "*"
+ruff = "*"
+hatchling = "*"
+
+[feature.lerobot.pypi-dependencies]
+lerobot = ">=0.5"
+
+[feature.dreamerv3.pypi-dependencies]
+sheeprl = ">=0.5"
+
+[feature.leworldmodel]
+# HF LeWorldModel installed via lerobot's extras or HF directly — pinned at install time
+
+[feature.isaaclab]
+# Isaac Lab installed via its own setup script (NOT pip) — see scripts/install_isaac_lab.sh
+# This feature exists to flag environments that should have Isaac Lab present.
+
+[environments]
+default = ["dev"]
+train-policy = ["dev", "lerobot"]
+train-dreamer = ["dev", "lerobot", "dreamerv3"]
+train-lewm = ["dev", "lerobot", "leworldmodel"]
+sim = ["dev", "lerobot", "isaaclab"]
+full = ["dev", "lerobot", "dreamerv3", "leworldmodel", "isaaclab"]
+
+[tasks]
+test = "pytest packages/*/tests/"
+lint = "ruff check packages/"
+fmt = "ruff format packages/"
+install-isaac-lab = "bash scripts/install_isaac_lab.sh"
+download-usd = "bash packages/lerobot-isaac-env/assets/usd/download_so101_urdf.sh"
