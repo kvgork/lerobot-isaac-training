@@ -35,12 +35,23 @@ def _cmd_train(args: argparse.Namespace) -> int:
 
 
 def _cmd_record(args: argparse.Namespace) -> int:
-    print(
-        "lerobot-isaac record: not yet wired — see Phase 2 "
-        "(packages/lerobot-isaac-adapters, lerobot-data-collection-agent).\n"
-        "When implemented: invokes lerobot-data-collection-agent for SO-101 teleop."
-    )
-    return 0
+    """Delegate to lerobot_isaac_recorder.cli.main with all forwarded args."""
+    try:
+        from lerobot_isaac_recorder.cli import main as recorder_main
+    except ImportError as exc:
+        print(
+            f"Error: cannot import lerobot_isaac_recorder.cli: {exc}\n"
+            "Ensure lerobot-isaac-recorder is installed: "
+            "pip install -e packages/lerobot-isaac-recorder",
+            file=sys.stderr,
+        )
+        return 1
+    # Forward args.recorder_args (everything after `record`) to the recorder CLI.
+    # Strip leading "--" separator if user used it to disambiguate flags.
+    forwarded = list(args.recorder_args or [])
+    if forwarded and forwarded[0] == "--":
+        forwarded = forwarded[1:]
+    return recorder_main(forwarded)
 
 
 def _cmd_dr_replay(args: argparse.Namespace) -> int:
@@ -135,7 +146,10 @@ def _cmd_quality_filter(args: argparse.Namespace) -> int:
 
 _SUBCOMMANDS: dict[str, tuple[callable, str]] = {
     "train": (_cmd_train, "train a policy or world model (Phase 2+)"),
-    "record": (_cmd_record, "record SO-101 teleop data (Phase 2+)"),
+    "record": (
+        _cmd_record,
+        "record SO-101 teleop data (D435 + dual-write Parquet+HDF5 via lerobot-isaac-recorder)",
+    ),
     "dr-replay": (_cmd_dr_replay, "replay with Isaac Lab domain randomization (Phase 4+)"),
     "mimicgen-augment": (
         _cmd_mimicgen_augment,
@@ -232,6 +246,13 @@ def build_parser() -> argparse.ArgumentParser:
         # Attach additional args for quality-filter
         if name == "quality-filter":
             _add_quality_filter_args(sub)
+        # record: pass-through all remaining args to recorder CLI
+        if name == "record":
+            sub.add_argument(
+                "recorder_args",
+                nargs=argparse.REMAINDER,
+                help="Args forwarded to lerobot-isaac-record (e.g. --repo-id ... --num-episodes N --dry-run)",
+            )
 
     return parser
 

@@ -31,16 +31,17 @@ To update installed agents after editing source: `cd /home/koen/tools/claude_cod
 
 ---
 
-## Package Map (6 packages under `packages/`)
+## Package Map (7 packages under `packages/`)
 
 | Package | Dir | Phase | Status |
 |---------|-----|-------|--------|
 | `lerobot-isaac-meta` | `packages/lerobot-isaac-meta/` | 0 | Scaffolded |
-| `lerobot-isaac-env` | `packages/lerobot-isaac-env/` | 1 | Scaffolded (stubs) |
-| `lerobot-isaac-adapters` | `packages/lerobot-isaac-adapters/` | 2 | Scaffolded |
-| `lerobot-isaac-autoresearch` | `packages/lerobot-isaac-autoresearch/` | 3 | Scaffolded |
-| `lerobot-isaac-synthetic` | `packages/lerobot-isaac-synthetic/` | 4 | Scaffolded (stubs) |
-| `lerobot-isaac-configs` | `packages/lerobot-isaac-configs/` | 0 | Scaffolded |
+| `lerobot-isaac-env` | `packages/lerobot-isaac-env/` | 1 | Un-stubbed (real Isaac Lab API; soft-import) |
+| `lerobot-isaac-adapters` | `packages/lerobot-isaac-adapters/` | 2 | Un-stubbed (subprocess dispatchers) |
+| `lerobot-isaac-autoresearch` | `packages/lerobot-isaac-autoresearch/` | 3 | Un-stubbed |
+| `lerobot-isaac-synthetic` | `packages/lerobot-isaac-synthetic/` | 4 | Un-stubbed (DR replay; MimicGen deferred) |
+| `lerobot-isaac-configs` | `packages/lerobot-isaac-configs/` | 0/A | 6 YAML configs populated |
+| `lerobot-isaac-recorder` | `packages/lerobot-isaac-recorder/` | §14 | D435 + SO-101 dual-write (Parquet + LeWM HDF5) |
 
 ---
 

@@ -23,6 +23,7 @@ lerobot-isaac-adapters = { path = "packages/lerobot-isaac-adapters", editable = 
 lerobot-isaac-autoresearch = { path = "packages/lerobot-isaac-autoresearch", editable = true }
 lerobot-isaac-synthetic = { path = "packages/lerobot-isaac-synthetic", editable = true }
 lerobot-isaac-configs = { path = "packages/lerobot-isaac-configs", editable = true }
+lerobot-isaac-recorder = { path = "packages/lerobot-isaac-recorder", editable = true }
 
 [feature.dev.dependencies]
 pytest = "*"
@@ -31,6 +32,12 @@ hatchling = "*"
 
 [feature.lerobot.pypi-dependencies]
 lerobot = ">=0.5"
+
+[feature.realsense.pypi-dependencies]
+pyrealsense2 = "*"
+
+[feature.stable-worldmodel.pypi-dependencies]
+stable-worldmodel = "*"
 
 [feature.dreamerv3.pypi-dependencies]
 sheeprl = ">=0.5"
@@ -48,7 +55,8 @@ train-policy = ["dev", "lerobot"]
 train-dreamer = ["dev", "lerobot", "dreamerv3"]
 train-lewm = ["dev", "lerobot", "leworldmodel"]
 sim = ["dev", "lerobot", "isaaclab"]
-full = ["dev", "lerobot", "dreamerv3", "leworldmodel", "isaaclab"]
+record = ["dev", "lerobot", "realsense", "stable-worldmodel"]
+full = ["dev", "lerobot", "dreamerv3", "leworldmodel", "isaaclab", "realsense", "stable-worldmodel"]
 
 [tasks]
 test = "pytest packages/*/tests/"
@@ -56,3 +64,4 @@ lint = "ruff check packages/"
 fmt = "ruff format packages/"
 install-isaac-lab = "bash scripts/install_isaac_lab.sh"
 download-usd = "bash packages/lerobot-isaac-env/assets/usd/download_so101_urdf.sh"
+record-dry-run = "lerobot-isaac-record --repo-id=local/test --num-episodes=1 --dry-run"

@@ -10,6 +10,7 @@ dependencies = [
   "lerobot-isaac-autoresearch",
   "lerobot-isaac-synthetic",
   "lerobot-isaac-configs",
+  "lerobot-isaac-recorder",
 ]
 
 [project.scripts]
