@@ -1,0 +1,55 @@
+# wm_dreamerv3.yaml — Training config for DreamerV3 world model on SO-101
+# Plan reference: §13.1 (Bundle A deliverable A1)
+# Backend: sheeprl (primary) or nm-wu/dreamer-v3-pytorch (fallback)
+# Hardware target: RTX 3080 10 GB
+# Last-updated: 2026-05-07
+
+target_arch: dreamerv3
+
+# --- Dataset ---
+dataset:
+  # DreamerV3 ingests HDF5 produced by lerobot_world_model_bridge skill
+  # Skill path: /home/koen/tools/claude_code/skills/lerobot_world_model_bridge/
+  format: hdf5
+  image_size: [64, 64]     # 64x64 keeps VRAM budget; bump to 96x96 if VRAM allows
+  repo_id: null
+
+# --- Training ---
+training:
+  batch_size: 16           # sequences (not frames)
+  batch_length: 64         # timesteps per sequence
+  lr: 0.0001               # 1e-4 in decimal
+  steps: 200000
+  use_amp: true
+  grad_clip_norm: 100.0    # DreamerV3 paper uses large clip norm
+  eval_interval: 10000
+  save_interval: 20000
+
+# --- World model ---
+world_model:
+  world_model_lr: 0.0001   # 1e-4 in decimal (same as global lr here)
+  actor_lr: 0.000003       # 3e-6 in decimal
+  critic_lr: 0.000003      # 3e-6 in decimal
+  deter_size: 512          # GRU recurrent state size
+  stoch_size: 32           # categorical stochastic state classes
+  stoch_classes: 32        # discrete categories per stoch variable
+  embed_dim: 1024
+  units: 512               # MLP units for dense networks
+
+# --- Metric emission (autoresearch compatibility) ---
+# autoresearch-ml-executor-worker expects: recon_loss=<value>
+metric_key: recon_loss
+
+# --- Hardware ---
+hardware:
+  device: cuda
+
+# --- Logging ---
+logging:
+  wandb: false
+  log_interval: 200
+
+# --- Output ---
+output:
+  checkpoint_dir: outputs/dreamerv3
+  keep_last_n: 2

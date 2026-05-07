@@ -1,0 +1,51 @@
+# policy_diffusion.yaml — Training config for Diffusion Policy on SO-101
+# Plan reference: §13.1 (Bundle A deliverable A1)
+# Hardware target: RTX 3080 10 GB
+# Last-updated: 2026-05-07
+
+target_arch: diffusion
+
+# --- Dataset ---
+dataset:
+  num_episodes_target: 100
+  repo_id: null  # set at runtime or via env LEROBOT_DATASET_REPO_ID
+
+# --- Training ---
+training:
+  batch_size: 8
+  lr: 0.0001           # 1e-4 in decimal
+  steps: 75000
+  use_amp: true
+  num_workers: 2
+  grad_clip_norm: 1.0  # diffusion policies benefit from tighter clipping
+  weight_decay: 0.0
+  warmup_steps: 500
+  eval_interval: 5000
+  save_interval: 10000
+
+# --- Model ---
+model:
+  # DDPM parameters
+  num_diffusion_iters: 100      # training noise steps
+  num_inference_steps: 10       # DDIM at eval (fast)
+  prediction_type: epsilon
+  horizon: 16                   # action prediction horizon
+  n_obs_steps: 2                # observation context window
+  image_size: [96, 96]
+  down_dims: [256, 512, 1024]
+  kernel_size: 5
+  n_groups: 8
+
+# --- Hardware ---
+hardware:
+  device: cuda
+
+# --- Logging ---
+logging:
+  wandb: false
+  log_interval: 100
+
+# --- Output ---
+output:
+  checkpoint_dir: outputs/diffusion
+  keep_last_n: 3

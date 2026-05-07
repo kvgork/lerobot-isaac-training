@@ -1,0 +1,48 @@
+# policy_smolvla.yaml — Training config for SmolVLA policy on SO-101
+# Plan reference: §13.1 (Bundle A deliverable A1)
+# Hardware target: RTX 3080 10 GB
+# Last-updated: 2026-05-07
+
+target_arch: smolvla
+
+# --- Dataset ---
+dataset:
+  num_episodes_target: 50
+  # Path resolved at runtime via workspace_paths.DATASETS_DIR
+  repo_id: null  # set at runtime or via env LEROBOT_DATASET_REPO_ID
+
+# --- Training ---
+training:
+  batch_size: 8
+  lr: 0.0001         # 1e-4 in decimal (PyYAML 1.1 does not parse 1e-4 as float)
+  steps: 50000
+  use_amp: true
+  num_workers: 2
+  eval_interval: 5000
+  grad_clip_norm: 10.0
+  weight_decay: 0.05
+  warmup_steps: 1000
+  save_interval: 10000
+
+# --- Model ---
+model:
+  # SmolVLA is a vision-language-action model; keep resolution small for 10 GB VRAM
+  image_size: [224, 224]
+  action_chunk_size: 8
+  hidden_dim: 512
+
+# --- Hardware ---
+hardware:
+  device: cuda
+  grad_accumulation: 1
+  # AMP enabled above keeps VRAM usage within RTX 3080 10 GB budget
+
+# --- Logging ---
+logging:
+  wandb: false   # set true when W&B configured; stdout fallback always active
+  log_interval: 100
+
+# --- Output ---
+output:
+  checkpoint_dir: outputs/smolvla
+  keep_last_n: 3

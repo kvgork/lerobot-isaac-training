@@ -1,0 +1,74 @@
+name: Lint
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  ruff:
+    name: ruff
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Ruff check (all packages)
+        run: |
+          ruff check packages/*/src/ packages/*/tests/ --output-format=github
+
+      - name: Ruff format check (all packages)
+        run: |
+          ruff format --check packages/*/src/ packages/*/tests/
+
+  check-toml:
+    name: check-toml
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install tomllib / tomli validator
+        run: pip install tomli
+
+      - name: Validate all TOML files
+        run: |
+          python3 - <<'EOF'
+          import sys
+          import glob
+          try:
+              import tomllib
+          except ImportError:
+              import tomli as tomllib
+
+          toml_files = glob.glob("**/*.toml", recursive=True)
+          failed = []
+          for f in toml_files:
+              try:
+                  with open(f, "rb") as fh:
+                      tomllib.load(fh)
+                  print(f"  OK  {f}")
+              except Exception as exc:
+                  print(f"  FAIL {f}: {exc}")
+                  failed.append(f)
+
+          if failed:
+              print(f"\nFailed: {failed}")
+              sys.exit(1)
+          print(f"\nAll {len(toml_files)} TOML file(s) valid.")
+          EOF

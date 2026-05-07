@@ -223,3 +223,128 @@ Isaac Lab requires a separate manual step (GPU + disk space).
 - `USAGE.md` — runbook index with exact commands
 - `docs/runbook/` — step-by-step runbooks per task
 - `docs/research/` — Isaac Lab, DreamerV3, LeWorldModel, MimicGen reference notes
+
+---
+
+## Documentation Map
+
+All documentation files in this workspace with one-line descriptions:
+
+| File | Description |
+|------|-------------|
+| `README.md` | Project overview, quickstart, package map, build status |
+| `ARCHITECTURE.md` | Full system architecture: diagrams, state machine, coupling rules, glossary |
+| `USAGE.md` | Comprehensive runbook: all 10 workflows, CLI reference, common errors |
+| `CLAUDE.md` (this file) | Session orientation: agents, skills, pitfalls, vault links |
+| `docs/api-reference.md` | Public Python API for all 6 packages: signatures + examples |
+| `docs/runbook/01-bootstrap.md` | First-time setup: pixi, Isaac Lab, USD, smoke tests |
+| `docs/runbook/02-collect-data.md` | Collect and quality-filter SO-101 teleop data |
+| `docs/runbook/03-train-policy.md` | Train SmolVLA / ACT / Diffusion policy end-to-end |
+| `docs/runbook/04-train-world-model.md` | Train DreamerV3 or LeWorldModel |
+| `docs/runbook/05-augment-with-dr.md` | Generate DR synthetic data via Isaac Lab replay |
+| `docs/runbook/06-augment-with-mimicgen.md` | MimicGen augmentation (deferred path) |
+| `docs/research/isaac-lab-reference.md` | Isaac Lab API, USD setup, RTX 3080 constraints |
+| `docs/research/dreamerv3-reference.md` | DreamerV3 theory, sheeprl, HDF5 schema, config knobs |
+| `docs/research/leworldmodel-reference.md` | LeWorldModel architecture, HDF5 schema warning, config |
+| `docs/research/mimicgen-reference.md` | MimicGen pipeline, deferred status, when to enable |
+| `docs/internals/data-pipeline.md` | Full data lifecycle: schema, conversions, tagging, merge |
+| `docs/internals/training-dispatch.md` | How train.py dispatches, subprocess args, OOM retry |
+| `docs/internals/autoresearch-integration.md` | program.md schema, operators, metric history, plateau |
+| `docs/internals/isaac-lab-integration.md` | MDP terms, DR config, USD wiring, physics params |
+| `docs/internals/world-model-bridge.md` | DreamerV3 vs LeWM HDF5 schemas, bridge patterns |
+| `docs/internals/synthetic-data.md` | DR replay loop, parquet writer, merge logic, dedup |
+| `docs/concepts/modular-training-adapter.md` | Why one entrypoint, how to add a new arch |
+| `docs/concepts/soft-import-discipline.md` | Why heavy deps are lazy, pattern, testing strategy |
+| `docs/concepts/multi-package-monorepo.md` | Rationale, coupling rules, spinout strategy |
+| `docs/concepts/pixi-workspace.md` | Why pixi, features vs environments, dormant config |
+
+---
+
+## How to Navigate ("I want to X, read Y")
+
+| I want to... | Read this |
+|-------------|----------|
+| Get started for the first time | `docs/runbook/01-bootstrap.md` |
+| Collect real SO-101 data | `docs/runbook/02-collect-data.md` |
+| Train a policy | `docs/runbook/03-train-policy.md` + `docs/research/` for the chosen arch |
+| Train a world model | `docs/runbook/04-train-world-model.md` + `docs/research/dreamerv3-reference.md` |
+| Generate synthetic data | `docs/runbook/05-augment-with-dr.md` |
+| Run autoresearch HP search | `USAGE.md §Workflow F` + `docs/internals/autoresearch-integration.md` |
+| Understand how the system fits together | `ARCHITECTURE.md` |
+| Understand the data format | `docs/internals/data-pipeline.md` |
+| Understand how training dispatch works | `docs/internals/training-dispatch.md` |
+| Add a new training backend | `docs/concepts/modular-training-adapter.md` |
+| Spin out a package to its own repo | `ARCHITECTURE.md §Spinout Mechanics` + `docs/concepts/multi-package-monorepo.md` |
+| Look up a function signature | `docs/api-reference.md` |
+| Understand a term in the codebase | `ARCHITECTURE.md §Glossary` |
+
+---
+
+## Production Hygiene (added 2026-05-07)
+
+### CI / GitHub Actions
+
+Workflows live in `.github/workflows/`:
+
+| File | Purpose |
+|------|---------|
+| `ci.yml` | Per-package matrix (6 pkg × 2 Python versions) + workspace integration job |
+| `lint.yml` | PR-only ruff check + ruff format check + TOML validation |
+
+**Matrix shape:** 12 parallel per-package jobs (6 packages × Python 3.10 + 3.11) run on
+every push/PR to `main`. A 13th workspace-level job runs after all 12 pass, installing
+via `pixi install` and running `pytest packages/*/tests/ -m 'not integration'`.
+
+**Triggers:** push to `main`, PRs to `main`.
+
+Heavy-dep tests (`requires_isaaclab`, `requires_lerobot`, `requires_dreamerv3`) are
+skipped in CI by marker exclusion. They require a GPU runner and manual invocation.
+
+### Pre-commit Hooks
+
+`.pre-commit-config.yaml` is at the workspace root. Install once with:
+
+```bash
+pre-commit install                          # runs on every git commit
+pre-commit install --hook-type pre-push     # additionally runs on git push
+```
+
+Hooks run in order:
+1. `pre-commit-hooks` — whitespace, EOF, YAML, TOML, large-file, line-ending checks
+2. `ruff` — lint with auto-fix
+3. `ruff-format` — formatting
+4. `pytest-check` (pre-push stage) — runs tests for any test files newer than last commit
+
+Do NOT run `pre-commit install` in CI (hooks run natively via `lint.yml`).
+
+### Spinout Smoke Test
+
+```bash
+# Default target: lerobot-isaac-configs (smallest package)
+bash scripts/spinout_smoke_test.sh
+
+# Other packages
+bash scripts/spinout_smoke_test.sh lerobot-isaac-meta
+bash scripts/spinout_smoke_test.sh lerobot-isaac-adapters
+```
+
+The script uses `git subtree split` to extract the package to a temp dir, checks that
+`pyproject.toml`, `pixi.toml`, `README.md`, and `src/<pkg>` all exist, then runs
+`pytest tests/ -q`. Do NOT run during an uncommitted-changes session — subtree split
+requires a clean tree.
+
+### ADR Index
+
+Architecture Decision Records live in `docs/adr/`. See `docs/adr/README.md` for the
+full index. Current ADRs:
+
+| ADR | One-line summary |
+|-----|-----------------|
+| 0001 | Isaac Lab chosen over MuJoCo for GPU parallelism + native DR + USD |
+| 0002 | Pixi workspace with dormant per-package pixi.toml for spinout readiness |
+| 0003 | Heavy deps lazy-imported inside functions; packages importable with no GPU deps |
+| 0004 | 6-package monorepo with one-way coupling and independent spinout path |
+| 0005 | Single train.py --target_arch + MetricExtractor gives autoresearch a stable interface |
+
+When making a significant architectural decision, add an ADR following the template in
+`docs/adr/README.md`.

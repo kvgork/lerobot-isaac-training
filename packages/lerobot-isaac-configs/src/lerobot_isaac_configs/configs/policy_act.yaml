@@ -1,0 +1,50 @@
+# policy_act.yaml — Training config for ACT (Action Chunking Transformer) on SO-101
+# Plan reference: §13.1 (Bundle A deliverable A1)
+# Hardware target: RTX 3080 10 GB
+# Last-updated: 2026-05-07
+
+target_arch: act
+
+# --- Dataset ---
+dataset:
+  num_episodes_target: 100
+  repo_id: null  # set at runtime or via env LEROBOT_DATASET_REPO_ID
+
+# --- Training ---
+training:
+  batch_size: 4            # ACT is memory-hungry; keep low for 10 GB VRAM
+  lr: 0.00001              # 1e-5 in decimal
+  steps: 100000
+  use_amp: true
+  grad_accumulation: 2     # effective batch = 4 * 2 = 8
+  eval_interval: 5000
+  grad_clip_norm: 10.0
+  weight_decay: 0.05
+  warmup_steps: 2000
+  save_interval: 10000
+
+# --- Model ---
+model:
+  chunk_size: 100          # temporal action chunk length (ACT paper default)
+  num_queries: 100         # matches chunk_size
+  hidden_dim: 512
+  dim_feedforward: 3200
+  nheads: 8
+  num_encoder_layers: 4
+  num_decoder_layers: 7
+  kl_weight: 10.0          # KL divergence weight from ACT paper
+
+# --- Hardware ---
+hardware:
+  device: cuda
+  # grad_accumulation declared above under training
+
+# --- Logging ---
+logging:
+  wandb: false
+  log_interval: 100
+
+# --- Output ---
+output:
+  checkpoint_dir: outputs/act
+  keep_last_n: 3

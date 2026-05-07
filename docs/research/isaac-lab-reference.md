@@ -1,126 +1,237 @@
 # Isaac Lab Reference
 
-> **Phase 0 placeholder.** Replace with full notes when Phase 1 implementation begins.
-> This document captures the key API surface needed for `lerobot-isaac-env`.
-
 **Official docs:** https://isaac-sim.github.io/IsaacLab/
 **GitHub:** https://github.com/isaac-sim/IsaacLab
+**Paper:** https://arxiv.org/abs/2301.10896 (Isaac Gym predecessor; IsaacLab builds on this)
+**Tutorial used in this workspace:** https://isaac-sim.github.io/IsaacLab/source/tutorials/03_envs/create_rl_env.html
+
+**Related workspace docs:** [ARCHITECTURE.md](../../ARCHITECTURE.md) | [isaac-lab-integration.md](../internals/isaac-lab-integration.md)
 
 ---
 
-## Core API Surface
+## What is Isaac Lab
 
-### ManagerBasedRLEnvCfg
+Isaac Lab is NVIDIA's open-source robot learning framework built on top of Isaac Sim
+(Omniverse). It provides:
+- GPU-accelerated physics (PhysX) with thousands of parallel environments
+- A Manager-Based RL environment API
+- USD-based robot asset loading
+- Built-in domain randomization via an event manager system
+- Gymnasium-compatible interface
 
-The central config class for Manager-Based RL environments. Subclass this in `so101_env_cfg.py`.
+Isaac Lab is the sim layer in this workspace. It replaces MuJoCo for SO-101 simulation.
+
+---
+
+## Key API Classes
+
+### `ManagerBasedRLEnvCfg`
+
+The base config class for all Isaac Lab RL environments.
 
 ```python
 from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.utils import configclass
 
 @configclass
 class SO101EnvCfg(ManagerBasedRLEnvCfg):
-    # Observation manager config
     observations: ObservationsCfg = ObservationsCfg()
-    # Action manager config
     actions: ActionsCfg = ActionsCfg()
-    # Reward manager config
     rewards: RewardsCfg = RewardsCfg()
-    # Termination manager config
     terminations: TerminationsCfg = TerminationsCfg()
-    # Event manager config (domain randomization)
     events: EventCfg = EventCfg()
+    # Physics settings (inherited):
+    # sim.dt = 1/120  (120 Hz physics)
+    # decimation = 4   (30 Hz control)
 ```
 
-### EventTermCfg (Domain Randomization)
+Reference: https://isaac-sim.github.io/IsaacLab/source/api/lab/isaaclab.envs.html
 
-Used to configure domain randomization events in Isaac Lab's event manager.
+### `ArticulationCfg`
+
+Defines a robot from a USD asset file.
+
+```python
+from isaaclab.assets import ArticulationCfg
+from isaaclab.actuators import ImplicitActuatorCfg
+import isaaclab.sim.utils as sim_utils
+
+SO101_CFG = ArticulationCfg(
+    prim_path="{ENV_REGEX_NS}/Robot",
+    spawn=sim_utils.UsdFileCfg(
+        usd_path="<absolute_path>/so101.usd",
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=False),
+        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+            enabled_self_collisions=False
+        ),
+    ),
+    actuators={
+        "arm_joints": ImplicitActuatorCfg(
+            joint_names_expr=["joint[1-5]"],
+            stiffness=800.0,
+            damping=40.0,
+            effort_limit=400.0,
+            velocity_limit=100.0,
+        ),
+        "gripper": ImplicitActuatorCfg(
+            joint_names_expr=["gripper_joint"],
+            stiffness=400.0,
+            damping=20.0,
+        ),
+    },
+)
+```
+
+Reference: https://isaac-sim.github.io/IsaacLab/source/tutorials/01_assets/run_articulation.html
+
+### `EventTermCfg` (Domain Randomization)
+
+Configures a domain randomization event.
 
 ```python
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
+import isaaclab.envs.mdp as mdp
 
 @configclass
 class EventCfg:
     randomize_object_pose = EventTermCfg(
         func=mdp.reset_root_state_uniform,
-        mode="reset",
-        params={...}
+        mode="reset",   # or "interval" or "startup"
+        params={
+            "asset_cfg": SceneEntityCfg("object"),
+            "position_range": ((-0.1, 0.1), (-0.1, 0.1), (0.0, 0.0)),
+            "velocity_range": ((0.0, 0.0), (0.0, 0.0), (0.0, 0.0)),
+        }
     )
 ```
 
-Event modes: `"reset"` (at episode start), `"interval"` (periodically), `"startup"` (once).
+Event modes:
+- `"reset"` — applied at each episode reset
+- `"interval"` — applied at random intervals during episode
+- `"startup"` — applied once at env creation
 
-### ArticulationCfg (USD articulation)
+Reference: https://isaac-sim.github.io/IsaacLab/source/api/lab/isaaclab.managers.html#isaaclab.managers.EventManager
 
-Defines a robot as an Isaac Lab articulation from a USD file.
+### Observation and Action Terms
 
 ```python
-from isaaclab.assets import ArticulationCfg
-from isaaclab.actuators import ImplicitActuatorCfg
+# Observation term (returns tensor per env):
+from isaaclab.managers import ObservationTermCfg
+import isaaclab.envs.mdp as mdp
 
-SO101_CFG = ArticulationCfg(
-    prim_path="{ENV_REGEX_NS}/Robot",
-    spawn=sim_utils.UsdFileCfg(usd_path="<path_to_so101.usd>"),
-    actuators={
-        "joint_pos": ImplicitActuatorCfg(
-            joint_names_expr=["joint_.*"],
-            effort_limit=400.0,
-            velocity_limit=100.0,
-            stiffness=800.0,
-            damping=40.0,
-        )
-    },
-)
+@configclass
+class ObservationsCfg:
+    @configclass
+    class PolicyCfg(ObservationGroupCfg):
+        joint_pos = ObservationTermCfg(func=mdp.joint_pos_rel)
+        joint_vel = ObservationTermCfg(func=mdp.joint_vel_rel)
+
+# Action term:
+from isaaclab.managers import ActionTermCfg
+
+@configclass
+class ActionsCfg:
+    joint_pos = mdp.JointPositionActionCfg(
+        asset_name="robot",
+        joint_names=["joint[1-5]", "gripper_joint"],
+        scale=1.0,
+        use_default_offset=True,
+    )
 ```
 
-### Headless Mode
+---
 
-Always run without display in training. Isaac Lab supports headless via:
-```python
-sim_cfg = SimulationCfg(headless=True)
-# Or via CLI: --headless
-```
+## USD Asset Management
 
-When using `pixi shell`, set: `DISPLAY=""` and ensure no GUI is attempted.
+### SO-101 URDF Source
 
-### USD Articulation for SO-101
+URDF: https://github.com/TheRobotStudio/SO-ARM100/tree/main/URDF
 
-The SO-101 URDF is available at: https://github.com/TheRobotStudio/SO-ARM100/tree/main/URDF
-
-Convert to USD using Isaac Lab's built-in URDF importer:
+The binary USD file is NOT vendored in git (it is ~50 MB). Generate it:
 ```bash
+# Download URDF:
+git clone https://github.com/TheRobotStudio/SO-ARM100 /tmp/SO-ARM100
+
+# Convert to USD using Isaac Lab's converter:
 python -m isaaclab.utils.urdf_converter \
-  --input SO-ARM100.urdf \
+  --input /tmp/SO-ARM100/URDF/SO-ARM100.urdf \
   --output packages/lerobot-isaac-env/assets/usd/so101.usd \
-  --merge-fixed-joints
+  --merge-fixed-joints \
+  --make-instanceable
+
+# Verify:
+python -c "
+import omni.isaac.core.utils.prims as prim_utils
+prim_utils.define_prim('/World/Robot', 'Xform')
+print('USD valid')
+"
 ```
 
-See `packages/lerobot-isaac-env/assets/usd/download_so101_urdf.sh` for the full script.
+The full script is at `packages/lerobot-isaac-env/assets/usd/download_so101_urdf.sh`.
+
+### USD in Version Control
+
+USD files are in `.gitignore`. The gitignore entry:
+```
+packages/lerobot-isaac-env/assets/usd/*.usd
+```
+
+Rationale: USD files are binary blobs that bloat git history and change whenever
+the URDF source changes. They are reproducibly generated from the URDF source.
+
+---
+
+## Headless Mode
+
+Required for training. Isaac Lab supports headless via:
+
+```python
+# In SO101EnvCfg:
+sim = SimulationCfg(headless=True)
+
+# Or via CLI flag when calling isaaclab apps:
+app = AppLauncher(headless=True)
+simulation_app = app.app
+```
+
+When running via `lerobot-isaac-train`, headless is set to `True` by default.
+Override with `--headless false` only when you need visual debugging.
+
+Environment variable fallback: `DISPLAY=""` disables any accidental X11 connection attempts.
+
+---
+
+## Version Pinning
+
+Pin in `pixi.toml`. Isaac Lab has pre-1.0 API churn — treat upgrades as a separate plan.
+
+```toml
+# pixi.toml (example — fill version after Phase 1 install):
+[feature.isaaclab.pypi-dependencies]
+# isaaclab = "==4.2.0"   # fill after Phase 1 install
+```
+
+Check current version: `python -c "import isaaclab; print(isaaclab.__version__)"`
 
 ---
 
 ## RTX 3080 (10 GB) Constraints
 
-- Isaac Lab recommends 16 GB VRAM; 10 GB is documented as minimum for headless rollouts.
-- Keep `num_envs` at 4–8 for training to avoid OOM.
-- Disable image rendering in baseline configs (use joint state obs only initially).
-- If OOM occurs, reduce `num_envs` to 1 and set `device="cuda:0"` with AMP enabled.
+Isaac Lab recommends 16 GB VRAM. With 10 GB:
+- Keep `num_envs <= 8` for physics-only (no cameras)
+- Keep `num_envs <= 4` with 64x64 camera observations
+- Keep `num_envs == 1` with full-resolution cameras
+- Always enable AMP: `cfg.sim.use_gpu_pipeline = True`
+- Disable overhead camera during DR replay (wrist camera only)
 
----
-
-## Key Isaac Lab Versions
-
-Pin in `pixi.toml` — treat version upgrades as a separate plan due to API churn.
-
-```toml
-[dependencies]
-# isaaclab = "=<version>"  # fill in after Phase 1 install
-```
+OOM recovery: the training adapter automatically halves `num_envs` on OOM and retries.
 
 ---
 
 ## Further Reading
 
-- Manager-Based RL Env guide: https://isaac-sim.github.io/IsaacLab/source/tutorials/03_envs/create_rl_env.html
+- Manager-Based Env tutorial: https://isaac-sim.github.io/IsaacLab/source/tutorials/03_envs/create_rl_env.html
 - Articulation tutorial: https://isaac-sim.github.io/IsaacLab/source/tutorials/01_assets/run_articulation.html
 - Domain Randomization (events): https://isaac-sim.github.io/IsaacLab/source/api/lab/isaaclab.managers.html#isaaclab.managers.EventManager
 - USD asset import: https://isaac-sim.github.io/IsaacLab/source/how-to/import_new_asset.html
+- IsaacLab gymnasium wrapper: https://isaac-sim.github.io/IsaacLab/source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv

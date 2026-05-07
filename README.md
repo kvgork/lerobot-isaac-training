@@ -10,6 +10,16 @@ This workspace is a modular monorepo for autonomous SO-101 robot manipulation tr
 
 ---
 
+## Table of Contents
+
+- [Quickstart](#quickstart)
+- [Package Map](#package-map)
+- [Build Status](#build-status)
+- [Documentation](#documentation)
+- [Key Docs](#key-docs)
+
+---
+
 ## Quickstart
 
 1. **Clone and enter workspace:**
@@ -99,16 +109,82 @@ This workspace is a modular monorepo for autonomous SO-101 robot manipulation tr
 
 | Phase | Description | Status |
 |-------|-------------|--------|
-| Phase 0 | Workspace bootstrap (skeleton, 6 packages, CLAUDE.md, configs, .gitignore) | ✅ Done |
-| Phase 1 | Isaac Lab SO-101 env stubs (`lerobot-isaac-env`) | ✅ Done (scaffolding) |
-| Phase 2 | Modular training adapter (`lerobot-isaac-adapters`) | ✅ Done (scaffolding) |
-| Phase 3 | Autoresearch loop wiring (`lerobot-isaac-autoresearch`) | ✅ Done (scaffolding) |
-| Phase 4 | Synthetic data generation (`lerobot-isaac-synthetic`) | ✅ Done (scaffolding) |
-| Phase 5 | Documentation polish (this file + ARCHITECTURE + USAGE + runbooks) | ✅ Done |
+| Phase 0 | Workspace bootstrap (skeleton, 6 packages, CLAUDE.md, configs, .gitignore) | Done |
+| Phase 1 | Isaac Lab SO-101 env stubs (`lerobot-isaac-env`) | Done (scaffolding) |
+| Phase 2 | Modular training adapter (`lerobot-isaac-adapters`) | Done (scaffolding) |
+| Phase 3 | Autoresearch loop wiring (`lerobot-isaac-autoresearch`) | Done (scaffolding) |
+| Phase 4 | Synthetic data generation (`lerobot-isaac-synthetic`) | Done (scaffolding) |
+| Phase 5 | Documentation polish (this file + ARCHITECTURE + USAGE + runbooks) | Done |
 | Phase 1 impl | Wire real Isaac Lab imports, full obs/action/reward impl | Future work |
 | Phase 2 impl | Wire real LeRobot/DreamerV3/LeWM backends in adapters | Future work |
 | Phase 3 impl | Run autoresearch end-to-end with metrics | Future work |
 | Phase 4 impl | Implement DR replay + enable MimicGen path | Future work |
+
+---
+
+## Documentation
+
+Full documentation is organized into four areas:
+
+### Top-Level References
+
+| Doc | Description |
+|-----|-------------|
+| `CLAUDE.md` | Session orientation: agents, skills, vault links, navigation guide |
+| `ARCHITECTURE.md` | System diagrams, state machine, coupling rules, spinout mechanics, glossary |
+| `USAGE.md` | All 10 workflows with exact commands; CLI reference; common errors |
+
+### Runbooks (`docs/runbook/`)
+
+Step-by-step task guides:
+
+| Runbook | Task |
+|---------|------|
+| `01-bootstrap.md` | First-time setup: pixi, Isaac Lab, USD, smoke tests |
+| `02-collect-data.md` | Collect and quality-filter SO-101 teleop data |
+| `03-train-policy.md` | Train SmolVLA / ACT / Diffusion policy end-to-end |
+| `04-train-world-model.md` | Train DreamerV3 or LeWorldModel |
+| `05-augment-with-dr.md` | Generate DR synthetic data via Isaac Lab replay |
+| `06-augment-with-mimicgen.md` | MimicGen augmentation (deferred path) |
+
+### Deep-Dives (`docs/internals/`)
+
+Internal implementation details:
+
+| Doc | Description |
+|-----|-------------|
+| `data-pipeline.md` | Full data lifecycle: LeRobotDataset schema, conversions, merge logic |
+| `training-dispatch.md` | How `train.py` dispatches, subprocess args, OOM retry, metric contract |
+| `autoresearch-integration.md` | program.md schema, mutation operators, metric history, plateau detection |
+| `isaac-lab-integration.md` | MDP terms, EventTermCfg DR, USD wiring, physics config, RTX 3080 limits |
+| `world-model-bridge.md` | DreamerV3 vs LeWM HDF5 schemas, bridge patterns, schema warnings |
+| `synthetic-data.md` | DR replay loop, parquet writer, merge dedup, MimicGen deferred path |
+
+### Concepts (`docs/concepts/`)
+
+Design rationale and patterns:
+
+| Doc | Description |
+|-----|-------------|
+| `modular-training-adapter.md` | Why one entrypoint; how to add a new training backend |
+| `soft-import-discipline.md` | Why heavy deps are lazy; pattern; testing without heavy deps |
+| `multi-package-monorepo.md` | Rationale for 6 packages; coupling rules; spinout strategy |
+| `pixi-workspace.md` | Why pixi; features vs environments; dormant per-package config |
+
+### External References (`docs/research/`)
+
+Library-specific reference notes:
+
+| Doc | Description |
+|-----|-------------|
+| `isaac-lab-reference.md` | Key API classes, USD setup, headless mode, version pinning |
+| `dreamerv3-reference.md` | RSSM theory, sheeprl vs dreamer-v3-pytorch, HDF5 schema, config |
+| `leworldmodel-reference.md` | JEPA architecture, HDF5 schema warning, RTX 3080 config |
+| `mimicgen-reference.md` | Pipeline, deferred status, integration gap, when to enable |
+
+### API Reference
+
+`docs/api-reference.md` — Public Python API for all 6 packages with signatures and examples.
 
 ---
 

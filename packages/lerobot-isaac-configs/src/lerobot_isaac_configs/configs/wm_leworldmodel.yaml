@@ -1,0 +1,56 @@
+# wm_leworldmodel.yaml — Training config for HF LeWorldModel on SO-101
+# Plan reference: §13.1 (Bundle A deliverable A1)
+# Skill: /home/koen/tools/claude_code/skills/lerobot_world_model_bridge/ (HDF5 format)
+# Hardware target: RTX 3080 10 GB
+# Last-updated: 2026-05-07
+
+target_arch: le_world_model
+
+# --- Dataset ---
+# LeWorldModel expects HDF5 produced by lerobot_world_model_bridge skill.
+# WARN: HF LeWorldModel HDF5 schema is partially undocumented (vault note: LeWorldModel.md).
+# Use skills/lerobot_world_model_bridge to produce compatible HDF5.
+dataset:
+  format: hdf5
+  image_size: [96, 96]     # LeWorldModel default; reduce to [64, 64] if OOM on 10 GB
+  repo_id: null
+
+# --- Training ---
+training:
+  batch_size: 8
+  lr: 0.00005              # 5e-5 in decimal
+  steps: 100000
+  use_amp: true
+  num_workers: 2
+  grad_clip_norm: 1.0
+  weight_decay: 0.01
+  warmup_steps: 1000
+  eval_interval: 5000
+  save_interval: 10000
+
+# --- Model ---
+model:
+  prediction_horizon: 16   # how many future steps the model predicts
+  context_frames: 4        # number of past frames as conditioning
+  hidden_dim: 256
+  num_layers: 6
+  num_heads: 8
+
+# --- Metric emission (autoresearch compatibility) ---
+# autoresearch-ml-executor-worker expects: pred_loss=<value>
+metric_key: pred_loss
+
+# --- Hardware ---
+hardware:
+  device: cuda
+  # gradient_checkpointing: true  # uncomment if 96x96 OOMs on RTX 3080 10 GB
+
+# --- Logging ---
+logging:
+  wandb: false
+  log_interval: 100
+
+# --- Output ---
+output:
+  checkpoint_dir: outputs/leworldmodel
+  keep_last_n: 3

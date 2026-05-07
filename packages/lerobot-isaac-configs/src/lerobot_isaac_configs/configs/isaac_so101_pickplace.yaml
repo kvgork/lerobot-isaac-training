@@ -1,0 +1,57 @@
+# isaac_so101_pickplace.yaml — Isaac Lab SO-101 pick-and-place environment config
+# Plan reference: §13.1 (Bundle A deliverable A1)
+# Hardware target: RTX 3080 10 GB (num_envs=4 is safe; increase to 8 if VRAM allows)
+# Last-updated: 2026-05-07
+
+task: pick_and_place
+
+# --- Environment ---
+env:
+  num_envs: 4              # parallel Isaac Lab envs; keep low for 10 GB VRAM
+  episode_length_s: 10.0   # seconds per episode
+  decimation: 2            # policy runs at sim_freq/decimation Hz
+
+# --- Simulation ---
+sim:
+  dt: 0.00833              # ~120 Hz physics timestep (1/120 ≈ 0.00833)
+  gravity: [0.0, 0.0, -9.81]
+  render_interval: 4       # render every N physics steps (headless: ignored)
+
+# --- Domain Randomization ---
+dr_stage: 1                # 0=disabled, 1=mild, 2=full (see isaac_env DR docs)
+dr:
+  object_pose_noise_m: 0.01
+  lighting_variant: false  # disable for faster training; enable in stage 2
+  table_friction_range: [0.4, 0.8]
+  camera_fov_jitter_deg: 2.0
+
+# --- Observations ---
+observations:
+  # RGB images: keep resolution small for 10 GB VRAM
+  image_size: [64, 64]
+  cameras: [wrist, overhead]
+  include_state: true      # joint positions/velocities
+
+# --- Actions ---
+actions:
+  type: joint_position
+  dof: 6                   # SO-101 has 6 DOF
+  scale: 1.0
+
+# --- Rewards ---
+rewards:
+  success_bonus: 1.0
+  reach_progress_weight: 0.1
+  grasp_bonus: 0.5
+  place_progress_weight: 0.2
+
+# --- Terminations ---
+terminations:
+  success_hold_s: 0.5      # hold success for 0.5s to confirm
+  timeout: true            # terminate at episode_length_s
+
+# --- Data Recording ---
+# Used by isaac_data_recorder.py to log rollouts to LeRobot Parquet format
+recording:
+  enabled: false           # set true during data collection runs
+  output_dir: datasets/isaac_dr
