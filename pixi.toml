@@ -77,3 +77,5 @@ download-usd = "bash packages/lerobot-isaac-env/assets/usd/download_so101_urdf.s
 record-dry-run = "lerobot-isaac-record --repo-id=local/test --num-episodes=1 --dry-run"
 dashboard = "streamlit run packages/lerobot-isaac-dashboard/src/lerobot_isaac_dashboard/app.py"
 report = "python -m lerobot_isaac_dashboard.report --workspace ."
+snapshot = "python -m lerobot_isaac_dashboard.snapshots --workspace ."
+compare = "python -m lerobot_isaac_dashboard.compare --workspace ."
