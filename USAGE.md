@@ -464,6 +464,71 @@ Each episode retains its `source` tag for per-source weighting in training confi
 
 ---
 
+### Workflow K: View Metrics Dashboard
+
+**Prerequisites:** `pixi install -e dashboard`; `LEROBOT_ISAAC_WORKSPACE` set
+**See also:** `docs/runbook/07-dashboard.md` for the full runbook with tab guide and troubleshooting.
+
+#### Live UI
+
+```bash
+pixi run -e dashboard dashboard
+# Opens http://localhost:8501
+```
+
+The sidebar offers session selector, refresh interval, watch-files toggle, mode radio
+(Live / Compare 2-way / Compare N-way), save-snapshot button, and export-report button.
+All 8 tabs show "No data yet" when `outputs/` is empty — this is normal on a fresh workspace.
+
+#### Static HTML report
+
+```bash
+# Inline plotly.js (~5 MB self-contained, works offline)
+pixi run -e dashboard report --workspace=$PWD
+
+# CDN plotly.js (~50 KB, requires internet for offline viewing)
+pixi run -e dashboard report --workspace=$PWD --cdn
+```
+
+Output: `outputs/reports/<run_id>/report.html`
+Side effect: auto-saves a snapshot to `outputs/snapshots/<run_id>/` (disable with `--no-snapshot`).
+
+#### Save a snapshot
+
+```bash
+pixi run -e dashboard snapshot --workspace=$PWD --label=baseline
+
+# List existing snapshots
+pixi run -e dashboard snapshot --workspace=$PWD list
+```
+
+Output: `outputs/snapshots/<timestamp>-<label>/meta.json` + `loaders/`
+
+#### Compare 2-way
+
+```bash
+# By snapshot label / ID
+pixi run -e dashboard compare --workspace=$PWD --snapshots baseline after-dr
+
+# With CDN plotly
+pixi run -e dashboard compare --workspace=$PWD --snapshots baseline after-dr --cdn
+```
+
+Output: `outputs/reports/compare-baseline-vs-after-dr/report.html`
+Layout: each tab split into two columns; delta KPI strip above (pc_success, train_loss).
+
+#### Compare N-way
+
+```bash
+pixi run -e dashboard compare --workspace=$PWD \
+  --snapshots baseline exp-lr1e3 exp-lr5e4 exp-dr5x \
+  --mode nway
+```
+
+Output: time-series traces from all snapshots overlaid; snapshot label as legend.
+
+---
+
 ## CLI Reference
 
 ### `lerobot-isaac-train` Flags
@@ -506,6 +571,15 @@ Entrypoint: `packages/lerobot-isaac-synthetic/src/lerobot_isaac_synthetic/isaac_
 | `--num_envs` | int | 4 | Parallel environments (keep ≤8 for RTX 3080) |
 | `--dry_run` | flag | False | Print what would run without executing |
 
+### Dashboard CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `lerobot-isaac-dashboard` | Start live Streamlit app (default port 8501) |
+| `lerobot-isaac-report --workspace=PATH [--cdn] [--no-snapshot] [--with-csv]` | Export static HTML report |
+| `lerobot-isaac-snapshot --workspace=PATH [--label=LABEL] [save\|list]` | Save or list snapshots |
+| `lerobot-isaac-compare --workspace=PATH --snapshots A B [C ...] [--mode 2way\|nway] [--cdn]` | Export compare report |
+
 ---
 
 ## Pixi Reference
@@ -537,6 +611,9 @@ pixi install -e train-lewm && pixi shell -e train-lewm
 
 # Isaac Lab simulation:
 pixi install -e sim && pixi shell -e sim
+
+# Metrics dashboard:
+pixi install -e dashboard && pixi shell -e dashboard
 
 # All targets:
 pixi install -e full && pixi shell -e full
@@ -587,3 +664,5 @@ For cleaner history, use `git filter-repo` — see `ARCHITECTURE.md §Spinout Me
 | `pixi install` fails | Network issues or missing CUDA | Try `pixi install --verbose`; check CUDA version with `nvidia-smi` |
 | Autoresearch loop hangs | Training script not emitting metric | Ensure `metric_extractor.emit("<name>", value)` is called |
 | `lerobot not found` | LeRobot not installed in environment | Use `pixi shell -e train-policy` |
+| Dashboard tabs all blank | plotly not installed or wrong env | `pixi install -e dashboard`; verify `pixi run -e dashboard python -c "import plotly"` |
+| Dashboard snapshot reload fails | Snapshot from newer dashboard version | Upgrade dashboard or re-save snapshot from current version |

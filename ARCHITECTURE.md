@@ -7,7 +7,7 @@
 
 ## System Overview
 
-This workspace is a six-package Python monorepo that connects the SO-101 robot arm (physical hardware) to three training backends (LeRobot imitation-learning policies, DreamerV3 world model, HF LeWorldModel) via a single unified training entrypoint. An Isaac Lab simulation environment provides domain-randomized synthetic episodes to augment the real teleoperation corpus. A standalone autoresearch loop (driven by the `autoresearch-loop-orchestrator` agent from the `claude_code` repo) performs automated hyperparameter search over any of the three backends. All agents and skills referenced here live in `/home/koen/tools/claude_code/` and are NOT duplicated in this workspace.
+This workspace is an eight-package Python monorepo that connects the SO-101 robot arm (physical hardware) to three training backends (LeRobot imitation-learning policies, DreamerV3 world model, HF LeWorldModel) via a single unified training entrypoint. An Isaac Lab simulation environment provides domain-randomized synthetic episodes to augment the real teleoperation corpus. A standalone autoresearch loop (driven by the `autoresearch-loop-orchestrator` agent from the `claude_code` repo) performs automated hyperparameter search over any of the three backends. The `lerobot-isaac-dashboard` package provides a read-only metrics surface over all pipeline artefacts (local files only). All agents and skills referenced here live in `/home/koen/tools/claude_code/` and are NOT duplicated in this workspace.
 
 ---
 
@@ -49,6 +49,25 @@ This workspace is a six-package Python monorepo that connects the SO-101 robot a
 |  +---------------------------------------------------------------+----+  |
 |  |  lerobot-isaac-configs  (leaf — no internal deps)                  |  |
 |  |    configs/policy_smolvla.yaml   wm_dreamerv3.yaml   ...          |  |
+|  +--------------------------------------------------------------------+  |
+|                                                                          |
+|  +--------------------------------------------------------------------+  |
+|  |  lerobot-isaac-dashboard  (read-only leaf — no code coupling)     |  |
+|  |    loaders/  — 9 loaders for local artefacts                      |  |
+|  |    tabs/     — 8 Streamlit tab modules (live + static dual-render) |  |
+|  |    snapshots.py  — save/load/list workspace snapshots             |  |
+|  |    compare.py    — 2-way and N-way snapshot comparison            |  |
+|  |    report.py     — static HTML exporter                           |  |
+|  |                                                                    |  |
+|  |  Reads from (arrows IN):                                          |  |
+|  |    datasets/           <-- load_parquet_dataset, load_synthetic   |  |
+|  |    outputs/            <-- load_eval_results, load_checkpoints,   |  |
+|  |                            load_training_logs, load_curriculum     |  |
+|  |    .agent-state/       <-- load_autoresearch, load_events         |  |
+|  |                                                                    |  |
+|  |  Writes to (arrows OUT — training artefacts never touched):       |  |
+|  |    outputs/snapshots/  -- snapshot save                           |  |
+|  |    outputs/reports/    -- static HTML export                      |  |
 |  +--------------------------------------------------------------------+  |
 |                                                                          |
 +--------------------------------------------------------------------------+
@@ -223,6 +242,35 @@ Agent/skill layer (claude_code repo — NOT duplicated here):
     leworldmodel.md    -> pred_loss   (minimize)
 ```
 
+### (f) Dashboard Pipeline: Artefacts to Metrics Surface
+
+```
+  datasets/  +  outputs/  +  .agent-state/
+       |               |               |
+       |               |               |
+       v               v               v
+  lerobot-isaac-dashboard  (read-only; no GPU deps)
+       |
+       | loaders/   — reads local files, returns LoaderResult (never raises)
+       | tabs/      — renders Plotly figures (dual-render: live + static)
+       |
+       +--[live]--> Streamlit UI  http://localhost:8501
+       |              pixi run -e dashboard dashboard
+       |
+       +--[static]-> outputs/reports/<run_id>/report.html
+       |              pixi run -e dashboard report
+       |
+       +--[snapshot]-> outputs/snapshots/<id>/
+       |                 pixi run -e dashboard snapshot --label=baseline
+       |
+       +--[compare]--> outputs/reports/compare-<A>-vs-<B>/report.html
+                         pixi run -e dashboard compare --snapshots A B
+                         pixi run -e dashboard compare --snapshots A B C --mode nway
+
+  IMPORTANT: dashboard is read-only w.r.t. training artefacts.
+  It only writes to outputs/snapshots/ and outputs/reports/.
+```
+
 ---
 
 ## State Machine
@@ -325,6 +373,7 @@ Full coupling rules (from plan §11.6):
 | `lerobot-isaac-autoresearch` | `lerobot-isaac-configs` | all other siblings | Calls adapters as subprocess, never imports |
 | `lerobot-isaac-synthetic` | `lerobot-isaac-env` (soft), `lerobot-isaac-configs` | `lerobot-isaac-adapters`, `autoresearch` | Isaac imports deferred to function bodies |
 | `lerobot-isaac-meta` | all siblings | none | Umbrella; explicitly depends on all |
+| `lerobot-isaac-dashboard` | `lerobot-isaac-meta` (soft) | all other siblings (code) | Read-only artefact consumer; accesses siblings only via file system |
 
 **All heavy-dependency imports are soft** (wrapped in `try/except ImportError`):
 - `isaaclab.*` — deferred; tests run without Isaac Sim
@@ -349,6 +398,8 @@ Full table of file/dir roles, locations, and ownership:
 | `packages/lerobot-isaac-configs/configs/` | YAML configs per target_arch | this workspace | this workspace |
 | `datasets/` | LeRobot Parquet datasets (gitignored) | this workspace | this workspace |
 | `outputs/` | Training checkpoints (gitignored) | this workspace | this workspace |
+| `outputs/snapshots/` | Dashboard snapshots (gitignored) | this workspace | lerobot-isaac-dashboard |
+| `outputs/reports/` | Static HTML reports (gitignored) | this workspace | lerobot-isaac-dashboard |
 | `.agent-state/` | Orchestrator run state (gitignored) | this workspace | agents at runtime |
 | `docs/` | Cross-package documentation | this workspace | this workspace |
 | `pixi.toml` | Workspace environment definition | this workspace root | this workspace |
@@ -370,6 +421,7 @@ The root `pixi.toml` defines environments as combinations of features. Each `pac
 | `train-dreamer` | `dev` + `lerobot` + `dreamerv3` | Train DreamerV3 world model | LeRobot + sheeprl |
 | `train-lewm` | `dev` + `lerobot` + `leworldmodel` | Train HF LeWorldModel | LeRobot + transformers |
 | `sim` | `dev` + `lerobot` + `isaaclab` | Isaac Lab simulation (post-install) | Isaac Sim + Isaac Lab |
+| `dashboard` | `dev` + `dashboard` | Live + static metrics dashboard | streamlit + plotly |
 | `full` | all features | All targets simultaneously | all of the above |
 
 Feature composition is additive — `full` is the union of all individual features.
@@ -460,3 +512,5 @@ From plan §7:
 | `lerobot-isaac-train` | The CLI entrypoint installed by `lerobot-isaac-adapters`; single command for all training targets (`--target_arch` selector). |
 | `SO-101` | The Smart Robotics SO-101 6-DOF robot arm (7 joints including gripper). Hardware target for this workspace. Two units available. |
 | `LeRobotDataset` | The canonical dataset format from the LeRobot library; stores episodes as Parquet files with metadata in `meta/info.json`, `meta/stats.json`, `meta/episodes.parquet`. |
+| `Dashboard` | The `lerobot-isaac-dashboard` package — a read-only metrics surface that reads local pipeline artefacts and presents them as a live Streamlit UI or static HTML report. Never writes to training artefacts. |
+| `Snapshot` | A point-in-time capture of the full dashboard loader state, stored under `outputs/snapshots/<id>/` as Parquet files + JSON. Replayable via `load_snapshot`; schema version is bumped on breaking format changes. |

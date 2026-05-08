@@ -17,6 +17,7 @@ ADR format: Context / Decision / Status / Consequences / Alternatives Considered
 | [0003](0003-soft-import-discipline.md) | Soft-Import Discipline | Accepted | Heavy deps (isaaclab, lerobot, dreamerv3, lewm) are lazy-imported inside functions so packages are importable with no GPU deps |
 | [0004](0004-multi-package-monorepo.md) | Multi-Package Monorepo | Accepted | 6 packages with strict one-way coupling enable parallel CI, independent spinout, and fine-grained dep control |
 | [0005](0005-modular-target-arch.md) | Modular Target Architecture | Accepted | Single train.py with --target_arch + MetricExtractor pattern gives autoresearch a stable interface and centralises OOM retry logic |
+| [0006](0006-dashboard-stack.md) | Dashboard Stack | Accepted | Streamlit + Plotly + jinja2 chosen for dashboard; dual-render Tab.render → live + static; local-files-only metric source; Parquet + JSON snapshot format |
 
 ---
 

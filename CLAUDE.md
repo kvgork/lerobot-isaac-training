@@ -31,7 +31,7 @@ To update installed agents after editing source: `cd /home/koen/tools/claude_cod
 
 ---
 
-## Package Map (7 packages under `packages/`)
+## Package Map (8 packages under `packages/`)
 
 | Package | Dir | Phase | Status |
 |---------|-----|-------|--------|
@@ -42,6 +42,7 @@ To update installed agents after editing source: `cd /home/koen/tools/claude_cod
 | `lerobot-isaac-synthetic` | `packages/lerobot-isaac-synthetic/` | 4 | Un-stubbed (DR replay; MimicGen deferred) |
 | `lerobot-isaac-configs` | `packages/lerobot-isaac-configs/` | 0/A | 6 YAML configs populated |
 | `lerobot-isaac-recorder` | `packages/lerobot-isaac-recorder/` | §14 | D435 + SO-101 dual-write (Parquet + LeWM HDF5) |
+| `lerobot-isaac-dashboard` | `packages/lerobot-isaac-dashboard/` | §dashboard | Live + static metrics dashboard with snapshot save/load + 2-way and N-way compare |
 
 ---
 
@@ -102,6 +103,7 @@ after a package is spun out to a standalone repo via `git subtree split`.
 | `train-dreamer` | dev + lerobot + dreamerv3 | Train DreamerV3 world model |
 | `train-lewm` | dev + lerobot + leworldmodel | Train HF LeWorldModel |
 | `sim` | dev + lerobot + isaaclab | Isaac Lab simulation (post-install) |
+| `dashboard` | dev + dashboard | Live + static metrics dashboard |
 | `full` | all features | All targets simultaneously |
 
 ### Common commands
@@ -128,6 +130,9 @@ pixi run install-isaac-lab
 
 # Download SO-101 USD asset
 pixi run download-usd
+
+# Start metrics dashboard
+pixi run -e dashboard dashboard
 ```
 
 Note: `pixi install` does NOT run `pixi run install-isaac-lab`.
@@ -143,6 +148,7 @@ Isaac Lab requires a separate manual step (GPU + disk space).
 - [x] Phase 3 — Autoresearch ML-Loop Integration (`lerobot-isaac-autoresearch` scaffolded)
 - [x] Phase 4 — Synthetic Data Generation (`lerobot-isaac-synthetic` scaffolded)
 - [x] Phase 5 — Documentation finalization (README, ARCHITECTURE, USAGE, runbooks, research docs)
+- [x] Phase A — lerobot-isaac-dashboard package (live UI + static report + snapshot/compare)
 - [ ] Phase 1 impl — Wire real Isaac Lab imports and full MDP implementation
 - [ ] Phase 2 impl — Wire real LeRobot/DreamerV3/LeWM backends
 - [ ] Phase 3 impl — Run autoresearch end-to-end with real metrics
@@ -187,6 +193,7 @@ Isaac Lab requires a separate manual step (GPU + disk space).
 | Curriculum / stage progression | `lerobot-curriculum-agent` | `~/.claude/agents/orchestrators/lerobot-curriculum-agent.md` |
 | Autoresearch loop | `autoresearch-loop-orchestrator` | `~/.claude/agents/orchestrators/autoresearch-loop-orchestrator.md` |
 | Evaluation / policy advancement | `lerobot-evaluation-agent` | `~/.claude/agents/workers/lerobot-evaluation-agent.md` |
+| Metrics dashboard / pipeline visibility / snapshot compare | (no agent — see `docs/runbook/07-dashboard.md`) | — |
 | Python patterns, code quality | `python-best-practices` | `~/.claude/agents/python-best-practices.md` |
 | Debugging | `debugging-detective` | `~/.claude/agents/debugging-detective.md` |
 
@@ -244,6 +251,7 @@ All documentation files in this workspace with one-line descriptions:
 | `docs/runbook/04-train-world-model.md` | Train DreamerV3 or LeWorldModel |
 | `docs/runbook/05-augment-with-dr.md` | Generate DR synthetic data via Isaac Lab replay |
 | `docs/runbook/06-augment-with-mimicgen.md` | MimicGen augmentation (deferred path) |
+| `docs/runbook/07-dashboard.md` | Live + static metrics dashboard: start, tabs, snapshots, compare, troubleshoot |
 | `docs/research/isaac-lab-reference.md` | Isaac Lab API, USD setup, RTX 3080 constraints |
 | `docs/research/dreamerv3-reference.md` | DreamerV3 theory, sheeprl, HDF5 schema, config knobs |
 | `docs/research/leworldmodel-reference.md` | LeWorldModel architecture, HDF5 schema warning, config |
@@ -271,6 +279,7 @@ All documentation files in this workspace with one-line descriptions:
 | Train a world model | `docs/runbook/04-train-world-model.md` + `docs/research/dreamerv3-reference.md` |
 | Generate synthetic data | `docs/runbook/05-augment-with-dr.md` |
 | Run autoresearch HP search | `USAGE.md §Workflow F` + `docs/internals/autoresearch-integration.md` |
+| View metrics / compare runs | `docs/runbook/07-dashboard.md` |
 | Understand how the system fits together | `ARCHITECTURE.md` |
 | Understand the data format | `docs/internals/data-pipeline.md` |
 | Understand how training dispatch works | `docs/internals/training-dispatch.md` |
@@ -327,6 +336,7 @@ bash scripts/spinout_smoke_test.sh
 # Other packages
 bash scripts/spinout_smoke_test.sh lerobot-isaac-meta
 bash scripts/spinout_smoke_test.sh lerobot-isaac-adapters
+bash scripts/spinout_smoke_test.sh lerobot-isaac-dashboard
 ```
 
 The script uses `git subtree split` to extract the package to a temp dir, checks that
@@ -346,6 +356,7 @@ full index. Current ADRs:
 | 0003 | Heavy deps lazy-imported inside functions; packages importable with no GPU deps |
 | 0004 | 6-package monorepo with one-way coupling and independent spinout path |
 | 0005 | Single train.py --target_arch + MetricExtractor gives autoresearch a stable interface |
+| 0006 | Streamlit + Plotly + jinja2 for dashboard; dual-render Tab.render; local-files-only; Parquet + JSON snapshots |
 
 When making a significant architectural decision, add an ADR following the template in
 `docs/adr/README.md`.
