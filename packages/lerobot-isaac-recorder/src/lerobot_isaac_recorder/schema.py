@@ -51,15 +51,15 @@ class EpisodeSchema:
     # ndim_min is the minimum number of axes (1 = 1-D vector, 3 = image T×H×W×C, etc.)
     STEP_FIELDS: dict[str, tuple[str, int]] = field(
         default_factory=lambda: {
-            "pixels": ("uint8", 4),       # T, H, W, C
-            "action": ("float32", 2),     # T, A
-            "state": ("float32", 2),      # T, S
-            "proprio": ("float32", 2),    # T, P
-            "done": ("bool", 1),          # T
+            "pixels": ("uint8", 4),  # T, H, W, C
+            "action": ("float32", 2),  # T, A
+            "state": ("float32", 2),  # T, S
+            "proprio": ("float32", 2),  # T, P
+            "done": ("bool", 1),  # T
             "timestamp": ("float32", 1),  # T
             "episode_idx": ("int64", 1),  # T
-            "step_idx": ("int64", 1),     # T
-            "reward": ("float32", 1),     # T
+            "step_idx": ("int64", 1),  # T
+            "reward": ("float32", 1),  # T
         }
     )
 

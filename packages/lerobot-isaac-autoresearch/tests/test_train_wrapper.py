@@ -25,7 +25,7 @@ PACKAGE_SRC = Path(__file__).parent.parent / "src"
 if str(PACKAGE_SRC) not in sys.path:
     sys.path.insert(0, str(PACKAGE_SRC))
 
-from lerobot_isaac_autoresearch.train_wrapper import (
+from lerobot_isaac_autoresearch.train_wrapper import (  # noqa: E402  — sys.path inserted above
     _detect_oom,
     _last_metric_line,
     parse_args,
@@ -97,6 +97,7 @@ def test_extra_unknown_args_collected() -> None:
 # _last_metric_line tests
 # ---------------------------------------------------------------------------
 
+
 def test_last_metric_line_basic() -> None:
     lines = [
         "step 100: loss=1.23",
@@ -133,6 +134,7 @@ def test_last_metric_line_embedded_in_longer_line() -> None:
 # ---------------------------------------------------------------------------
 # _detect_oom tests
 # ---------------------------------------------------------------------------
+
 
 def test_detect_oom_cuda_out_of_memory() -> None:
     lines = [

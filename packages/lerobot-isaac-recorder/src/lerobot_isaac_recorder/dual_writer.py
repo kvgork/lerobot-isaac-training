@@ -26,11 +26,10 @@ Usage::
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from lerobot_isaac_recorder.config import RecordingConfig
 from lerobot_isaac_recorder.schema import (
-    SCHEMA,
     lerobot_features_dict,
     validate_episode_buffer,
 )
@@ -76,7 +75,7 @@ class DualWriter:
         self._lerobot_dataset: Any = None
         self._hdf5_writer: Any = None
         self._episode_count = 0
-        self._output_paths: dict[str, Optional[Path]] = {"parquet": None, "hdf5": None}
+        self._output_paths: dict[str, Path | None] = {"parquet": None, "hdf5": None}
 
         self._init_writers()
 

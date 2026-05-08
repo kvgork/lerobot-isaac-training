@@ -35,16 +35,14 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from lerobot_isaac_recorder.config import RecordingConfig
 
 if TYPE_CHECKING:
-    from lerobot_isaac_recorder.d435 import D435Stream, MockD435Stream
     from lerobot_isaac_recorder.dual_writer import DualWriter
-    from lerobot_isaac_recorder.so101_teleop import MockSO101Teleop, SO101Teleop
 
 
 @dataclass
@@ -119,7 +117,7 @@ class RecordingSession:
         config: RecordingConfig,
         camera: Any,
         teleop: Any,
-        writer: Optional["DualWriter"],
+        writer: DualWriter | None,
     ) -> None:
         self._config = config
         self._camera = camera
@@ -130,7 +128,7 @@ class RecordingSession:
     # Context manager
     # ------------------------------------------------------------------ #
 
-    def __enter__(self) -> "RecordingSession":
+    def __enter__(self) -> RecordingSession:
         self._camera.start()
         self._teleop.start()
         return self
@@ -244,7 +242,7 @@ class MockRecordingSession(RecordingSession):
     instantiating real camera/teleop objects.
     """
 
-    def __init__(self, config: RecordingConfig, writer: Optional[Any] = None) -> None:
+    def __init__(self, config: RecordingConfig, writer: Any | None = None) -> None:
         from lerobot_isaac_recorder.d435 import MockD435Stream
         from lerobot_isaac_recorder.so101_teleop import MockSO101Teleop
 

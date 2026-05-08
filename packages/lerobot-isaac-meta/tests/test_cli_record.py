@@ -11,7 +11,9 @@ import pytest
 @pytest.fixture(autouse=True)
 def _add_recorder_src_to_path():
     """Insert lerobot-isaac-recorder src on sys.path so meta CLI delegation resolves."""
-    recorder_src = Path(__file__).resolve().parents[3] / "lerobot-isaac-recorder" / "src"
+    recorder_src = (
+        Path(__file__).resolve().parents[3] / "lerobot-isaac-recorder" / "src"
+    )
     if str(recorder_src) not in sys.path:
         sys.path.insert(0, str(recorder_src))
     yield
@@ -20,12 +22,16 @@ def _add_recorder_src_to_path():
 class TestRecordSubcommand:
     def test_record_in_subcommands(self):
         from lerobot_isaac_meta.cli import build_parser
+
         parser = build_parser()
-        subparsers_action = next(a for a in parser._actions if hasattr(a, "_name_parser_map"))
+        subparsers_action = next(
+            a for a in parser._actions if hasattr(a, "_name_parser_map")
+        )
         assert "record" in subparsers_action._name_parser_map
 
     def test_record_help_mentions_recorder(self, capsys):
         from lerobot_isaac_meta.cli import main
+
         with pytest.raises(SystemExit):
             main(["record", "--help"])
         out = capsys.readouterr().out
@@ -34,6 +40,7 @@ class TestRecordSubcommand:
     def test_record_dry_run_via_meta(self, capsys):
         """Forwarding `record -- --dry-run ...` must hit recorder CLI and exit 0."""
         from lerobot_isaac_meta.cli import main
+
         rc = main(
             [
                 "record",
@@ -52,6 +59,7 @@ class TestRecordSubcommand:
         """argparse REMAINDER does not consume args that look like top-level flags.
         Document the required `--` separator pattern."""
         from lerobot_isaac_meta.cli import main
+
         # Without `--`, top-level parser rejects --repo-id (correct argparse behavior)
         with pytest.raises(SystemExit):
             main(["record", "--repo-id=test2", "--num-episodes=2", "--dry-run"])
@@ -77,7 +85,10 @@ class TestRecordSubcommand:
         _sys.meta_path.insert(0, finder)
         try:
             from lerobot_isaac_meta.cli import main
-            rc = main(["record", "--", "--repo-id=test", "--num-episodes=1", "--dry-run"])
+
+            rc = main(
+                ["record", "--", "--repo-id=test", "--num-episodes=1", "--dry-run"]
+            )
             assert rc == 1
             err = capsys.readouterr().err
             assert "lerobot_isaac_recorder" in err or "forced fail" in err

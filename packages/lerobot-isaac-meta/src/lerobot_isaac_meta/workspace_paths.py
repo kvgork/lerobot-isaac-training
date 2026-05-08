@@ -52,9 +52,7 @@ OUTPUTS_DIR: Path = WORKSPACE_ROOT / "outputs"
 AGENT_STATE_DIR: Path = WORKSPACE_ROOT / ".agent-state"
 
 # Configs live inside the configs package — resolve via the package tree
-CONFIGS_DIR: Path = (
-    WORKSPACE_ROOT / "packages" / "lerobot-isaac-configs" / "configs"
-)
+CONFIGS_DIR: Path = WORKSPACE_ROOT / "packages" / "lerobot-isaac-configs" / "configs"
 
 
 def ensure_dirs() -> None:

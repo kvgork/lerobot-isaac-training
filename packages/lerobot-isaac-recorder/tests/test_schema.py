@@ -26,6 +26,7 @@ from lerobot_isaac_recorder.schema import (
 # Helpers
 # ------------------------------------------------------------------ #
 
+
 def _make_valid_episode(n: int = 10) -> dict:
     """Return a minimal valid episode buffer with n steps."""
     return {
@@ -44,6 +45,7 @@ def _make_valid_episode(n: int = 10) -> dict:
 # ------------------------------------------------------------------ #
 # EpisodeSchema dataclass
 # ------------------------------------------------------------------ #
+
 
 def test_schema_step_fields_declared() -> None:
     schema = EpisodeSchema()
@@ -82,6 +84,7 @@ def test_schema_action_dtype() -> None:
 # validate_episode_buffer — happy path
 # ------------------------------------------------------------------ #
 
+
 def test_validate_happy_path() -> None:
     ep = _make_valid_episode(5)
     validate_episode_buffer(ep)  # must not raise
@@ -95,6 +98,7 @@ def test_validate_minimum_one_step() -> None:
 # ------------------------------------------------------------------ #
 # validate_episode_buffer — failure cases
 # ------------------------------------------------------------------ #
+
 
 def test_validate_missing_key() -> None:
     ep = _make_valid_episode(5)
@@ -136,6 +140,7 @@ def test_validate_not_dict_raises() -> None:
 # compute_ep_offset
 # ------------------------------------------------------------------ #
 
+
 def test_compute_ep_offset_basic() -> None:
     offsets = compute_ep_offset([10, 20, 15])
     expected = np.array([0, 10, 30], dtype=np.int64)
@@ -161,6 +166,7 @@ def test_compute_ep_offset_dtype() -> None:
 # ------------------------------------------------------------------ #
 # lerobot_features_dict
 # ------------------------------------------------------------------ #
+
 
 def test_lerobot_features_dict_keys() -> None:
     feats = lerobot_features_dict(action_dim=7, state_dim=7, image_shape=(3, 480, 640))

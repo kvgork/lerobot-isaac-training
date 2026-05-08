@@ -11,6 +11,7 @@ contract that ``autoresearch-ml-executor-worker`` relies on.
 This test is the single contract enforcement for the "wrapper -> train -> metric"
 pipeline.  If it breaks, autoresearch loops will silently fail in production.
 """
+
 from __future__ import annotations
 
 import re

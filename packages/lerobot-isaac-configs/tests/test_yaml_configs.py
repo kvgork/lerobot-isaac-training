@@ -11,7 +11,6 @@ Plan reference: §13.1 Bundle A, deliverable A6
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pytest
@@ -22,11 +21,11 @@ import yaml
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def load_real_config(name: str) -> dict:
     """Load a config from the package's configs/ directory (bypasses env var)."""
     configs_dir = (
-        Path(__file__).parent.parent
-        / "src" / "lerobot_isaac_configs" / "configs"
+        Path(__file__).parent.parent / "src" / "lerobot_isaac_configs" / "configs"
     )
     path = configs_dir / f"{name}.yaml"
     assert path.exists(), f"Config file not found: {path}"
@@ -39,6 +38,7 @@ def load_real_config(name: str) -> dict:
 # ---------------------------------------------------------------------------
 # Policy configs
 # ---------------------------------------------------------------------------
+
 
 class TestPolicySmolvla:
     def test_parses(self):
@@ -153,6 +153,7 @@ class TestPolicyDiffusion:
 # World model configs
 # ---------------------------------------------------------------------------
 
+
 class TestWmDreamerv3:
     def test_parses(self):
         cfg = load_real_config("wm_dreamerv3")
@@ -229,6 +230,7 @@ class TestWmLeworldmodel:
 # Isaac env config
 # ---------------------------------------------------------------------------
 
+
 class TestIsaacSo101Pickplace:
     def test_parses(self):
         cfg = load_real_config("isaac_so101_pickplace")
@@ -264,23 +266,28 @@ class TestIsaacSo101Pickplace:
 # Cross-cutting: load via package API (integration smoke)
 # ---------------------------------------------------------------------------
 
+
 class TestLoadViaApi:
     """load_config() should return the same data as direct YAML parsing."""
 
-    @pytest.mark.parametrize("name", [
-        "policy_smolvla",
-        "policy_act",
-        "policy_diffusion",
-        "wm_dreamerv3",
-        "wm_leworldmodel",
-        "isaac_so101_pickplace",
-    ])
-    def test_load_config_api_matches_direct(self, name: str, tmp_path: Path, monkeypatch):
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "policy_smolvla",
+            "policy_act",
+            "policy_diffusion",
+            "wm_dreamerv3",
+            "wm_leworldmodel",
+            "isaac_so101_pickplace",
+        ],
+    )
+    def test_load_config_api_matches_direct(
+        self, name: str, tmp_path: Path, monkeypatch
+    ):
         """load_config() returns same data as direct YAML load."""
         # Use the real configs dir via LEROBOT_ISAAC_CONFIGS_DIR
         configs_dir = (
-            Path(__file__).parent.parent
-            / "src" / "lerobot_isaac_configs" / "configs"
+            Path(__file__).parent.parent / "src" / "lerobot_isaac_configs" / "configs"
         )
         monkeypatch.setenv("LEROBOT_ISAAC_CONFIGS_DIR", str(configs_dir))
 
@@ -293,8 +300,7 @@ class TestLoadViaApi:
     def test_list_configs_contains_all_six(self, monkeypatch):
         """list_configs() should return exactly 6 entries after Bundle A."""
         configs_dir = (
-            Path(__file__).parent.parent
-            / "src" / "lerobot_isaac_configs" / "configs"
+            Path(__file__).parent.parent / "src" / "lerobot_isaac_configs" / "configs"
         )
         monkeypatch.setenv("LEROBOT_ISAAC_CONFIGS_DIR", str(configs_dir))
 

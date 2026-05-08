@@ -25,7 +25,6 @@ import os
 import subprocess
 import sys
 import time
-from typing import Optional
 
 # Hard ceiling (seconds) independent of autoresearch budget.
 # Set to 4 hours; executor_worker enforces its own budget_seconds on top.
@@ -112,7 +111,7 @@ def _detect_oom(stdout_lines: list[str]) -> bool:
     return any(sig in combined for sig in oom_signals)
 
 
-def _last_metric_line(stdout_lines: list[str], metric_name: str) -> Optional[str]:
+def _last_metric_line(stdout_lines: list[str], metric_name: str) -> str | None:
     """Return the last line that looks like <metric_name>=<float>, or None."""
     pattern = f"{metric_name}="
     for line in reversed(stdout_lines):
@@ -184,7 +183,7 @@ def run(args: argparse.Namespace) -> int:
         return returncode
 
 
-def parse_args(argv: Optional[list[str]] = None) -> tuple[argparse.Namespace, list[str]]:
+def parse_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
     parser = argparse.ArgumentParser(
         description=(
             "Autoresearch train wrapper: forwards args to lerobot_isaac_adapters.train "
@@ -202,7 +201,10 @@ def parse_args(argv: Optional[list[str]] = None) -> tuple[argparse.Namespace, li
     parser.add_argument("--steps", type=int, default=None, help="Training steps.")
     parser.add_argument("--config", default=None, help="Config YAML path.")
     parser.add_argument(
-        "--batch_size", type=int, default=None, help="Batch size (OOM recovery may halve this)."
+        "--batch_size",
+        type=int,
+        default=None,
+        help="Batch size (OOM recovery may halve this).",
     )
     parser.add_argument(
         "--dry_run",

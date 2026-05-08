@@ -15,19 +15,18 @@ Tests:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
 
 from lerobot_isaac_recorder.config import RecordingConfig
-from lerobot_isaac_recorder.schema import validate_episode_buffer
 
 
 # ------------------------------------------------------------------ #
 # Helpers
 # ------------------------------------------------------------------ #
+
 
 def _make_episode(n: int = 5) -> dict:
     return {
@@ -96,6 +95,7 @@ def _patch_stable_worldmodel(mock_writer: MagicMock):
 # format=parquet — writes LeRobot, skips HDF5
 # ------------------------------------------------------------------ #
 
+
 def test_parquet_format_only_calls_lerobot(tmp_path: Path) -> None:
     mock_ds = _make_mock_lerobot_dataset()
     mock_writer = _make_mock_hdf5_writer()
@@ -134,6 +134,7 @@ def test_parquet_format_only_calls_lerobot(tmp_path: Path) -> None:
 # format=hdf5 — writes HDF5, skips LeRobot
 # ------------------------------------------------------------------ #
 
+
 def test_hdf5_format_only_calls_hdf5writer(tmp_path: Path) -> None:
     mock_ds = _make_mock_lerobot_dataset()
     mock_writer = _make_mock_hdf5_writer()
@@ -168,6 +169,7 @@ def test_hdf5_format_only_calls_hdf5writer(tmp_path: Path) -> None:
 # ------------------------------------------------------------------ #
 # format=dual — writes both
 # ------------------------------------------------------------------ #
+
 
 def test_dual_format_calls_both(tmp_path: Path) -> None:
     mock_ds = _make_mock_lerobot_dataset()
@@ -208,6 +210,7 @@ def test_dual_format_calls_both(tmp_path: Path) -> None:
 # ImportError for lerobot missing in parquet/dual mode
 # ------------------------------------------------------------------ #
 
+
 def test_write_lerobot_raises_importerror_when_lerobot_missing(tmp_path: Path) -> None:
     import lerobot_isaac_recorder.dual_writer as dw_mod
 
@@ -234,6 +237,7 @@ def test_write_lerobot_raises_importerror_when_lerobot_missing(tmp_path: Path) -
 # ImportError for stable_worldmodel missing in hdf5/dual mode
 # ------------------------------------------------------------------ #
 
+
 def test_write_hdf5_raises_importerror_when_swm_missing(tmp_path: Path) -> None:
     import lerobot_isaac_recorder.dual_writer as dw_mod
 
@@ -259,6 +263,7 @@ def test_write_hdf5_raises_importerror_when_swm_missing(tmp_path: Path) -> None:
 # ------------------------------------------------------------------ #
 # Schema validation is called inside write_episode
 # ------------------------------------------------------------------ #
+
 
 def test_write_episode_validates_schema(tmp_path: Path) -> None:
     mock_ds = _make_mock_lerobot_dataset()

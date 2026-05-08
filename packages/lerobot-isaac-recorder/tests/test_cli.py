@@ -15,6 +15,7 @@ from lerobot_isaac_recorder.cli import _build_parser, _parse_resolution, main
 # _parse_resolution
 # ------------------------------------------------------------------ #
 
+
 def test_parse_resolution_standard() -> None:
     assert _parse_resolution("640x480") == (640, 480)
 
@@ -33,6 +34,7 @@ def test_parse_resolution_invalid_raises() -> None:
 # ------------------------------------------------------------------ #
 # Argparse smoke tests
 # ------------------------------------------------------------------ #
+
 
 def test_parser_requires_repo_id() -> None:
     """Omitting --repo-id must cause a parse error."""
@@ -68,20 +70,22 @@ def test_parser_invalid_format_rejected() -> None:
 def test_parser_all_flags_parseable() -> None:
     """Smoke test: all documented flags parse without error."""
     parser = _build_parser()
-    args = parser.parse_args([
-        "--repo-id=koen/pickplace",
-        "--num-episodes=5",
-        "--format=dual",
-        "--output-dir=/tmp/datasets",
-        "--task=pick and place",
-        "--resolution=640x480",
-        "--fps=30",
-        "--arm-port=/dev/ttyUSB0",
-        "--leader-port=/dev/ttyUSB1",
-        "--camera-serial=AUTO",
-        "--max-steps=100",
-        "--dry-run",
-    ])
+    args = parser.parse_args(
+        [
+            "--repo-id=koen/pickplace",
+            "--num-episodes=5",
+            "--format=dual",
+            "--output-dir=/tmp/datasets",
+            "--task=pick and place",
+            "--resolution=640x480",
+            "--fps=30",
+            "--arm-port=/dev/ttyUSB0",
+            "--leader-port=/dev/ttyUSB1",
+            "--camera-serial=AUTO",
+            "--max-steps=100",
+            "--dry-run",
+        ]
+    )
     assert args.repo_id == "koen/pickplace"
     assert args.num_episodes == 5
     assert args.dry_run is True
@@ -102,6 +106,7 @@ def test_parser_depth_flag_off_by_default() -> None:
 # ------------------------------------------------------------------ #
 # --dry-run returns 0
 # ------------------------------------------------------------------ #
+
 
 def test_dry_run_returns_zero() -> None:
     rc = main(["--repo-id=test/demo", "--num-episodes=1", "--dry-run"])
@@ -129,6 +134,7 @@ def test_dry_run_prints_config(capsys: pytest.CaptureFixture) -> None:
 # ------------------------------------------------------------------ #
 # Help text mentions all formats
 # ------------------------------------------------------------------ #
+
 
 def test_help_mentions_parquet(capsys: pytest.CaptureFixture) -> None:
     with pytest.raises(SystemExit):

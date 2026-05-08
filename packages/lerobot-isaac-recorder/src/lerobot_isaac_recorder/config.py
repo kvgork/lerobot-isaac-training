@@ -71,7 +71,7 @@ class RecordingConfig:
     # ------------------------------------------------------------------ #
 
     @classmethod
-    def from_yaml(cls, path: str | Path) -> "RecordingConfig":
+    def from_yaml(cls, path: str | Path) -> RecordingConfig:
         """Load config from a YAML file via lerobot_isaac_configs.load_config.
 
         The YAML file is resolved through the configs package loader so that

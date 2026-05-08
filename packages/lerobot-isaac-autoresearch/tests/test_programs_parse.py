@@ -16,9 +16,7 @@ Required keys (checked via simple text scan + YAML block extraction):
 
 from __future__ import annotations
 
-import os
 import re
-import sys
 from pathlib import Path
 
 import pytest
@@ -43,6 +41,7 @@ def _read(path: Path) -> str:
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _has_section(text: str, heading: str) -> bool:
     """Return True if a markdown heading matches (case-insensitive)."""
     pattern = re.compile(rf"^##\s+{re.escape(heading)}", re.MULTILINE | re.IGNORECASE)
@@ -65,6 +64,7 @@ def _extract_key_value(text: str, key: str) -> str | None:
 # Per-file checks
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.parametrize("program_path", PROGRAM_FILES, ids=lambda p: p.name)
 def test_program_file_exists(program_path: Path) -> None:
     assert program_path.exists(), f"Program file not found: {program_path}"
@@ -78,17 +78,23 @@ def test_has_research_goal(program_path: Path) -> None:
     )
     # Ensure it has non-trivial content (at least one non-blank line after heading)
     match = re.search(
-        r"^##\s+Research Goal\s*\n(.*?)(?=^##|\Z)", text, re.MULTILINE | re.DOTALL | re.IGNORECASE
+        r"^##\s+Research Goal\s*\n(.*?)(?=^##|\Z)",
+        text,
+        re.MULTILINE | re.DOTALL | re.IGNORECASE,
     )
     assert match, f"{program_path.name}: '## Research Goal' section has no content"
     content = match.group(1).strip()
-    assert len(content) > 10, f"{program_path.name}: Research Goal content too short: {content!r}"
+    assert len(content) > 10, (
+        f"{program_path.name}: Research Goal content too short: {content!r}"
+    )
 
 
 @pytest.mark.parametrize("program_path", PROGRAM_FILES, ids=lambda p: p.name)
 def test_has_metric_section(program_path: Path) -> None:
     text = _read(program_path)
-    assert _has_section(text, "Metric"), f"{program_path.name}: missing '## Metric' section"
+    assert _has_section(text, "Metric"), (
+        f"{program_path.name}: missing '## Metric' section"
+    )
 
 
 @pytest.mark.parametrize("program_path", PROGRAM_FILES, ids=lambda p: p.name)
@@ -135,7 +141,9 @@ def test_has_training_script_section(program_path: Path) -> None:
     path_val = _extract_key_value(text, "path")
     assert path_val, f"{program_path.name}: 'path:' key missing in Training Script"
     entry_val = _extract_key_value(text, "entry_args")
-    assert entry_val is not None, f"{program_path.name}: 'entry_args:' key missing in Training Script"
+    assert entry_val is not None, (
+        f"{program_path.name}: 'entry_args:' key missing in Training Script"
+    )
 
 
 @pytest.mark.parametrize("program_path", PROGRAM_FILES, ids=lambda p: p.name)
@@ -146,19 +154,29 @@ def test_has_operators_priority_section(program_path: Path) -> None:
     )
     # Must list at least one operator.
     match = re.search(
-        r"^##\s+Operators Priority\s*\n(.*?)(?=^##|\Z)", text, re.MULTILINE | re.DOTALL | re.IGNORECASE
+        r"^##\s+Operators Priority\s*\n(.*?)(?=^##|\Z)",
+        text,
+        re.MULTILINE | re.DOTALL | re.IGNORECASE,
     )
     assert match, f"{program_path.name}: '## Operators Priority' has no content"
     content = match.group(1)
-    operators = [ln.strip() for ln in content.splitlines() if ln.strip() and not ln.startswith("#")]
-    assert len(operators) >= 1, f"{program_path.name}: Operators Priority lists no operators"
+    operators = [
+        ln.strip()
+        for ln in content.splitlines()
+        if ln.strip() and not ln.startswith("#")
+    ]
+    assert len(operators) >= 1, (
+        f"{program_path.name}: Operators Priority lists no operators"
+    )
 
 
 @pytest.mark.parametrize("program_path", PROGRAM_FILES, ids=lambda p: p.name)
 def test_seconds_per_experiment(program_path: Path) -> None:
     text = _read(program_path)
     value = _extract_key_value(text, "seconds_per_experiment")
-    assert value is not None, f"{program_path.name}: 'seconds_per_experiment:' key missing"
+    assert value is not None, (
+        f"{program_path.name}: 'seconds_per_experiment:' key missing"
+    )
     # Must be a positive integer (possibly with inline comment).
     numeric = value.split("#")[0].strip()
     assert numeric.isdigit() and int(numeric) > 0, (

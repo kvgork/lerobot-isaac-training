@@ -7,7 +7,6 @@ and environment-variable-based resolution.
 from __future__ import annotations
 
 import os
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -87,7 +86,7 @@ def test_env_var_override(tmp_path: Path):
 
         importlib.reload(wp)
 
-        assert wp.WORKSPACE_ROOT == tmp_path.resolve()
+        assert tmp_path.resolve() == wp.WORKSPACE_ROOT
     finally:
         if original is None:
             os.environ.pop("LEROBOT_ISAAC_WORKSPACE", None)

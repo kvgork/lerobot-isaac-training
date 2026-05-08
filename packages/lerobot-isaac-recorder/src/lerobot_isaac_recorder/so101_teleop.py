@@ -33,7 +33,6 @@ Usage (tests)::
 from __future__ import annotations
 
 import time
-from typing import Optional
 
 import numpy as np
 
@@ -66,7 +65,7 @@ class SO101Teleop:
     def __init__(
         self,
         arm_port: str,
-        leader_port: Optional[str] = None,
+        leader_port: str | None = None,
     ) -> None:
         self._arm_port = arm_port
         self._leader_port = leader_port
@@ -128,7 +127,9 @@ class SO101Teleop:
 
         obs = self._robot.get_observation()
         joint_pos = np.asarray(obs["joint_pos"], dtype=np.float32)
-        joint_vel = np.asarray(obs.get("joint_vel", np.zeros(_SO101_DOF)), dtype=np.float32)
+        joint_vel = np.asarray(
+            obs.get("joint_vel", np.zeros(_SO101_DOF)), dtype=np.float32
+        )
         gripper = float(obs.get("gripper", 0.0))
 
         return {
@@ -167,7 +168,7 @@ class MockSO101Teleop:
     def __init__(
         self,
         arm_port: str = "/dev/null",
-        leader_port: Optional[str] = None,
+        leader_port: str | None = None,
     ) -> None:
         self._arm_port = arm_port
         self._leader_port = leader_port

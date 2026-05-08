@@ -79,7 +79,6 @@ def _cmd_quality_filter(args: argparse.Namespace) -> int:
     Dispatches to the SAL+TED quality skill bridge.
     Skill path: /home/koen/tools/claude_code/skills/lerobot_dataset_quality/
     """
-    import os
     from pathlib import Path
 
     dataset = Path(args.dataset)
@@ -92,15 +91,19 @@ def _cmd_quality_filter(args: argparse.Namespace) -> int:
         print(f"  sal-threshold    : {args.sal_threshold}")
         print(f"  ted-threshold    : {args.ted_threshold}")
         print(f"  min-episode-len  : {args.min_episode_length}")
-        print(f"  skill path       : /home/koen/tools/claude_code/skills/lerobot_dataset_quality/")
-        print(f"  would invoke     : lerobot_isaac_adapters.quality.apply_quality_filter(")
+        print(
+            "  skill path       : /home/koen/tools/claude_code/skills/lerobot_dataset_quality/"
+        )
+        print(
+            "  would invoke     : lerobot_isaac_adapters.quality.apply_quality_filter("
+        )
         print(f"      dataset_path={str(dataset)!r},")
         print(f"      sal_threshold={args.sal_threshold},")
         print(f"      ted_threshold={args.ted_threshold},")
         print(f"      min_episode_length={args.min_episode_length},")
         print(f"      output_path={str(output)!r},")
-        print(f"      dry_run=True,")
-        print(f"  )")
+        print("      dry_run=True,")
+        print("  )")
         return 0
 
     # Lazy import — avoids forcing lerobot_isaac_adapters to be importable at CLI load
@@ -150,7 +153,10 @@ _SUBCOMMANDS: dict[str, tuple[callable, str]] = {
         _cmd_record,
         "record SO-101 teleop data (D435 + dual-write Parquet+HDF5 via lerobot-isaac-recorder)",
     ),
-    "dr-replay": (_cmd_dr_replay, "replay with Isaac Lab domain randomization (Phase 4+)"),
+    "dr-replay": (
+        _cmd_dr_replay,
+        "replay with Isaac Lab domain randomization (Phase 4+)",
+    ),
     "mimicgen-augment": (
         _cmd_mimicgen_augment,
         "augment dataset via MimicGen (Phase 4b, deferred)",
@@ -174,10 +180,7 @@ def _add_quality_filter_args(sub: argparse.ArgumentParser) -> None:
         "--output",
         default=None,
         metavar="PATH",
-        help=(
-            "Output path for the filtered dataset. "
-            "Defaults to <dataset>_filtered."
-        ),
+        help=("Output path for the filtered dataset. Defaults to <dataset>_filtered."),
     )
     sub.add_argument(
         "--sal-threshold",

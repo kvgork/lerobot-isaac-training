@@ -23,7 +23,6 @@ Usage (tests / dry-run)::
 from __future__ import annotations
 
 import time
-from typing import Optional
 
 import numpy as np
 
@@ -55,7 +54,7 @@ class D435Stream:
 
     def __init__(
         self,
-        serial: Optional[str] = None,
+        serial: str | None = None,
         resolution: tuple[int, int] = (640, 480),
         fps: int = 30,
         enable_depth: bool = False,
@@ -141,7 +140,7 @@ class D435Stream:
     # Context manager
     # ------------------------------------------------------------------ #
 
-    def __enter__(self) -> "D435Stream":
+    def __enter__(self) -> D435Stream:
         self.start()
         return self
 
@@ -169,7 +168,7 @@ class MockD435Stream:
 
     def __init__(
         self,
-        serial: Optional[str] = None,
+        serial: str | None = None,
         resolution: tuple[int, int] = (640, 480),
         fps: int = 30,
         enable_depth: bool = False,
@@ -213,7 +212,7 @@ class MockD435Stream:
     def stop(self) -> None:
         self._started = False
 
-    def __enter__(self) -> "MockD435Stream":
+    def __enter__(self) -> MockD435Stream:
         self.start()
         return self
 
@@ -222,7 +221,7 @@ class MockD435Stream:
 
 
 def make_d435(
-    serial: Optional[str] = None,
+    serial: str | None = None,
     resolution: tuple[int, int] = (640, 480),
     fps: int = 30,
     enable_depth: bool = False,

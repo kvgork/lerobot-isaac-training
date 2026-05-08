@@ -17,7 +17,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from typing import Optional
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -48,7 +47,7 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=["parquet", "hdf5", "dual"],
         default="dual",
         help="Output format: parquet (LeRobot only), hdf5 (LeWM only), dual (both). "
-             "Default: dual",
+        "Default: dual",
     )
     p.add_argument(
         "--output-dir",
@@ -139,7 +138,7 @@ def _parse_resolution(s: str) -> tuple[int, int]:
         ) from exc
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     """CLI entrypoint.
 
     Parameters
@@ -165,9 +164,7 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     # CLI overrides always win
     resolution = _parse_resolution(args.resolution)
-    camera_serial = (
-        None if args.camera_serial in (None, "AUTO") else args.camera_serial
-    )
+    camera_serial = None if args.camera_serial in (None, "AUTO") else args.camera_serial
 
     cfg = RecordingConfig(
         repo_id=args.repo_id,
