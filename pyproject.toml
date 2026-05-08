@@ -21,3 +21,4 @@ lerobot-isaac-recorder = { workspace = true }
 
 [tool.pytest.ini_options]
 testpaths = ["packages/*/tests"]
+addopts = "--import-mode=importlib"

@@ -22,6 +22,7 @@ lerobot-isaac-autoresearch = { path = "packages/lerobot-isaac-autoresearch", edi
 lerobot-isaac-synthetic = { path = "packages/lerobot-isaac-synthetic", editable = true }
 lerobot-isaac-configs = { path = "packages/lerobot-isaac-configs", editable = true }
 lerobot-isaac-recorder = { path = "packages/lerobot-isaac-recorder", editable = true }
+lerobot-isaac-dashboard = { path = "packages/lerobot-isaac-dashboard", editable = true }
 
 [feature.dev.dependencies]
 pytest = "*"
@@ -49,6 +50,14 @@ stable-worldmodel = "*"
 # Isaac Lab installed via its own setup script (NOT pip) — see scripts/install_isaac_lab.sh
 # This feature exists to flag environments that should have Isaac Lab present.
 
+[feature.dashboard.pypi-dependencies]
+streamlit = ">=1.32"
+plotly = ">=5.20"
+pandas = ">=2.1"
+pyarrow = ">=15.0"
+jinja2 = ">=3.1"
+watchdog = ">=3.0"
+
 [environments]
 default = ["dev"]
 train-policy = ["dev", "lerobot"]
@@ -57,6 +66,7 @@ train-lewm = ["dev", "lerobot", "leworldmodel"]
 sim = ["dev", "lerobot", "isaaclab"]
 record = ["dev", "lerobot", "realsense", "stable-worldmodel"]
 full = ["dev", "lerobot", "dreamerv3", "leworldmodel", "isaaclab", "realsense", "stable-worldmodel"]
+dashboard = ["dev", "dashboard"]
 
 [tasks]
 test = "pytest packages/*/tests/"
@@ -65,3 +75,5 @@ fmt = "ruff format packages/"
 install-isaac-lab = "bash scripts/install_isaac_lab.sh"
 download-usd = "bash packages/lerobot-isaac-env/assets/usd/download_so101_urdf.sh"
 record-dry-run = "lerobot-isaac-record --repo-id=local/test --num-episodes=1 --dry-run"
+dashboard = "streamlit run packages/lerobot-isaac-dashboard/src/lerobot_isaac_dashboard/app.py"
+report = "python -m lerobot_isaac_dashboard.report --workspace ."
