@@ -149,10 +149,14 @@ Isaac Lab requires a separate manual step (GPU + disk space).
 - [x] Phase 4 — Synthetic Data Generation (`lerobot-isaac-synthetic` scaffolded)
 - [x] Phase 5 — Documentation finalization (README, ARCHITECTURE, USAGE, runbooks, research docs)
 - [x] Phase A — lerobot-isaac-dashboard package (live UI + static report + snapshot/compare)
-- [ ] Phase 1 impl — Wire real Isaac Lab imports and full MDP implementation
-- [ ] Phase 2 impl — Wire real LeRobot/DreamerV3/LeWM backends
-- [ ] Phase 3 impl — Run autoresearch end-to-end with real metrics
-- [ ] Phase 4 impl — Implement DR replay; enable MimicGen path
+- [x] Phase 1 impl — Isaac Lab MDP wiring (soft-import; cfg construction green; camera obs deferred)
+- [x] Phase 2 impl — LeRobot / DreamerV3 / LeWM backends wired (subprocess + metric extraction; dry-run smoke green)
+- [x] Phase 3 impl — Autoresearch e2e dry-run green (`train_wrapper → train → metric` chain enforced by test)
+- [x] Phase 4a impl — Isaac DR replay + parquet writer + merge utilities wired (dry-run green)
+- [ ] Phase 4b impl — MimicGen bridge path (deferred per plan; gated by `LEROBOT_MIMICGEN_ENABLED=1`)
+- [ ] Real-data smoke — repeat dry-run smoke against actual SO-101 teleop dataset once collected
+- [ ] Camera observation wiring — `wrist_camera_rgb` / `overhead_camera_rgb` need `CameraCfg` in scene (Isaac Lab tutorial 04)
+- [ ] Insertion task — `tasks/insertion.py` Stage 5 stub (`NotImplementedError`)
 
 ---
 
