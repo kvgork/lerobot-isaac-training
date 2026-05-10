@@ -9,7 +9,7 @@ target_arch: dreamerv3
 # --- Dataset ---
 dataset:
   # DreamerV3 ingests HDF5 produced by lerobot_world_model_bridge skill
-  # Skill path: /home/koen/tools/claude_code/skills/lerobot_world_model_bridge/
+  # Skill path: ${CLAUDE_CODE_ROOT}/skills/lerobot_world_model_bridge/
   format: hdf5
   image_size: [64, 64]     # 64x64 keeps VRAM budget; bump to 96x96 if VRAM allows
   repo_id: null

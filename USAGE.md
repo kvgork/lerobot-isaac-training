@@ -3,7 +3,7 @@
 **Workspace:** `~/workspaces/lerobot-isaac-training/`
 **For architecture context:** `ARCHITECTURE.md`
 **For workspace orientation:** `CLAUDE.md`
-**Plan reference:** `/home/koen/tools/claude_code/plans/2026-05-06-lerobot-isaac-workspace-plan.md`
+**Plan reference:** `${CLAUDE_CODE_ROOT}/plans/2026-05-06-lerobot-isaac-workspace-plan.md`
 
 ---
 
@@ -154,7 +154,7 @@ print('Source:', info.get('source', 'real'))
 
 **Expected output:** Filtered dataset with fewer episodes, all tagged `source="real"`.
 
-**Skill reference:** `/home/koen/tools/claude_code/skills/lerobot_dataset_quality/`
+**Skill reference:** `${CLAUDE_CODE_ROOT}/skills/lerobot_dataset_quality/`
 
 ---
 
@@ -225,7 +225,7 @@ lerobot-isaac-train \
 #   target: "dreamerv3",
 #   image_size: 64
 # })
-# Skill: /home/koen/tools/claude_code/skills/lerobot_world_model_bridge/
+# Skill: ${CLAUDE_CODE_ROOT}/skills/lerobot_world_model_bridge/
 ```
 
 **Step 2 — Train:**
@@ -318,7 +318,7 @@ ls .agent-state/
 ```
 
 **Program structure:** Each `program.md` specifies: metric, direction, baseline command, mutation operators, time budget.
-**Agent reference:** `/home/koen/tools/claude_code/agents/orchestrators/autoresearch-loop-orchestrator.md`
+**Agent reference:** `${CLAUDE_CODE_ROOT}/agents/orchestrators/autoresearch-loop-orchestrator.md`
 **See also:** `docs/runbook/` (no dedicated runbook yet; see programs/*.md for inline docs)
 
 ---
@@ -396,8 +396,8 @@ export LEROBOT_MIMICGEN_ENABLED=1
 # })
 ```
 
-**Skill reference:** `/home/koen/tools/claude_code/skills/lerobot_mimicgen_bridge/`
-**Agent reference:** `/home/koen/tools/claude_code/agents/workers/lerobot-sim-augmentation-agent.md`
+**Skill reference:** `${CLAUDE_CODE_ROOT}/skills/lerobot_mimicgen_bridge/`
+**Agent reference:** `${CLAUDE_CODE_ROOT}/agents/workers/lerobot-sim-augmentation-agent.md`
 **See also:** `docs/runbook/06-augment-with-mimicgen.md`, `docs/research/mimicgen-reference.md`
 
 ---
@@ -460,7 +460,7 @@ Each episode retains its `source` tag for per-source weighting in training confi
 | 5 | Insertion | ±2 cm | 0.65 |
 | 6 | (Future) multi-step manipulation | TBD | TBD |
 
-**Agent reference:** `/home/koen/tools/claude_code/agents/orchestrators/lerobot-curriculum-agent.md`
+**Agent reference:** `${CLAUDE_CODE_ROOT}/agents/orchestrators/lerobot-curriculum-agent.md`
 
 ---
 

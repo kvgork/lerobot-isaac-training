@@ -1,8 +1,8 @@
 # Autoresearch Integration — Internals
 
 **Cross-references:** [ARCHITECTURE.md](../../ARCHITECTURE.md) | [training-dispatch.md](./training-dispatch.md)
-**Agent source:** `/home/koen/tools/claude_code/agents/orchestrators/autoresearch-loop-orchestrator.md`
-**Skill source:** `/home/koen/tools/claude_code/skills/autoresearch/`
+**Agent source:** `${CLAUDE_CODE_ROOT}/agents/orchestrators/autoresearch-loop-orchestrator.md`
+**Skill source:** `${CLAUDE_CODE_ROOT}/skills/autoresearch/`
 
 ---
 

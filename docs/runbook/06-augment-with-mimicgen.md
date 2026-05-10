@@ -38,7 +38,7 @@ Real SO-101 Parquet episodes
         │
         ▼ lerobot_mimicgen_bridge skill
         │   Parquet → MimicGen HDF5 (robodemo format)
-        │   Skill: /home/koen/tools/claude_code/skills/lerobot_mimicgen_bridge/
+        │   Skill: ${CLAUDE_CODE_ROOT}/skills/lerobot_mimicgen_bridge/
         │
         ▼ MimicGen augmentation (runs in MuJoCo/robosuite)
         │   Input: N real demos → Output: M synthetic demos (M >> N)
@@ -146,7 +146,7 @@ lerobot-isaac-train \
 ## Reference Docs
 
 - `docs/research/mimicgen-reference.md` — architecture + known gaps
-- Skill: `/home/koen/tools/claude_code/skills/lerobot_mimicgen_bridge/SKILL.md`
-- Agent: `/home/koen/tools/claude_code/agents/workers/lerobot-sim-augmentation-agent.md`
-- Vault: `/home/koen/Documents/Vaults/Local/05-Wiki/entities/MimicGen.md`
+- Skill: `${CLAUDE_CODE_ROOT}/skills/lerobot_mimicgen_bridge/SKILL.md`
+- Agent: `${CLAUDE_CODE_ROOT}/agents/workers/lerobot-sim-augmentation-agent.md`
+- Vault: `${VAULT_ROOT}/05-Wiki/entities/MimicGen.md`
 - MimicGen paper: https://arxiv.org/abs/2310.17596

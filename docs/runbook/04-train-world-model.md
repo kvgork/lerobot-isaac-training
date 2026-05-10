@@ -172,4 +172,4 @@ le_world_model:
 
 - `docs/research/dreamerv3-reference.md` — DreamerV3 architecture + impl notes
 - `docs/research/leworldmodel-reference.md` — HDF5 schema warning + skill cross-ref
-- Skill: `/home/koen/tools/claude_code/skills/lerobot_world_model_bridge/SKILL.md`
+- Skill: `${CLAUDE_CODE_ROOT}/skills/lerobot_world_model_bridge/SKILL.md`

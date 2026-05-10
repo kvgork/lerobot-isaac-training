@@ -110,7 +110,7 @@ See `../../docs/ARCHITECTURE.md` (spinout section) for the exact commands.
 
 ## Source-of-Truth Pointers
 
-- Build plan: `/home/koen/tools/claude_code/plans/2026-05-06-lerobot-isaac-workspace-plan.md` — Phase 0
+- Build plan: `${CLAUDE_CODE_ROOT}/plans/2026-05-06-lerobot-isaac-workspace-plan.md` — Phase 0
 - Workspace ARCHITECTURE.md: `../../docs/ARCHITECTURE.md`
 - Autoresearch orchestrator: `~/.claude/agents/orchestrators/autoresearch-loop-orchestrator.md`
 - LeRobot specialist: `~/.claude/agents/lerobot-specialist.md`

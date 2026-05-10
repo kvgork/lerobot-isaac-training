@@ -134,7 +134,7 @@ episode_000001/
 
 Image resize: bicubic downscale from 480px to 64px applied during conversion.
 DO NOT write custom converters; always use the skill.
-Skill path: `/home/koen/tools/claude_code/skills/lerobot_world_model_bridge/`
+Skill path: `${CLAUDE_CODE_ROOT}/skills/lerobot_world_model_bridge/`
 
 ### Parquet to LeWorldModel HDF5
 

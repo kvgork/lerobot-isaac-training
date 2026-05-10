@@ -219,7 +219,7 @@ All tests pass without Isaac Lab or lerobot installed.
 | `autoresearch-ml-executor-worker` | `~/.claude/agents/workers/autoresearch-ml-executor-worker.md` |
 | `autoresearch-ml-proposer-worker` | `~/.claude/agents/workers/autoresearch-ml-proposer-worker.md` |
 
-Source of truth: `/home/koen/tools/claude_code/agents/`
+Source of truth: `${CLAUDE_CODE_ROOT}/agents/`
 
 Do NOT modify agents here — edit source files in `~/tools/claude_code/agents/` and
 re-run `install.sh`.
@@ -241,5 +241,5 @@ Cross-package dependency: only `lerobot-isaac-adapters` (invoked as subprocess).
 
 ## See Also
 
-- Build plan: `/home/koen/tools/claude_code/plans/2026-05-06-lerobot-isaac-workspace-plan.md` — Phase 3
-- Template reference: `/home/koen/tools/claude_code/templates/ml-program.md`
+- Build plan: `${CLAUDE_CODE_ROOT}/plans/2026-05-06-lerobot-isaac-workspace-plan.md` — Phase 3
+- Template reference: `${CLAUDE_CODE_ROOT}/templates/ml-program.md`

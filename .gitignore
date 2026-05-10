@@ -35,9 +35,18 @@ htmlcov/
 *.swo
 *~
 
+# OS junk
+.DS_Store
+Thumbs.db
+
 # pixi environment
 .pixi/
 
 # Autoresearch run outputs
 packages/lerobot-isaac-autoresearch/results/
 packages/*/.git/
+
+# Local-only orchestration scratch
+.local/
+*.bak
+*.orig

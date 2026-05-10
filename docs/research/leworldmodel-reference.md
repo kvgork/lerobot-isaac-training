@@ -4,8 +4,8 @@
 **Reference dataset:** https://huggingface.co/datasets/quentinll/lewm-pusht
 **LeRobot GitHub:** https://github.com/huggingface/lerobot
 
-**Skill reference:** `/home/koen/tools/claude_code/skills/lerobot_world_model_bridge/`
-**Vault note:** `/home/koen/Documents/Vaults/Local/05-Wiki/entities/LeWorldModel.md`
+**Skill reference:** `${CLAUDE_CODE_ROOT}/skills/lerobot_world_model_bridge/`
+**Vault note:** `${VAULT_ROOT}/05-Wiki/entities/LeWorldModel.md`
 **Related workspace docs:** [world-model-bridge.md](../internals/world-model-bridge.md) | [ARCHITECTURE.md](../../ARCHITECTURE.md)
 
 ---
@@ -86,7 +86,7 @@ with h5py.File("outputs/hdf5/so101_lewm.hdf5") as f:
 ```
 
 If schemas differ, update the `le_world_model` preset in the bridge skill:
-`/home/koen/tools/claude_code/skills/lerobot_world_model_bridge/`
+`${CLAUDE_CODE_ROOT}/skills/lerobot_world_model_bridge/`
 
 ---
 

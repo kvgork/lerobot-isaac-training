@@ -1,13 +1,13 @@
 # Architecture — LeRobot + Isaac Lab Training Workspace
 
 **Status as of 2026-05-06:** Phases 0–5 complete (scaffolding). Training/eval wiring is future work.
-**Plan reference:** `/home/koen/tools/claude_code/plans/2026-05-06-lerobot-isaac-workspace-plan.md`
+**Plan reference:** `${CLAUDE_CODE_ROOT}/plans/2026-05-06-lerobot-isaac-workspace-plan.md`
 
 ---
 
 ## System Overview
 
-This workspace is an eight-package Python monorepo that connects the SO-101 robot arm (physical hardware) to three training backends (LeRobot imitation-learning policies, DreamerV3 world model, HF LeWorldModel) via a single unified training entrypoint. An Isaac Lab simulation environment provides domain-randomized synthetic episodes to augment the real teleoperation corpus. A standalone autoresearch loop (driven by the `autoresearch-loop-orchestrator` agent from the `claude_code` repo) performs automated hyperparameter search over any of the three backends. The `lerobot-isaac-dashboard` package provides a read-only metrics surface over all pipeline artefacts (local files only). All agents and skills referenced here live in `/home/koen/tools/claude_code/` and are NOT duplicated in this workspace.
+This workspace is an eight-package Python monorepo that connects the SO-101 robot arm (physical hardware) to three training backends (LeRobot imitation-learning policies, DreamerV3 world model, HF LeWorldModel) via a single unified training entrypoint. An Isaac Lab simulation environment provides domain-randomized synthetic episodes to augment the real teleoperation corpus. A standalone autoresearch loop (driven by the `autoresearch-loop-orchestrator` agent from the `claude_code` repo) performs automated hyperparameter search over any of the three backends. The `lerobot-isaac-dashboard` package provides a read-only metrics surface over all pipeline artefacts (local files only). All agents and skills referenced here live in `${CLAUDE_CODE_ROOT}/` and are NOT duplicated in this workspace.
 
 ---
 
@@ -82,7 +82,7 @@ External systems (NOT in this workspace):
   MimicGen    <----  lerobot-isaac-synthetic/mimicgen/ (deferred)
 
 Agent/skill layer (claude_code repo — NOT duplicated here):
-  /home/koen/tools/claude_code/
+  ${CLAUDE_CODE_ROOT}/
     agents/orchestrators/
       lerobot-training-orchestrator.md
       lerobot-curriculum-agent.md
@@ -389,11 +389,11 @@ Full table of file/dir roles, locations, and ownership:
 
 | File / Directory | Role | Location | Owner |
 |-----------------|------|----------|-------|
-| `agents/orchestrators/*.md` | Agent source of truth (edit here) | `/home/koen/tools/claude_code/agents/` | claude_code repo |
-| `agents/workers/*.md` | Worker agent source of truth | `/home/koen/tools/claude_code/agents/workers/` | claude_code repo |
-| `skills/*/` | Skill source of truth | `/home/koen/tools/claude_code/skills/` | claude_code repo |
+| `agents/orchestrators/*.md` | Agent source of truth (edit here) | `${CLAUDE_CODE_ROOT}/agents/` | claude_code repo |
+| `agents/workers/*.md` | Worker agent source of truth | `${CLAUDE_CODE_ROOT}/agents/workers/` | claude_code repo |
+| `skills/*/` | Skill source of truth | `${CLAUDE_CODE_ROOT}/skills/` | claude_code repo |
 | `~/.claude/agents/` | Installed agent copies (what Claude invokes) | `~/.claude/agents/` | `install.sh` |
-| `plans/*.md` | Build plans and experiment plans | `/home/koen/tools/claude_code/plans/` | claude_code repo |
+| `plans/*.md` | Build plans and experiment plans | `${CLAUDE_CODE_ROOT}/plans/` | claude_code repo |
 | `packages/*/` | Python implementation | `~/workspaces/lerobot-isaac-training/packages/` | this workspace |
 | `packages/lerobot-isaac-configs/configs/` | YAML configs per target_arch | this workspace | this workspace |
 | `datasets/` | LeRobot Parquet datasets (gitignored) | this workspace | this workspace |
@@ -406,7 +406,7 @@ Full table of file/dir roles, locations, and ownership:
 | `pyproject.toml` | uv workspace umbrella | this workspace root | this workspace |
 | `CLAUDE.md` | Session orientation for any `cd` into workspace | this workspace root | this workspace |
 
-To deploy agent edits: `cd /home/koen/tools/claude_code && ./install.sh`
+To deploy agent edits: `cd ${CLAUDE_CODE_ROOT} && ./install.sh`
 
 ---
 

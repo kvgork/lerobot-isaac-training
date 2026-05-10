@@ -87,7 +87,7 @@ steps: [50000, 100000]
 
 - Dataset format: HDF5 at `~/workspaces/lerobot-isaac-training/datasets/<task>_dreamerv3/`
   - Produced by `lerobot_world_model_bridge` skill with `preset=dreamerv3` (64x64 images)
-  - Source: `/home/koen/tools/claude_code/skills/lerobot_world_model_bridge/`
+  - Source: `${CLAUDE_CODE_ROOT}/skills/lerobot_world_model_bridge/`
 - DreamerV3 implementation: `sheeprl` (default) or `nm-wu/dreamer-v3-pytorch`
   - Adapter selects via `configs/wm_dreamerv3.yaml` — set `impl: sheeprl` or `impl: nmwu`
 - Checkpoint outputs: `~/workspaces/lerobot-isaac-training/outputs/dreamerv3/<job_name>/`

@@ -68,10 +68,16 @@ record = ["dev", "lerobot", "realsense", "stable-worldmodel"]
 full = ["dev", "lerobot", "dreamerv3", "leworldmodel", "isaaclab", "realsense", "stable-worldmodel"]
 dashboard = ["dev", "dashboard"]
 
+[activation]
+# Auto-export workspace env vars whenever a pixi shell or task is started.
+# Mirrors `source scripts/setup_env.sh`.
+scripts = ["scripts/setup_env.sh"]
+
 [tasks]
 test = "pytest packages/*/tests/"
 lint = "ruff check packages/"
 fmt = "ruff format packages/"
+setup-env = "bash scripts/setup_env.sh"
 install-isaac-lab = "bash scripts/install_isaac_lab.sh"
 download-usd = "bash packages/lerobot-isaac-env/assets/usd/download_so101_urdf.sh"
 record-dry-run = "lerobot-isaac-record --repo-id=local/test --num-episodes=1 --dry-run"

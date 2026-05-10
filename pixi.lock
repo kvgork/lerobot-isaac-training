@@ -1481,7 +1481,7 @@ packages:
   - sheeprl ; extra == 'dreamerv3'
   - transformers ; extra == 'leworldmodel'
   - datasets ; extra == 'leworldmodel'
-  - lerobot-isaac-configs @ file:///home/koen/workspaces/lerobot-isaac-training/packages/lerobot-isaac-configs ; extra == 'monorepo'
+  - lerobot-isaac-configs @ file://${LEROBOT_ISAAC_WORKSPACE}/packages/lerobot-isaac-configs ; extra == 'monorepo'
   requires_python: '>=3.10'
 - pypi: ./packages/lerobot-isaac-autoresearch
   name: lerobot-isaac-autoresearch
@@ -1490,7 +1490,7 @@ packages:
   requires_dist:
   - pytest ; extra == 'dev'
   - pyyaml ; extra == 'dev'
-  - lerobot-isaac-adapters @ file:///home/koen/workspaces/lerobot-isaac-training/packages/lerobot-isaac-adapters ; extra == 'monorepo'
+  - lerobot-isaac-adapters @ file://${LEROBOT_ISAAC_WORKSPACE}/packages/lerobot-isaac-adapters ; extra == 'monorepo'
   requires_python: '>=3.10'
 - pypi: ./packages/lerobot-isaac-configs
   name: lerobot-isaac-configs
@@ -1502,7 +1502,7 @@ packages:
 - pypi: ./packages/lerobot-isaac-dashboard
   name: lerobot-isaac-dashboard
   version: 0.1.0
-  sha256: fdd84568b6172ea345a007ba06cf9ca3e5e0ce051825a78c14f0d9986536657c
+  sha256: 844a0e058bdb733740f84de0e8b42f42a7f5e3ce2d78061146a3dd5e3395e288
   requires_dist:
   - streamlit>=1.32
   - plotly>=5.20
@@ -1515,8 +1515,8 @@ packages:
   - stable-worldmodel ; extra == 'worldmodel'
   - lerobot ; extra == 'all'
   - stable-worldmodel ; extra == 'all'
-  - lerobot-isaac-meta @ file:///home/koen/workspaces/lerobot-isaac-training/packages/lerobot-isaac-meta ; extra == 'monorepo'
-  - lerobot-isaac-configs @ file:///home/koen/workspaces/lerobot-isaac-training/packages/lerobot-isaac-configs ; extra == 'monorepo'
+  - lerobot-isaac-meta @ file://${LEROBOT_ISAAC_WORKSPACE}/packages/lerobot-isaac-meta ; extra == 'monorepo'
+  - lerobot-isaac-configs @ file://${LEROBOT_ISAAC_WORKSPACE}/packages/lerobot-isaac-configs ; extra == 'monorepo'
   requires_python: '>=3.10'
 - pypi: ./packages/lerobot-isaac-env
   name: lerobot-isaac-env
@@ -1530,12 +1530,12 @@ packages:
   version: 0.1.0
   sha256: b762805b9b7e38180a40cc0cc62e854340044d72a523dc6c5ce354c0fb16bf70
   requires_dist:
-  - lerobot-isaac-env @ file:///home/koen/workspaces/lerobot-isaac-training/packages/lerobot-isaac-env ; extra == 'monorepo'
-  - lerobot-isaac-adapters @ file:///home/koen/workspaces/lerobot-isaac-training/packages/lerobot-isaac-adapters ; extra == 'monorepo'
-  - lerobot-isaac-autoresearch @ file:///home/koen/workspaces/lerobot-isaac-training/packages/lerobot-isaac-autoresearch ; extra == 'monorepo'
-  - lerobot-isaac-synthetic @ file:///home/koen/workspaces/lerobot-isaac-training/packages/lerobot-isaac-synthetic ; extra == 'monorepo'
-  - lerobot-isaac-configs @ file:///home/koen/workspaces/lerobot-isaac-training/packages/lerobot-isaac-configs ; extra == 'monorepo'
-  - lerobot-isaac-recorder @ file:///home/koen/workspaces/lerobot-isaac-training/packages/lerobot-isaac-recorder ; extra == 'monorepo'
+  - lerobot-isaac-env @ file://${LEROBOT_ISAAC_WORKSPACE}/packages/lerobot-isaac-env ; extra == 'monorepo'
+  - lerobot-isaac-adapters @ file://${LEROBOT_ISAAC_WORKSPACE}/packages/lerobot-isaac-adapters ; extra == 'monorepo'
+  - lerobot-isaac-autoresearch @ file://${LEROBOT_ISAAC_WORKSPACE}/packages/lerobot-isaac-autoresearch ; extra == 'monorepo'
+  - lerobot-isaac-synthetic @ file://${LEROBOT_ISAAC_WORKSPACE}/packages/lerobot-isaac-synthetic ; extra == 'monorepo'
+  - lerobot-isaac-configs @ file://${LEROBOT_ISAAC_WORKSPACE}/packages/lerobot-isaac-configs ; extra == 'monorepo'
+  - lerobot-isaac-recorder @ file://${LEROBOT_ISAAC_WORKSPACE}/packages/lerobot-isaac-recorder ; extra == 'monorepo'
   requires_python: '>=3.10'
 - pypi: ./packages/lerobot-isaac-recorder
   name: lerobot-isaac-recorder
@@ -1551,7 +1551,7 @@ packages:
   - pyrealsense2 ; extra == 'all'
   - lerobot ; extra == 'all'
   - stable-worldmodel ; extra == 'all'
-  - lerobot-isaac-configs @ file:///home/koen/workspaces/lerobot-isaac-training/packages/lerobot-isaac-configs ; extra == 'monorepo'
+  - lerobot-isaac-configs @ file://${LEROBOT_ISAAC_WORKSPACE}/packages/lerobot-isaac-configs ; extra == 'monorepo'
   requires_python: '>=3.10'
 - pypi: ./packages/lerobot-isaac-synthetic
   name: lerobot-isaac-synthetic
@@ -1563,7 +1563,7 @@ packages:
   - numpy>=1.24
   - pytest>=8.0 ; extra == 'dev'
   - pytest-cov ; extra == 'dev'
-  - lerobot-isaac-adapters @ file:///home/koen/workspaces/lerobot-isaac-training/packages/lerobot-isaac-adapters ; extra == 'monorepo'
+  - lerobot-isaac-adapters @ file://${LEROBOT_ISAAC_WORKSPACE}/packages/lerobot-isaac-adapters ; extra == 'monorepo'
   requires_python: '>=3.10'
 - conda: https://conda.anaconda.org/conda-forge/linux-64/libexpat-2.8.0-hecca717_0.conda
   sha256: ea33c40977ea7a2c3658c522230058395bc2ee0d89d99f0711390b6a1ee80d12

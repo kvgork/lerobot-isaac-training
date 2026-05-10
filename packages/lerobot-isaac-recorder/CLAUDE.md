@@ -148,7 +148,7 @@ so CI skips it automatically.
 
 ## Source-of-Truth Pointers
 
-- Build plan: `/home/koen/tools/claude_code/plans/2026-05-06-lerobot-isaac-workspace-plan.md` §14
+- Build plan: `${CLAUDE_CODE_ROOT}/plans/2026-05-06-lerobot-isaac-workspace-plan.md` §14
 - Research: `05-Wiki/project-context/research/2026-05-07-dual-recording-lerobot-leworldmodel/details.md`
 - ADR-0003 (soft-import): `../../docs/adr/0003-soft-import-discipline.md`
 - Workspace ARCHITECTURE.md: `../../docs/ARCHITECTURE.md`

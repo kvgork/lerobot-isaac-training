@@ -1,117 +1,186 @@
-# LeRobot + Isaac Lab Training Workspace
+# lerobot-isaac-training
 
-This workspace is a modular monorepo for autonomous SO-101 robot manipulation training. It integrates Isaac Lab (physics simulation), LeRobot (imitation learning policies: SmolVLA / ACT / Diffusion Policy), and two world-model targets (DreamerV3 and HF LeWorldModel) under a single unified training entrypoint. A Streamlit metrics dashboard (`lerobot-isaac-dashboard`) provides live and static visibility into all pipeline artefacts with snapshot save/load and run comparison. The design separates concerns into eight pip-installable packages so each subsystem can later be extracted to its own repository.
+Modular training stack for the **SO-101 robot arm** combining Isaac Lab simulation,
+LeRobot imitation-learning policies, and two world-model backends (DreamerV3 and
+HF LeWorldModel) behind a single training entrypoint, with a metrics dashboard,
+domain-randomization synthetic-data pipeline, and an autoresearch hyperparameter loop.
 
-## Features
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
+[![Pixi](https://img.shields.io/badge/managed%20by-pixi-yellow)](https://pixi.sh)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen)](.pre-commit-config.yaml)
 
-**Simulation and policies:** The `lerobot-isaac-env` package wraps the SO-101 arm in an Isaac Lab `ManagerBasedRLEnv` with full domain randomization. The `lerobot-isaac-adapters` package provides a single `lerobot-isaac-train` command with a `--target_arch` selector that dispatches to LeRobot policy training, DreamerV3, or LeWorldModel without changing any other argument. Configs are centralized in `lerobot-isaac-configs` and consumed by all packages.
-
-**Autoresearch and synthetic data:** The `lerobot-isaac-autoresearch` package contains `program.md` files consumed by the `autoresearch-loop-orchestrator` agent for automated hyperparameter search. The `lerobot-isaac-synthetic` package provides Isaac Lab domain-randomization replay (priority path) and a MimicGen bridge stub (deferred path) for expanding the training corpus beyond real teleoperation. All agents and skills referenced here live in the `claude_code` repo at `/home/koen/tools/claude_code/` and are NOT duplicated in this workspace.
-
-**Metrics dashboard:** The `lerobot-isaac-dashboard` package provides a Streamlit + Plotly live dashboard and static HTML reports over all pipeline artefacts (datasets, checkpoints, eval results, autoresearch history, curriculum stage). Supports snapshot save/load and 2-way / N-way run comparison with zero external services.
+> **Status — research / scaffolding.** Phases 0 – 5 (workspace bootstrap, package
+> wiring, dry-run smoke tests, documentation) are complete. Real training requires
+> a GPU, Isaac Lab, and an SO-101 dataset. See [Build Status](#build-status).
 
 ---
 
-## Table of Contents
+## What's inside
 
-- [Quickstart](#quickstart)
-- [Package Map](#package-map)
-- [Build Status](#build-status)
-- [Documentation](#documentation)
-- [Key Docs](#key-docs)
+Eight pip-installable packages under `packages/`, each independently spinout-able:
+
+| Package | Role |
+|---------|------|
+| [`lerobot-isaac-meta`](packages/lerobot-isaac-meta/) | Umbrella CLI + workspace path resolver |
+| [`lerobot-isaac-env`](packages/lerobot-isaac-env/) | Isaac Lab `ManagerBasedRLEnv` for SO-101 (obs / actions / rewards / DR) |
+| [`lerobot-isaac-adapters`](packages/lerobot-isaac-adapters/) | Single `lerobot-isaac-train` entrypoint; dispatches by `--target_arch` |
+| [`lerobot-isaac-autoresearch`](packages/lerobot-isaac-autoresearch/) | `program.md` configs + wrapper for the autoresearch HP-search loop |
+| [`lerobot-isaac-synthetic`](packages/lerobot-isaac-synthetic/) | DR-replay synthetic-data pipeline + MimicGen bridge stub |
+| [`lerobot-isaac-configs`](packages/lerobot-isaac-configs/) | Shared YAML configs per `target_arch` (leaf — no internal deps) |
+| [`lerobot-isaac-recorder`](packages/lerobot-isaac-recorder/) | RealSense D435 + SO-101 teleop dual-write recorder |
+| [`lerobot-isaac-dashboard`](packages/lerobot-isaac-dashboard/) | Streamlit + Plotly metrics dashboard with snapshot + N-way compare |
+
+Three training backends, one CLI:
+
+```bash
+lerobot-isaac-train --target_arch smolvla     ...   # imitation policy
+lerobot-isaac-train --target_arch dreamerv3   ...   # world model (sheeprl)
+lerobot-isaac-train --target_arch le_world_model ... # world model (HF LeWorldModel)
+```
 
 ---
 
 ## Quickstart
 
-1. **Clone and enter workspace:**
-   ```bash
-   cd ~/workspaces/lerobot-isaac-training
-   ```
+### 1. Clone
 
-2. **Install pixi environment (default — dev tooling + all sibling packages):**
-   ```bash
-   pixi install
-   pixi shell
-   ```
-   To use a specific environment (e.g. with LeRobot policies included):
-   ```bash
-   pixi install -e train-policy
-   pixi shell -e train-policy
-   ```
-   Available environments: `default`, `train-policy`, `train-dreamer`, `train-lewm`, `sim`, `dashboard`, `full`.
-   See `CLAUDE.md §Pixi Workspace` for the full environment table.
+```bash
+git clone https://github.com/kvgork/lerobot-isaac-training.git
+cd lerobot-isaac-training
+```
 
-   Alternative (uv-only, no conda deps):
-   ```bash
-   uv sync
-   # Or individually: pip install -e packages/lerobot-isaac-meta[all]
-   ```
+### 2. Install dependencies via pixi
 
-3. **Install Isaac Lab** (system-level, GPU required — separate from pixi install):
-   ```bash
-   pixi run install-isaac-lab
-   # Or manually: bash scripts/install_isaac_lab.sh
-   # Verify: python -c "import isaaclab"
-   ```
+```bash
+curl -fsSL https://pixi.sh/install.sh | bash    # one-time
+pixi install                                    # default env (dev + workspace)
+```
 
-4. **Set workspace env var:**
-   ```bash
-   export LEROBOT_ISAAC_WORKSPACE=~/workspaces/lerobot-isaac-training
-   ```
+The default `pixi install` activates `scripts/setup_env.sh`, which exports
+`LEROBOT_ISAAC_WORKSPACE`, `CLAUDE_CODE_ROOT`, and `LEROBOT_CLAUDE_CODE_ROOT`
+automatically inside the pixi environment.
 
-5. **Download SO-101 USD asset:**
-   ```bash
-   pixi run download-usd
-   # Or manually: bash packages/lerobot-isaac-env/assets/usd/download_so101_urdf.sh
-   # See packages/lerobot-isaac-env/assets/usd/README.md for details
-   ```
+Other environments (see `pixi.toml`):
 
-6. **Smoke test — dry run policy training:**
-   ```bash
-   lerobot-isaac-train --target_arch smolvla \
-     --config packages/lerobot-isaac-configs/configs/policy_smolvla.yaml \
-     --dry_run
-   ```
+| env | purpose |
+|------|---------|
+| `default` | dev tooling, lint, unit tests |
+| `train-policy` | LeRobot policy training (SmolVLA / ACT / Diffusion) |
+| `train-dreamer` | DreamerV3 world-model training |
+| `train-lewm` | HF LeWorldModel training |
+| `sim` | Isaac Lab simulation (post `install-isaac-lab`) |
+| `record` | SO-101 + D435 teleoperation recorder |
+| `dashboard` | metrics dashboard (Streamlit + Plotly) |
+| `full` | all features simultaneously |
 
-7. **Smoke test — dry run world model:**
-   ```bash
-   lerobot-isaac-train --target_arch dreamerv3 \
-     --config packages/lerobot-isaac-configs/configs/wm_dreamerv3.yaml \
-     --dry_run
-   ```
+```bash
+pixi shell -e train-policy
+```
 
-8. **Run workspace tests:**
-   ```bash
-   pixi run test
-   # Or: pytest packages/*/tests/
-   ```
+### 3. Smoke test (no GPU required)
 
-9. **Open the metrics dashboard:**
-   ```bash
-   pixi run -e dashboard dashboard
-   # Opens http://localhost:8501
-   ```
+```bash
+pixi run test                          # unit tests across all packages
+pixi run lint && pixi run fmt          # ruff
+lerobot-isaac-train --target_arch smolvla \
+    --config packages/lerobot-isaac-configs/configs/policy_smolvla.yaml \
+    --dry_run                          # verifies dispatch chain end-to-end
+```
 
-10. **Open workspace CLAUDE.md for full orientation:**
-    ```bash
-    cat CLAUDE.md
-    ```
+### 4. Optional — install Isaac Lab and download the SO-101 USD asset (GPU required)
+
+```bash
+pixi run install-isaac-lab             # ≈ 30 min, requires NVIDIA GPU + driver ≥ 535
+pixi run download-usd                  # converts SO-101 URDF → USD via Isaac Lab
+```
+
+### 5. Optional — start the metrics dashboard
+
+```bash
+pixi run -e dashboard dashboard        # http://localhost:8501
+```
 
 ---
 
-## Package Map
+## How it fits together
 
-| Package | Path | Description |
-|---------|------|-------------|
-| `lerobot-isaac-meta` | `packages/lerobot-isaac-meta/` | Umbrella CLI (`lerobot-isaac`) + workspace path resolver; depends on all siblings |
-| `lerobot-isaac-env` | `packages/lerobot-isaac-env/` | Isaac Lab `ManagerBasedRLEnv` for SO-101: obs, actions, rewards, DR, tasks |
-| `lerobot-isaac-adapters` | `packages/lerobot-isaac-adapters/` | Unified `lerobot-isaac-train` entrypoint; dispatches by `--target_arch` |
-| `lerobot-isaac-autoresearch` | `packages/lerobot-isaac-autoresearch/` | `program.md` configs for autoresearch loop; `train_wrapper.py` shim |
-| `lerobot-isaac-synthetic` | `packages/lerobot-isaac-synthetic/` | Isaac Lab DR replay + MimicGen bridge stub + dataset merge utilities |
-| `lerobot-isaac-configs` | `packages/lerobot-isaac-configs/` | Shared YAML configs per `target_arch`; leaf package (no internal deps) |
-| `lerobot-isaac-recorder` | `packages/lerobot-isaac-recorder/` | D435 camera + SO-101 teleop dual-write recorder (Parquet + LeWM HDF5) |
-| `lerobot-isaac-dashboard` | `packages/lerobot-isaac-dashboard/` | Streamlit + Plotly metrics dashboard; live UI + static HTML + snapshots + compare |
+```
+                                ┌─────────────────────────┐
+   ┌──────────────┐    Parquet  │  lerobot-isaac-recorder │
+   │   SO-101 +   │────────────▶│  (D435 + teleop)        │
+   │   D435 cam   │             └────────────┬────────────┘
+   └──────────────┘                          │
+                                             ▼  datasets/
+                ┌────────────────────────────────────────────────┐
+                │           datasets/<task>/<repo_id>/           │
+                └─────────────┬───────────────────┬──────────────┘
+                              │                   │
+                              ▼                   ▼
+              ┌─────────────────────┐   ┌───────────────────────┐
+              │ lerobot-isaac-      │   │ lerobot-isaac-        │
+              │ synthetic           │   │ adapters              │
+              │ (DR replay +        │──▶│ (train.py dispatch    │
+              │  MimicGen bridge)   │   │  by --target_arch)    │
+              └─────────────────────┘   └──────────┬────────────┘
+                                                   │
+                          ┌──────────────┬─────────┴─────────┬──────────────┐
+                          ▼              ▼                   ▼              ▼
+                    ┌─────────┐   ┌─────────────┐   ┌──────────────┐   ┌──────────┐
+                    │ SmolVLA │   │ DreamerV3   │   │ LeWorldModel │   │ ACT /    │
+                    │  / ACT  │   │  (sheeprl)  │   │   (HF)       │   │ Diffusion│
+                    └────┬────┘   └──────┬──────┘   └──────┬───────┘   └─────┬────┘
+                         │               │                 │                 │
+                         └───────────────┴────────┬────────┴─────────────────┘
+                                                  ▼
+                                       outputs/checkpoints/
+                                       outputs/eval/
+                                                  │
+                                                  ▼
+                                ┌──────────────────────────────────┐
+                                │ lerobot-isaac-dashboard          │
+                                │ (live UI + static report +       │
+                                │  snapshots + N-way compare)      │
+                                └──────────────────────────────────┘
+```
+
+The autoresearch loop (`lerobot-isaac-autoresearch`) wraps `lerobot-isaac-train`
+to run mutation-driven hyperparameter search over any of the four backends.
+
+See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full diagram, coupling rules,
+and spinout mechanics.
+
+---
+
+## Documentation
+
+| Want to … | Read |
+|-----------|------|
+| Get started for the first time | [`docs/runbook/01-bootstrap.md`](docs/runbook/01-bootstrap.md) |
+| Collect SO-101 teleop data | [`docs/runbook/02-collect-data.md`](docs/runbook/02-collect-data.md) |
+| Train a policy | [`docs/runbook/03-train-policy.md`](docs/runbook/03-train-policy.md) |
+| Train a world model | [`docs/runbook/04-train-world-model.md`](docs/runbook/04-train-world-model.md) |
+| Generate synthetic data | [`docs/runbook/05-augment-with-dr.md`](docs/runbook/05-augment-with-dr.md) |
+| Run autoresearch | [`USAGE.md`](USAGE.md) §F |
+| View metrics / compare runs | [`docs/runbook/07-dashboard.md`](docs/runbook/07-dashboard.md) |
+| Understand the architecture | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
+| Browse the public Python API | [`docs/api-reference.md`](docs/api-reference.md) |
+| Contribute code | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
+
+The full reference layout:
+
+- `README.md` — this file (overview, quickstart, package map)
+- `ARCHITECTURE.md` — diagrams, data flow, coupling rules, glossary
+- `USAGE.md` — every workflow with exact commands; CLI reference; common errors
+- `CONTRIBUTING.md` — pre-commit, code style, PR flow, testing
+- `CHANGELOG.md` — release history
+- `docs/runbook/` — step-by-step task guides
+- `docs/internals/` — implementation deep-dives
+- `docs/concepts/` — design rationale (modular adapter, soft imports, monorepo, pixi)
+- `docs/research/` — library reference notes (Isaac Lab, DreamerV3, LeWorldModel, MimicGen)
+- `docs/adr/` — Architecture Decision Records
+- `packages/<pkg>/CLAUDE.md` — per-package orientation
 
 ---
 
@@ -119,96 +188,50 @@ This workspace is a modular monorepo for autonomous SO-101 robot manipulation tr
 
 | Phase | Description | Status |
 |-------|-------------|--------|
-| Phase 0 | Workspace bootstrap (skeleton, 6 packages, CLAUDE.md, configs, .gitignore) | Done |
-| Phase 1 | Isaac Lab SO-101 env stubs (`lerobot-isaac-env`) | Done (scaffolding) |
-| Phase 2 | Modular training adapter (`lerobot-isaac-adapters`) | Done (scaffolding) |
-| Phase 3 | Autoresearch loop wiring (`lerobot-isaac-autoresearch`) | Done (scaffolding) |
-| Phase 4 | Synthetic data generation (`lerobot-isaac-synthetic`) | Done (scaffolding) |
-| Phase 5 | Documentation polish (this file + ARCHITECTURE + USAGE + runbooks) | Done |
-| Phase A | lerobot-isaac-dashboard (live UI + static report + snapshots + compare) | Done (281 tests) |
-| Phase 1 impl | Wire real Isaac Lab imports, full obs/action/reward impl | Future work |
-| Phase 2 impl | Wire real LeRobot/DreamerV3/LeWM backends in adapters | Future work |
-| Phase 3 impl | Run autoresearch end-to-end with metrics | Future work |
-| Phase 4 impl | Implement DR replay + enable MimicGen path | Future work |
+| 0 | Workspace bootstrap (skeleton, packages, configs, .gitignore) | Done |
+| 1 | Isaac Lab SO-101 env wired (soft-import; cfg construction green; camera obs deferred) | Done |
+| 2 | Modular training adapter (subprocess + metric extraction; dry-run smoke green) | Done |
+| 3 | Autoresearch e2e dry-run (`train_wrapper → train → metric` chain) | Done |
+| 4a | Isaac DR replay + parquet writer + merge utilities | Done |
+| 4b | MimicGen bridge path | Deferred (gated by `LEROBOT_MIMICGEN_ENABLED=1`) |
+| 5 | Documentation polish | Done |
+| A | Metrics dashboard (live UI + static report + snapshots + compare; 281 tests) | Done |
+| — | Real-data smoke against actual SO-101 teleop dataset | Pending data |
+| — | Camera observation wiring (`wrist_camera_rgb` / `overhead_camera_rgb`) | Pending CameraCfg in scene |
+| — | Insertion task (`tasks/insertion.py` Stage 5 stub) | Pending |
 
 ---
 
-## Documentation
+## External dependencies
 
-Full documentation is organized into four areas:
+This workspace expects two adjacent repositories at runtime; both are auto-detected
+or overridable via env var (set up by `scripts/setup_env.sh` / pixi activation):
 
-### Top-Level References
+| Variable | Default search order | What it points to |
+|----------|---------------------|-------------------|
+| `CLAUDE_CODE_ROOT` | `LEROBOT_CLAUDE_CODE_ROOT` → `~/tools/claude_code` → sibling dir | `claude_code` repo (agents + skills) |
+| `LEROBOT_ISAAC_WORKSPACE` | this repo root (auto) | this workspace root |
+| `VAULT_ROOT` | `~/Documents/Vaults/Local` if present | optional Obsidian vault for cross-references |
 
-| Doc | Description |
-|-----|-------------|
-| `CLAUDE.md` | Session orientation: agents, skills, vault links, navigation guide |
-| `ARCHITECTURE.md` | System diagrams, state machine, coupling rules, spinout mechanics, glossary |
-| `USAGE.md` | All 11 workflows with exact commands; CLI reference; common errors |
+Workspace agents and skills (referenced from this repo's docs) live in the
+[`claude_code`](https://github.com/anthropics/claude-code) repo and are **not**
+duplicated here.
 
-### Runbooks (`docs/runbook/`)
+System-level prerequisites (handled by the install scripts in `scripts/`):
 
-Step-by-step task guides:
+- **Isaac Sim** (NVIDIA Omniverse) — required for Isaac Lab
+- **Isaac Lab** v2.1.0 — installed via `pixi run install-isaac-lab`
+- **LeRobot** — installed via `pixi run install-lerobot` or `pip install lerobot[all]`
+- **NVIDIA GPU** + driver ≥ 535 (RTX 3080 or better recommended)
 
-| Runbook | Task |
-|---------|------|
-| `01-bootstrap.md` | First-time setup: pixi, Isaac Lab, USD, smoke tests |
-| `02-collect-data.md` | Collect and quality-filter SO-101 teleop data |
-| `03-train-policy.md` | Train SmolVLA / ACT / Diffusion policy end-to-end |
-| `04-train-world-model.md` | Train DreamerV3 or LeWorldModel |
-| `05-augment-with-dr.md` | Generate DR synthetic data via Isaac Lab replay |
-| `06-augment-with-mimicgen.md` | MimicGen augmentation (deferred path) |
-| `07-dashboard.md` | Live + static metrics dashboard: start, tabs, snapshots, compare, troubleshoot |
-
-### Deep-Dives (`docs/internals/`)
-
-Internal implementation details:
-
-| Doc | Description |
-|-----|-------------|
-| `data-pipeline.md` | Full data lifecycle: LeRobotDataset schema, conversions, merge logic |
-| `training-dispatch.md` | How `train.py` dispatches, subprocess args, OOM retry, metric contract |
-| `autoresearch-integration.md` | program.md schema, mutation operators, metric history, plateau detection |
-| `isaac-lab-integration.md` | MDP terms, EventTermCfg DR, USD wiring, physics config, RTX 3080 limits |
-| `world-model-bridge.md` | DreamerV3 vs LeWM HDF5 schemas, bridge patterns, schema warnings |
-| `synthetic-data.md` | DR replay loop, parquet writer, merge dedup, MimicGen deferred path |
-
-### Concepts (`docs/concepts/`)
-
-Design rationale and patterns:
-
-| Doc | Description |
-|-----|-------------|
-| `modular-training-adapter.md` | Why one entrypoint; how to add a new training backend |
-| `soft-import-discipline.md` | Why heavy deps are lazy; pattern; testing without heavy deps |
-| `multi-package-monorepo.md` | Rationale for 6 packages; coupling rules; spinout strategy |
-| `pixi-workspace.md` | Why pixi; features vs environments; dormant per-package config |
-
-### External References (`docs/research/`)
-
-Library-specific reference notes:
-
-| Doc | Description |
-|-----|-------------|
-| `isaac-lab-reference.md` | Key API classes, USD setup, headless mode, version pinning |
-| `dreamerv3-reference.md` | RSSM theory, sheeprl vs dreamer-v3-pytorch, HDF5 schema, config |
-| `leworldmodel-reference.md` | JEPA architecture, HDF5 schema warning, RTX 3080 config |
-| `mimicgen-reference.md` | Pipeline, deferred status, integration gap, when to enable |
-
-### API Reference
-
-`docs/api-reference.md` — Public Python API for all packages with signatures and examples.
-
-`packages/lerobot-isaac-dashboard/docs/API.md` — Full dashboard public API (loaders, tabs, report, snapshots, compare).
+See [`scripts/README.md`](scripts/README.md) for full execution order.
 
 ---
 
-## Key Docs
+## License
 
-- `CLAUDE.md` — workspace orientation for any Claude session opened here
-- `ARCHITECTURE.md` — system diagram, data flow, cross-package coupling rules
-- `USAGE.md` — runbook index with exact commands per task
-- `docs/runbook/` — step-by-step runbooks (bootstrap → collect → train → augment → dashboard)
-- `docs/research/` — reference notes for Isaac Lab, DreamerV3, LeWorldModel, MimicGen
-- `packages/lerobot-isaac-dashboard/docs/` — dashboard API, examples, and internals
+MIT — see [`LICENSE`](LICENSE).
 
-**Full build plan:** `/home/koen/tools/claude_code/plans/2026-05-06-lerobot-isaac-workspace-plan.md`
+## Contributing
+
+Pull requests welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md).

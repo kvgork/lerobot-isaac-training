@@ -1,6 +1,6 @@
 # wm_leworldmodel.yaml — Training config for HF LeWorldModel on SO-101
 # Plan reference: §13.1 (Bundle A deliverable A1)
-# Skill: /home/koen/tools/claude_code/skills/lerobot_world_model_bridge/ (HDF5 format)
+# Skill: ${CLAUDE_CODE_ROOT}/skills/lerobot_world_model_bridge/ (HDF5 format)
 # Hardware target: RTX 3080 10 GB
 # Last-updated: 2026-05-07
 

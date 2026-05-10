@@ -85,7 +85,7 @@ steps: [50000, 100000]
 
 - Dataset format: HDF5 at `~/workspaces/lerobot-isaac-training/datasets/<task>_lewm/`
   - Produced by `lerobot_world_model_bridge` skill with `preset=le_world_model` (96x96 images)
-  - Source: `/home/koen/tools/claude_code/skills/lerobot_world_model_bridge/`
+  - Source: `${CLAUDE_CODE_ROOT}/skills/lerobot_world_model_bridge/`
   - WARNING (from vault): LeWM HDF5 schema is undocumented; use skill's schema_discovery
     helper to inspect `quentinll/lewm-pusht` if mismatch occurs
 - Checkpoint outputs: `~/workspaces/lerobot-isaac-training/outputs/lewm/<job_name>/`

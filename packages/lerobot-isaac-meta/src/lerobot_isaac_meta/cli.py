@@ -68,7 +68,7 @@ def _cmd_mimicgen_augment(args: argparse.Namespace) -> int:
         "lerobot-isaac mimicgen-augment: not yet wired — see Phase 4b (deferred).\n"
         "This is the MimicGen bridge path. It requires MuJoCo/robosuite "
         "and the lerobot_mimicgen_bridge skill.\n"
-        "Skill location: /home/koen/tools/claude_code/skills/lerobot_mimicgen_bridge/"
+        "Skill location: ${CLAUDE_CODE_ROOT}/skills/lerobot_mimicgen_bridge/"
     )
     return 0
 
@@ -77,7 +77,7 @@ def _cmd_quality_filter(args: argparse.Namespace) -> int:
     """Run quality filtering via lerobot_isaac_adapters.quality.apply_quality_filter.
 
     Dispatches to the SAL+TED quality skill bridge.
-    Skill path: /home/koen/tools/claude_code/skills/lerobot_dataset_quality/
+    Skill path: ${CLAUDE_CODE_ROOT}/skills/lerobot_dataset_quality/
     """
     from pathlib import Path
 
@@ -92,7 +92,7 @@ def _cmd_quality_filter(args: argparse.Namespace) -> int:
         print(f"  ted-threshold    : {args.ted_threshold}")
         print(f"  min-episode-len  : {args.min_episode_length}")
         print(
-            "  skill path       : /home/koen/tools/claude_code/skills/lerobot_dataset_quality/"
+            "  skill path       : ${CLAUDE_CODE_ROOT}/skills/lerobot_dataset_quality/"
         )
         print(
             "  would invoke     : lerobot_isaac_adapters.quality.apply_quality_filter("

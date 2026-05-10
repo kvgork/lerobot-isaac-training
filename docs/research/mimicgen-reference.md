@@ -4,9 +4,9 @@
 **GitHub:** https://github.com/NVlabs/mimicgen
 **Robosuite (required dep):** https://github.com/ARISE-Initiative/robosuite
 
-**Skill reference:** `/home/koen/tools/claude_code/skills/lerobot_mimicgen_bridge/`
-**Agent reference:** `/home/koen/tools/claude_code/agents/workers/lerobot-sim-augmentation-agent.md`
-**Vault note:** `/home/koen/Documents/Vaults/Local/05-Wiki/entities/MimicGen.md`
+**Skill reference:** `${CLAUDE_CODE_ROOT}/skills/lerobot_mimicgen_bridge/`
+**Agent reference:** `${CLAUDE_CODE_ROOT}/agents/workers/lerobot-sim-augmentation-agent.md`
+**Vault note:** `${VAULT_ROOT}/05-Wiki/entities/MimicGen.md`
 **Related workspace docs:** [synthetic-data.md](../internals/synthetic-data.md) | [ARCHITECTURE.md](../../ARCHITECTURE.md)
 
 ---

@@ -3,7 +3,7 @@
 **Workspace:** `~/workspaces/lerobot-isaac-training/`
 **Purpose:** Isaac Lab + LeRobot + LeWorldModel monorepo for SO-101 manipulation training
 **Status as of 2026-05-06:** Phases 0–5 complete (scaffolding). Training impl is future work.
-**Build plan:** `/home/koen/tools/claude_code/plans/2026-05-06-lerobot-isaac-workspace-plan.md`
+**Build plan:** `${CLAUDE_CODE_ROOT}/plans/2026-05-06-lerobot-isaac-workspace-plan.md`
 
 ---
 
@@ -20,14 +20,14 @@ This workspace uses agents and skills from the `claude_code` repo — they are N
 
 | What | Source of truth | Installed copy |
 |------|----------------|----------------|
-| Agents | `/home/koen/tools/claude_code/agents/` | `~/.claude/agents/` |
-| Skills | `/home/koen/tools/claude_code/skills/` | (used in-repo) |
+| Agents | `${CLAUDE_CODE_ROOT}/agents/` | `~/.claude/agents/` |
+| Skills | `${CLAUDE_CODE_ROOT}/skills/` | (used in-repo) |
 | Configs | `packages/lerobot-isaac-configs/configs/` | (this workspace) |
 | Datasets | `datasets/` | (this workspace, gitignored) |
 | Outputs | `outputs/` | (this workspace, gitignored) |
 | Agent state | `.agent-state/` | (this workspace, gitignored) |
 
-To update installed agents after editing source: `cd /home/koen/tools/claude_code && ./install.sh`
+To update installed agents after editing source: `cd ${CLAUDE_CODE_ROOT} && ./install.sh`
 
 ---
 
@@ -164,25 +164,25 @@ Isaac Lab requires a separate manual step (GPU + disk space).
 
 | Agent | Source path |
 |-------|-------------|
-| `lerobot-training-orchestrator` | `/home/koen/tools/claude_code/agents/orchestrators/lerobot-training-orchestrator.md` |
-| `lerobot-data-collection-agent` | `/home/koen/tools/claude_code/agents/workers/lerobot-data-collection-agent.md` |
-| `lerobot-evaluation-agent` | `/home/koen/tools/claude_code/agents/workers/lerobot-evaluation-agent.md` |
-| `lerobot-sim-augmentation-agent` | `/home/koen/tools/claude_code/agents/workers/lerobot-sim-augmentation-agent.md` |
-| `lerobot-curriculum-agent` | `/home/koen/tools/claude_code/agents/orchestrators/lerobot-curriculum-agent.md` |
-| `lerobot-worldmodel-bridge` | `/home/koen/tools/claude_code/agents/lerobot-worldmodel-bridge.md` |
-| `lerobot-specialist` | `/home/koen/tools/claude_code/agents/lerobot-specialist.md` |
-| `autoresearch-loop-orchestrator` | `/home/koen/tools/claude_code/agents/orchestrators/autoresearch-loop-orchestrator.md` |
-| `autoresearch-ml-executor-worker` | `/home/koen/tools/claude_code/agents/workers/autoresearch-ml-executor-worker.md` |
-| `autoresearch-ml-proposer-worker` | `/home/koen/tools/claude_code/agents/workers/autoresearch-ml-proposer-worker.md` |
+| `lerobot-training-orchestrator` | `${CLAUDE_CODE_ROOT}/agents/orchestrators/lerobot-training-orchestrator.md` |
+| `lerobot-data-collection-agent` | `${CLAUDE_CODE_ROOT}/agents/workers/lerobot-data-collection-agent.md` |
+| `lerobot-evaluation-agent` | `${CLAUDE_CODE_ROOT}/agents/workers/lerobot-evaluation-agent.md` |
+| `lerobot-sim-augmentation-agent` | `${CLAUDE_CODE_ROOT}/agents/workers/lerobot-sim-augmentation-agent.md` |
+| `lerobot-curriculum-agent` | `${CLAUDE_CODE_ROOT}/agents/orchestrators/lerobot-curriculum-agent.md` |
+| `lerobot-worldmodel-bridge` | `${CLAUDE_CODE_ROOT}/agents/lerobot-worldmodel-bridge.md` |
+| `lerobot-specialist` | `${CLAUDE_CODE_ROOT}/agents/lerobot-specialist.md` |
+| `autoresearch-loop-orchestrator` | `${CLAUDE_CODE_ROOT}/agents/orchestrators/autoresearch-loop-orchestrator.md` |
+| `autoresearch-ml-executor-worker` | `${CLAUDE_CODE_ROOT}/agents/workers/autoresearch-ml-executor-worker.md` |
+| `autoresearch-ml-proposer-worker` | `${CLAUDE_CODE_ROOT}/agents/workers/autoresearch-ml-proposer-worker.md` |
 
 ## Reused Skills (4) — Source Paths
 
 | Skill | Source path |
 |-------|-------------|
-| `lerobot_world_model_bridge` | `/home/koen/tools/claude_code/skills/lerobot_world_model_bridge/` |
-| `lerobot_mimicgen_bridge` | `/home/koen/tools/claude_code/skills/lerobot_mimicgen_bridge/` |
-| `lerobot_dataset_quality` | `/home/koen/tools/claude_code/skills/lerobot_dataset_quality/` |
-| `autoresearch` | `/home/koen/tools/claude_code/skills/autoresearch/` |
+| `lerobot_world_model_bridge` | `${CLAUDE_CODE_ROOT}/skills/lerobot_world_model_bridge/` |
+| `lerobot_mimicgen_bridge` | `${CLAUDE_CODE_ROOT}/skills/lerobot_mimicgen_bridge/` |
+| `lerobot_dataset_quality` | `${CLAUDE_CODE_ROOT}/skills/lerobot_dataset_quality/` |
+| `autoresearch` | `${CLAUDE_CODE_ROOT}/skills/autoresearch/` |
 
 ---
 
@@ -215,16 +215,26 @@ Isaac Lab requires a separate manual step (GPU + disk space).
 - **LeWM HDF5 schema:** Undocumented. Use `(96,96)` preset in `lerobot_world_model_bridge`.
   See `skills/lerobot_world_model_bridge/SKILL.md` for schema notes.
 - **Spinout to standalone repo:** Use `git subtree split` per Section 11.7 of the build plan.
+- **No eager `from . import <runnable_module>` in package `__init__.py`:** if the
+  submodule is also invokable as `python -m <pkg>.<mod>`, eager re-export triggers
+  `RuntimeWarning: '<pkg>.<mod>' found in sys.modules`. Use a deferred local
+  import in callers, or document a `from <pkg>.<mod> import main` form. Affects
+  `lerobot_isaac_adapters.train`, `lerobot_isaac_autoresearch.train_wrapper`,
+  `lerobot_isaac_synthetic.isaac_dr.replay_runner`.
+- **Dry-run is the default acceptance bar pre-data:** every entrypoint must accept
+  `--dry_run`, print the resolved subprocess command, and exit 0 — never actually
+  reach the heavy backend. Tested by
+  `packages/lerobot-isaac-autoresearch/tests/test_e2e_dry_run.py`.
 
 ---
 
 ## Vault Links (Second Brain context)
 
-- SO-101 hardware / sim notes: `/home/koen/Documents/Vaults/Local/05-Wiki/entities/SO-101.md`
-- LeWorldModel schema: `/home/koen/Documents/Vaults/Local/05-Wiki/entities/LeWorldModel.md`
-- MimicGen integration: `/home/koen/Documents/Vaults/Local/05-Wiki/entities/MimicGen.md`
-- World-Models RTX-3080 fit table: `/home/koen/Documents/Vaults/Local/05-Wiki/concepts/World-Models-(Robot-Manipulation).md`
-- Autonomous ML Training Loop: `/home/koen/Documents/Vaults/Local/05-Wiki/concepts/Autonomous-ML-Training-Loop.md`
+- SO-101 hardware / sim notes: `${VAULT_ROOT}/05-Wiki/entities/SO-101.md`
+- LeWorldModel schema: `${VAULT_ROOT}/05-Wiki/entities/LeWorldModel.md`
+- MimicGen integration: `${VAULT_ROOT}/05-Wiki/entities/MimicGen.md`
+- World-Models RTX-3080 fit table: `${VAULT_ROOT}/05-Wiki/concepts/World-Models-(Robot-Manipulation).md`
+- Autonomous ML Training Loop: `${VAULT_ROOT}/05-Wiki/concepts/Autonomous-ML-Training-Loop.md`
 
 ---
 

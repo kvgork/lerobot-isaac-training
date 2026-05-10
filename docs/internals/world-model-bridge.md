@@ -1,9 +1,9 @@
 # World Model Bridge — Internals
 
 **Cross-references:** [ARCHITECTURE.md](../../ARCHITECTURE.md) | [data-pipeline.md](./data-pipeline.md) | [training-dispatch.md](./training-dispatch.md)
-**Skill source:** `/home/koen/tools/claude_code/skills/lerobot_world_model_bridge/`
-**Skill docs:** `/home/koen/tools/claude_code/skills/lerobot_world_model_bridge/SKILL.md`
-**Vault note:** `/home/koen/Documents/Vaults/Local/05-Wiki/entities/LeWorldModel.md`
+**Skill source:** `${CLAUDE_CODE_ROOT}/skills/lerobot_world_model_bridge/`
+**Skill docs:** `${CLAUDE_CODE_ROOT}/skills/lerobot_world_model_bridge/SKILL.md`
+**Vault note:** `${VAULT_ROOT}/05-Wiki/entities/LeWorldModel.md`
 
 ---
 
@@ -135,7 +135,7 @@ training experiments on the same dataset.
 
 ## Relationship to `lerobot-worldmodel-bridge` Agent
 
-The agent (`/home/koen/tools/claude_code/agents/lerobot-worldmodel-bridge.md`) is a
+The agent (`${CLAUDE_CODE_ROOT}/agents/lerobot-worldmodel-bridge.md`) is a
 higher-level wrapper that:
 1. Invokes the skill's `convert_dataset()` function
 2. Validates the output schema

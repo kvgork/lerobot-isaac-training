@@ -89,7 +89,7 @@ If not found, emits `<metric_name>=0.0` sentinel so the executor doesn't crash.
 - `~/.claude/agents/orchestrators/autoresearch-loop-orchestrator.md`
 - `~/.claude/agents/workers/autoresearch-ml-executor-worker.md`
 - `~/.claude/agents/workers/autoresearch-ml-proposer-worker.md`
-- `/home/koen/tools/claude_code/skills/autoresearch/`
+- `${CLAUDE_CODE_ROOT}/skills/autoresearch/`
 
 Installed copies live at `~/.claude/agents/`. Do NOT edit agents here.
 
@@ -135,6 +135,6 @@ See `../../docs/ARCHITECTURE.md` (spinout section).
 
 ## Source-of-Truth Pointers
 
-- Build plan: `/home/koen/tools/claude_code/plans/2026-05-06-lerobot-isaac-workspace-plan.md` — Phase 3 / §11.8
-- Template reference: `/home/koen/tools/claude_code/templates/ml-program.md`
-- LeRobot program template: `/home/koen/tools/claude_code/templates/lerobot-program.md`
+- Build plan: `${CLAUDE_CODE_ROOT}/plans/2026-05-06-lerobot-isaac-workspace-plan.md` — Phase 3 / §11.8
+- Template reference: `${CLAUDE_CODE_ROOT}/templates/ml-program.md`
+- LeRobot program template: `${CLAUDE_CODE_ROOT}/templates/lerobot-program.md`
