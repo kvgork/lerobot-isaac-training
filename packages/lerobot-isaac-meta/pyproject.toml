@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "Umbrella package for LeRobot + Isaac Lab training workspace (SO-101)"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+  "pyyaml>=6.0",
+]
 # NOTE: sibling workspace packages are NOT listed in [project] dependencies
 # because pixi installs them as editable workspace deps via pypi-dependencies in
 # root pixi.toml (avoids URL-conflict between plain name + editable path).
@@ -23,6 +25,7 @@ monorepo = [
 
 [project.scripts]
 lerobot-isaac = "lerobot_isaac_meta.cli:main"
+lerobot-isaac-batch = "lerobot_isaac_meta.batch:main"
 
 [build-system]
 requires = ["hatchling"]

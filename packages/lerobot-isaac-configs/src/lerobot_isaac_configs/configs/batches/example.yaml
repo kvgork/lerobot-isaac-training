@@ -1,0 +1,46 @@
+# Example batch configuration — train two backends on the same SO-101 dataset
+# and render an N-way compare report afterwards.
+#
+# Run:
+#   lerobot-isaac-batch --config packages/lerobot-isaac-configs/src/lerobot_isaac_configs/configs/batch_example.yaml
+#   pixi run train-and-compare    # convenience alias
+#
+# Each run trains by shelling out to `lerobot-isaac-train`; on success the
+# workspace is snapshotted (label = run.label or run.id). After all runs
+# finish a static HTML compare report is written to
+# outputs/reports/compare-<batch_id>/report.html.
+
+batch_id: smolvla-vs-lewm
+
+# Common dataset for every run (override per-run via runs[*].dataset).
+dataset: datasets/so101/pick-cube
+
+# Each run's --output_dir defaults to {output_root}/{batch_id}/{run.id}.
+output_root: outputs/runs
+
+# continue: failed runs are skipped from compare; remaining runs proceed.
+# abort:    first failure halts the batch and skips compare entirely.
+on_failure: continue
+
+compare:
+  enabled: true
+  mode: nway      # 2way (exactly 2 runs) | nway (≥ 2 runs overlaid)
+
+runs:
+  - id: smolvla-baseline
+    target_arch: smolvla
+    config: packages/lerobot-isaac-configs/src/lerobot_isaac_configs/configs/policy_smolvla.yaml
+    steps: 50000
+    batch_size: 32
+    lr: 1.0e-4
+    seed: 42
+    label: SmolVLA (baseline)
+
+  - id: lewm-baseline
+    target_arch: le_world_model
+    config: packages/lerobot-isaac-configs/src/lerobot_isaac_configs/configs/wm_leworldmodel.yaml
+    steps: 50000
+    batch_size: 16
+    lr: 5.0e-4
+    seed: 42
+    label: LeWorldModel (baseline)

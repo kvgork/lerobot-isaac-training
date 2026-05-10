@@ -527,6 +527,38 @@ pixi run -e dashboard compare --workspace=$PWD \
 
 Output: time-series traces from all snapshots overlaid; snapshot label as legend.
 
+### Workflow L: Batch Train Multiple Backends and Auto-Compare
+
+**Prerequisites:** any pixi env that has the target backends installed (`full` covers all)
+**See also:** `docs/runbook/08-batch-train-and-compare.md` for the full schema and runbook.
+
+Run multiple `target_arch`s sequentially on the same dataset and render a single
+N-way / 2-way HTML compare report — the canonical "train SmolVLA and LeWorldModel
+on the same data, then compare" workflow.
+
+```bash
+# 1. Drop / edit a batch YAML (see batch_example.yaml in lerobot-isaac-configs)
+$EDITOR packages/lerobot-isaac-configs/src/lerobot_isaac_configs/configs/batches/example.yaml
+
+# 2. Verify dispatch (no checkpoints written, no snapshots taken)
+pixi run -e default lerobot-isaac-batch \
+    --config packages/lerobot-isaac-configs/src/lerobot_isaac_configs/configs/batches/example.yaml \
+    --workspace . \
+    --dry_run
+
+# 3. Run for real
+pixi run -e full lerobot-isaac-batch --config <your-batch.yaml> --workspace .
+
+# 3b. Pixi shortcut for the example
+pixi run train-and-compare
+```
+
+Output: `outputs/reports/compare-<batch_id>/report.html` plus per-run snapshots
+under `outputs/snapshots/<batch_id>-<run_id>/`.
+
+Failure handling: `on_failure: continue` (default) skips failed runs from compare;
+`on_failure: abort` halts the batch on first failure.
+
 ---
 
 ## CLI Reference

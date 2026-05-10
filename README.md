@@ -164,6 +164,7 @@ and spinout mechanics.
 | Generate synthetic data | [`docs/runbook/05-augment-with-dr.md`](docs/runbook/05-augment-with-dr.md) |
 | Run autoresearch | [`USAGE.md`](USAGE.md) §F |
 | View metrics / compare runs | [`docs/runbook/07-dashboard.md`](docs/runbook/07-dashboard.md) |
+| Batch train multiple archs + auto-compare | [`docs/runbook/08-batch-train-and-compare.md`](docs/runbook/08-batch-train-and-compare.md) |
 | Understand the architecture | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
 | Browse the public Python API | [`docs/api-reference.md`](docs/api-reference.md) |
 | Contribute code | [`CONTRIBUTING.md`](CONTRIBUTING.md) |

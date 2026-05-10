@@ -266,6 +266,7 @@ All documentation files in this workspace with one-line descriptions:
 | `docs/runbook/05-augment-with-dr.md` | Generate DR synthetic data via Isaac Lab replay |
 | `docs/runbook/06-augment-with-mimicgen.md` | MimicGen augmentation (deferred path) |
 | `docs/runbook/07-dashboard.md` | Live + static metrics dashboard: start, tabs, snapshots, compare, troubleshoot |
+| `docs/runbook/08-batch-train-and-compare.md` | Batch-train multiple `target_arch`s sequentially and auto-render N-way compare report |
 | `docs/research/isaac-lab-reference.md` | Isaac Lab API, USD setup, RTX 3080 constraints |
 | `docs/research/dreamerv3-reference.md` | DreamerV3 theory, sheeprl, HDF5 schema, config knobs |
 | `docs/research/leworldmodel-reference.md` | LeWorldModel architecture, HDF5 schema warning, config |
