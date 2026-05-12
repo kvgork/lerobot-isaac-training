@@ -1,4 +1,4 @@
-# lerobot-isaac-recorder
+# robot-data-recorder
 
 D435 camera + SO-101 teleoperation **dual-write recorder** for the
 `lerobot-isaac-training` workspace.
@@ -27,7 +27,7 @@ Real hardware loop (D435 + SO-101) requires `pyrealsense2` + `lerobot` at runtim
 | `SO101Teleop` + `MockSO101Teleop` | Implemented |
 | `DualWriter` (parquet / hdf5 / dual) | Implemented |
 | `RecordingSession` | Implemented |
-| CLI (`lerobot-isaac-record`) | Implemented |
+| CLI (`robot-data-record`) | Implemented |
 | Real hardware loop | Phase 1 (requires bench) |
 | Camera calibration persistence | Phase 2 |
 | Isaac sim mirror writer (Path C) | Future |
@@ -46,14 +46,14 @@ pixi install         # installs all workspace packages
 ### Standalone mode
 
 ```bash
-cd packages/lerobot-isaac-recorder
+cd packages/robot-data-recorder
 pixi install         # standalone pixi environment (dormant in monorepo mode)
 ```
 
 ### Direct pip install
 
 ```bash
-pip install -e packages/lerobot-isaac-recorder/
+pip install -e packages/robot-data-recorder/
 ```
 
 ### Optional heavy deps
@@ -73,11 +73,24 @@ pip install stable-worldmodel
 
 ## Quick Example
 
+> **Requires pixi env.** The `robot-data-record` console script lives in the
+> workspace pixi environment. Either drop into a shell first:
+> ```bash
+> pixi shell
+> robot-data-record ...
+> ```
+> or prefix each call with `pixi run`:
+> ```bash
+> pixi run robot-data-record ...
+> ```
+> Plain `robot-data-record` outside pixi gives `command not found`. All bash
+> examples below assume `pixi shell` is already active.
+
 ### Dry-run (no hardware, no deps)
 
 ```bash
-lerobot-isaac-record \
-  --repo-id=koen/so101-pickplace \
+robot-data-record \
+  --repo-id=myuser/so101-pickplace \
   --num-episodes=10 \
   --format=dual \
   --task="pick and place cube" \
@@ -86,9 +99,9 @@ lerobot-isaac-record \
 
 Expected output:
 ```
-[lerobot-isaac-record] DRY RUN — resolved config:
+[robot-data-record] DRY RUN — resolved config:
 {
-  "repo_id": "koen/so101-pickplace",
+  "repo_id": "myuser/so101-pickplace",
   "num_episodes": 10,
   "format": "dual",
   ...
@@ -98,12 +111,12 @@ Expected output:
 ### Python API (mock hardware)
 
 ```python
-from lerobot_isaac_recorder import RecordingConfig, RecordingSession
-from lerobot_isaac_recorder.d435 import make_d435
-from lerobot_isaac_recorder.so101_teleop import MockSO101Teleop
+from robot_data_recorder import RecordingConfig, RecordingSession
+from robot_data_recorder.d435 import make_d435
+from robot_data_recorder.so101_teleop import MockSO101Teleop
 
 cfg = RecordingConfig(
-    repo_id="koen/so101-pickplace",
+    repo_id="myuser/so101-pickplace",
     num_episodes=3,
     format="hdf5",    # no lerobot needed
     output_dir="./datasets",
@@ -118,20 +131,66 @@ with RecordingSession(cfg, camera=cam, teleop=teleop, writer=None) as session:
         print(f"Episode {ep_idx}: {len(buf.pixels)} steps")
 ```
 
-### Real hardware (D435 + SO-101)
+### Pre-flight hardware check
+
+Before the first real-hardware recording session, verify env vars, serial
+ports, dialout group membership, and the RealSense device:
 
 ```bash
-lerobot-isaac-record \
-  --repo-id=koen/so101-pickplace \
+pixi run robot-data-check              # quick checks, no hardware connect
+pixi run robot-data-check --connect    # also try lerobot SO-101 connect()
+pixi run robot-data-check --json       # machine-readable output
+```
+
+Exits 0 when everything required is reachable, 1 when a blocker is found.
+
+### Episode control keys
+
+The session is gated on operator key presses in the launching terminal:
+
+| Phase                | Key                  | Effect                                              |
+|----------------------|----------------------|-----------------------------------------------------|
+| Before each episode  | `SPACE` / `ENTER` / `s` | Reset stage, then press to begin recording.       |
+| Before each episode  | `q`                   | Abort the session before recording starts.         |
+| During recording     | `SPACE` / `ENTER` / `s` | End current episode and save it. Wait for next.  |
+| During recording     | `q`                   | End current episode, save it, then abort session.  |
+
+`max_steps` (default `18000` ≈ 10 min @ 30 Hz) is still honoured as a hard
+safety ceiling; it only fires when no key is pressed. When stdin is not a
+tty (e.g. wrapped by a launcher) the listener is disabled — start-gates fall
+through immediately and `max_steps` behaves like the old fixed-length cutoff.
+
+### Real hardware (D435 + SO-101)
+
+Hardware ports/serial pulled from env vars (set via `pixi run setup-env` or
+exported in `~/.bashrc`):
+
+| Env var | Default | Purpose |
+|---------|---------|---------|
+| `LERO_FOLLOWER_PORT` | `/dev/ttyUSB0` | SO-101 follower arm serial port |
+| `LERO_LEADER_PORT` | unset | SO-101 leader arm serial port |
+| `LERO_CAM_SERIAL` | unset (= AUTO) | RealSense D435 serial number |
+
+When set, CLI flags `--arm-port`, `--leader-port`, `--camera-serial` and
+`RecordingConfig` defaults pick them up automatically:
+
+```bash
+# Uses $LERO_FOLLOWER_PORT, $LERO_LEADER_PORT, $LERO_CAM_SERIAL
+robot-data-record \
+  --repo-id=myuser/so101-pickplace \
   --num-episodes=50 \
   --format=dual \
-  --arm-port=/dev/ttyUSB0 \
-  --leader-port=/dev/ttyUSB1 \
-  --camera-serial=AUTO \
-  --resolution=640x480 \
-  --fps=30 \
-  --task="pick and place cube" \
-  --output-dir=./datasets
+  --task="pick and place cube"
+```
+
+Override on command line if needed:
+
+```bash
+robot-data-record \
+  --repo-id=myuser/so101-pickplace \
+  --arm-port=<follower-tty> \
+  --leader-port=<leader-tty> \
+  --camera-serial=<d435-serial>
 ```
 
 ---
@@ -149,9 +208,9 @@ class RecordingConfig:
     output_dir: str = "./datasets"
     task: str = "unspecified"
     fps: int = 30
-    arm_port: str = "/dev/ttyUSB0"
-    leader_port: str | None = None
-    camera_serial: str | None = None
+    arm_port: str = field(default_factory=_env_follower_port)   # $LERO_FOLLOWER_PORT
+    leader_port: str | None = field(default_factory=_env_leader_port)  # $LERO_LEADER_PORT
+    camera_serial: str | None = field(default_factory=_env_camera_serial)  # $LERO_CAM_SERIAL
     resolution: tuple[int, int] = (640, 480)
     enable_depth: bool = False
     max_steps: int = 200
@@ -197,7 +256,7 @@ def make_d435(
 ### Schema helpers
 
 ```python
-from lerobot_isaac_recorder.schema import (
+from robot_data_recorder.schema import (
     validate_episode_buffer,    # raises ValueError on bad buffer
     compute_ep_offset,           # [10, 20] -> [0, 10]
     lerobot_features_dict,       # features dict for LeRobotDataset.create()
@@ -255,7 +314,7 @@ Episode i occupies rows `[ep_offset[i], ep_offset[i] + ep_len[i])`.
 
 ```yaml
 # recording_default.yaml
-repo_id: koen/so101-pickplace
+repo_id: myuser/so101-pickplace
 num_episodes: 50
 format: dual
 fps: 30
@@ -269,7 +328,7 @@ max_steps: 300
 Load via:
 
 ```bash
-lerobot-isaac-record --config=recording_default --dry-run
+robot-data-record --config=recording_default --dry-run
 ```
 
 Or in Python:
@@ -283,7 +342,7 @@ cfg = RecordingConfig.from_yaml("configs/recording_default.yaml")
 ## Running Tests
 
 ```bash
-cd packages/lerobot-isaac-recorder
+cd packages/robot-data-recorder
 python3 -m pytest tests/ -v
 ```
 
@@ -302,7 +361,7 @@ pytest tests/ -m 'not requires_realsense and not requires_lerobot'
 This package can be extracted as a standalone PyPI package:
 
 ```bash
-git subtree split -P packages/lerobot-isaac-recorder -b spinout-recorder
+git subtree split -P packages/robot-data-recorder -b spinout-recorder
 ```
 
 After spinout, update sibling `pyproject.toml` files to reference the PyPI version.
@@ -312,7 +371,5 @@ See `../../docs/ARCHITECTURE.md` (spinout section).
 
 ## Source-of-Truth Pointers
 
-- Build plan: `${CLAUDE_CODE_ROOT}/plans/2026-05-06-lerobot-isaac-workspace-plan.md` §14
-- Research: `05-Wiki/project-context/research/2026-05-07-dual-recording-lerobot-leworldmodel/details.md`
-- ADR-0003: `../../docs/adr/0003-soft-import-discipline.md`
-- Workspace ARCHITECTURE.md: `../../docs/ARCHITECTURE.md`
+- ADR-0003 (soft-import discipline): `../../docs/adr/0003-soft-import-discipline.md`
+- Workspace architecture: `../../docs/ARCHITECTURE.md`

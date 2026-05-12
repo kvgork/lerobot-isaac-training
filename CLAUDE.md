@@ -41,7 +41,7 @@ To update installed agents after editing source: `cd ${CLAUDE_CODE_ROOT} && ./in
 | `lerobot-isaac-autoresearch` | `packages/lerobot-isaac-autoresearch/` | 3 | Un-stubbed |
 | `lerobot-isaac-synthetic` | `packages/lerobot-isaac-synthetic/` | 4 | Un-stubbed (DR replay; MimicGen deferred) |
 | `lerobot-isaac-configs` | `packages/lerobot-isaac-configs/` | 0/A | 6 YAML configs populated |
-| `lerobot-isaac-recorder` | `packages/lerobot-isaac-recorder/` | §14 | D435 + SO-101 dual-write (Parquet + LeWM HDF5) |
+| `robot-data-recorder` | `packages/lerobot-isaac-recorder/` | §14 | D435 + SO-101 dual-write (Parquet + LeWM HDF5) |
 | `lerobot-isaac-dashboard` | `packages/lerobot-isaac-dashboard/` | §dashboard | Live + static metrics dashboard with snapshot save/load + 2-way and N-way compare |
 
 ---

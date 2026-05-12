@@ -29,7 +29,7 @@ Eight pip-installable packages under `packages/`, each independently spinout-abl
 | [`lerobot-isaac-autoresearch`](packages/lerobot-isaac-autoresearch/) | `program.md` configs + wrapper for the autoresearch HP-search loop |
 | [`lerobot-isaac-synthetic`](packages/lerobot-isaac-synthetic/) | DR-replay synthetic-data pipeline + MimicGen bridge stub |
 | [`lerobot-isaac-configs`](packages/lerobot-isaac-configs/) | Shared YAML configs per `target_arch` (leaf — no internal deps) |
-| [`lerobot-isaac-recorder`](packages/lerobot-isaac-recorder/) | RealSense D435 + SO-101 teleop dual-write recorder |
+| [`robot-data-recorder`](packages/lerobot-isaac-recorder/) | RealSense D435 + SO-101 teleop dual-write recorder |
 | [`lerobot-isaac-dashboard`](packages/lerobot-isaac-dashboard/) | Streamlit + Plotly metrics dashboard with snapshot + N-way compare |
 
 Three training backends, one CLI:
@@ -108,7 +108,7 @@ pixi run -e dashboard dashboard        # http://localhost:8501
 
 ```
                                 ┌─────────────────────────┐
-   ┌──────────────┐    Parquet  │  lerobot-isaac-recorder │
+   ┌──────────────┐    Parquet  │  robot-data-recorder    │
    │   SO-101 +   │────────────▶│  (D435 + teleop)        │
    │   D435 cam   │             └────────────┬────────────┘
    └──────────────┘                          │

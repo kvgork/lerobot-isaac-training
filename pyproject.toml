@@ -17,7 +17,7 @@ lerobot-isaac-adapters = { workspace = true }
 lerobot-isaac-autoresearch = { workspace = true }
 lerobot-isaac-synthetic = { workspace = true }
 lerobot-isaac-configs = { workspace = true }
-lerobot-isaac-recorder = { workspace = true }
+robot-data-recorder = { workspace = true }
 
 [tool.pytest.ini_options]
 testpaths = ["packages/*/tests"]

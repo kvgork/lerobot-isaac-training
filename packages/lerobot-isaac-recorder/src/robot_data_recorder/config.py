@@ -2,7 +2,7 @@
 config
 ======
 
-RecordingConfig dataclass for lerobot-isaac-recorder.
+RecordingConfig dataclass for robot-data-recorder.
 
 All recording session parameters are captured here. The dataclass is
 intentionally flat (no nested sub-configs) to keep YAML files simple
@@ -12,9 +12,30 @@ and to make ``to_dict()`` produce a clean printout for ``--dry-run``.
 from __future__ import annotations
 
 import dataclasses
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+
+def _env_follower_port() -> str:
+    """Default follower-arm serial port. Reads ``LERO_FOLLOWER_PORT`` env var.
+
+    Set via ``pixi run setup-env`` (writes ``.env``) or exported in ``~/.bashrc``.
+    """
+    return os.environ.get("LERO_FOLLOWER_PORT", "/dev/ttyUSB0")
+
+
+def _env_leader_port() -> str | None:
+    """Default leader-arm serial port. Reads ``LERO_LEADER_PORT`` env var."""
+    val = os.environ.get("LERO_LEADER_PORT")
+    return val or None
+
+
+def _env_camera_serial() -> str | None:
+    """Default D435 camera serial. Reads ``LERO_CAM_SERIAL`` env var."""
+    val = os.environ.get("LERO_CAM_SERIAL")
+    return val or None
 
 
 @dataclass
@@ -24,7 +45,7 @@ class RecordingConfig:
     Attributes
     ----------
     repo_id:
-        HuggingFace repo id or local dataset name (e.g. ``koen/so101-pickplace``).
+        HuggingFace repo id or local dataset name (e.g. ``myuser/so101-pickplace``).
     num_episodes:
         Number of episodes to record per session.
     format:
@@ -38,16 +59,22 @@ class RecordingConfig:
         Recording frame rate (Hz). Default: 30.
     arm_port:
         Serial port for the SO-101 follower arm (e.g. ``/dev/ttyUSB0``).
+        Default reads ``LERO_FOLLOWER_PORT`` env var, falling back to ``/dev/ttyUSB0``.
     leader_port:
         Serial port for the SO-101 leader arm. ``None`` disables leader control.
+        Default reads ``LERO_LEADER_PORT`` env var.
     camera_serial:
         RealSense D435 serial number. ``None`` / ``"AUTO"`` selects first device.
+        Default reads ``LERO_CAM_SERIAL`` env var.
     resolution:
         Camera resolution as ``(width, height)`` tuple. Default: ``(640, 480)``.
     enable_depth:
         Whether to capture the D435 depth stream. Default: ``False``.
     max_steps:
-        Maximum steps per episode (for scaffolding / dry-run). Default: ``200``.
+        Hard safety ceiling on episode length. The recorder normally ends an
+        episode when the operator presses SPACE/ENTER; ``max_steps`` only
+        kicks in if no key is pressed. Default: ``18000`` (= 10 minutes
+        @ 30 Hz).
     dry_run:
         If ``True``, bypass all hardware and write nothing. Default: ``False``.
     """
@@ -58,12 +85,12 @@ class RecordingConfig:
     output_dir: str = "./datasets"
     task: str = "unspecified"
     fps: int = 30
-    arm_port: str = "/dev/ttyUSB0"
-    leader_port: str | None = None
-    camera_serial: str | None = None
+    arm_port: str = field(default_factory=_env_follower_port)
+    leader_port: str | None = field(default_factory=_env_leader_port)
+    camera_serial: str | None = field(default_factory=_env_camera_serial)
     resolution: tuple[int, int] = field(default_factory=lambda: (640, 480))
     enable_depth: bool = False
-    max_steps: int = 200
+    max_steps: int = 18000
     dry_run: bool = False
 
     # ------------------------------------------------------------------ #

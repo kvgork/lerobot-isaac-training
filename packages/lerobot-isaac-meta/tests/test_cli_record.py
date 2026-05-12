@@ -10,7 +10,7 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def _add_recorder_src_to_path():
-    """Insert lerobot-isaac-recorder src on sys.path so meta CLI delegation resolves."""
+    """Insert robot-data-recorder src on sys.path so meta CLI delegation resolves."""
     recorder_src = (
         Path(__file__).resolve().parents[3] / "lerobot-isaac-recorder" / "src"
     )
@@ -65,20 +65,20 @@ class TestRecordSubcommand:
             main(["record", "--repo-id=test2", "--num-episodes=2", "--dry-run"])
 
     def test_record_import_error_when_recorder_missing(self, monkeypatch, capsys):
-        """If lerobot_isaac_recorder is not importable, record subcommand returns 1."""
+        """If robot_data_recorder is not importable, record subcommand returns 1."""
         import sys as _sys
-        # Block import by injecting a fake finder that raises on lerobot_isaac_recorder
+        # Block import by injecting a fake finder that raises on robot_data_recorder
         # Strategy: pop any cached module + insert a sentinel that fails import via meta_path
 
         class _BlockingFinder:
             def find_spec(self, name, path=None, target=None):
-                if name.startswith("lerobot_isaac_recorder"):
+                if name.startswith("robot_data_recorder"):
                     raise ImportError("forced fail for test")
                 return None
 
         # Pop cached modules
         for k in list(_sys.modules):
-            if k.startswith("lerobot_isaac_recorder"):
+            if k.startswith("robot_data_recorder"):
                 _sys.modules.pop(k, None)
 
         finder = _BlockingFinder()
@@ -91,6 +91,6 @@ class TestRecordSubcommand:
             )
             assert rc == 1
             err = capsys.readouterr().err
-            assert "lerobot_isaac_recorder" in err or "forced fail" in err
+            assert "robot_data_recorder" in err or "forced fail" in err
         finally:
             _sys.meta_path.remove(finder)

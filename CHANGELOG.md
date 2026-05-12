@@ -47,7 +47,7 @@ Initial scaffold. Phases 0 – 5 plus dashboard package complete.
 - **`lerobot-isaac-synthetic`** — Isaac Lab DR replay (priority path),
   parquet writer, dataset merge utilities, MimicGen bridge stub (deferred).
 - **`lerobot-isaac-configs`** — six leaf YAML configs per `target_arch`.
-- **`lerobot-isaac-recorder`** — RealSense D435 + SO-101 dual-write recorder
+- **`robot-data-recorder`** — RealSense D435 + SO-101 dual-write recorder
   producing LeRobotDataset Parquet and LeWorldModel HDF5 simultaneously.
 - **`lerobot-isaac-dashboard`** — Streamlit + Plotly metrics dashboard with 8
   pipeline tabs, dual-render figures, static HTML export, snapshot save/load

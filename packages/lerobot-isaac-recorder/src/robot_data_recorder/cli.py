@@ -2,9 +2,9 @@
 cli
 ===
 
-Command-line entrypoint for lerobot-isaac-recorder.
+Command-line entrypoint for robot-data-recorder.
 
-    lerobot-isaac-record --repo-id=koen/pickplace --num-episodes=10 \\
+    robot-data-record --repo-id=myuser/pickplace --num-episodes=10 \\
         --format=dual --resolution=640x480 --fps=30 \\
         --arm-port=/dev/ttyUSB0 --camera-serial=AUTO \\
         --output-dir=./datasets --task="pick and place cube"
@@ -16,12 +16,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 
 
 def _build_parser() -> argparse.ArgumentParser:
+    env_follower = os.environ.get("LERO_FOLLOWER_PORT", "/dev/ttyUSB0")
+    env_leader = os.environ.get("LERO_LEADER_PORT") or None
+    env_cam = os.environ.get("LERO_CAM_SERIAL") or None
     p = argparse.ArgumentParser(
-        prog="lerobot-isaac-record",
+        prog="robot-data-record",
         description=(
             "Record teleoperation episodes from D435 camera + SO-101 arm "
             "and write to LeRobot Parquet and/or LeWM HDF5 format."
@@ -33,7 +37,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--repo-id",
         required=True,
         metavar="REPO_ID",
-        help="HuggingFace repo id or local name (e.g. koen/so101-pickplace)",
+        help="HuggingFace repo id or local name (e.g. myuser/so101-pickplace)",
     )
     p.add_argument(
         "--num-episodes",
@@ -78,9 +82,12 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--camera-serial",
-        default=None,
+        default=env_cam,
         metavar="SERIAL",
-        help="RealSense D435 serial number. 'AUTO' or omit to use first device.",
+        help=(
+            "RealSense D435 serial number. 'AUTO' or omit to use first device. "
+            "Default reads $LERO_CAM_SERIAL."
+        ),
     )
     p.add_argument(
         "--depth",
@@ -92,22 +99,32 @@ def _build_parser() -> argparse.ArgumentParser:
     # Arm
     p.add_argument(
         "--arm-port",
-        default="/dev/ttyUSB0",
+        default=env_follower,
         metavar="PORT",
-        help="Serial port for SO-101 follower arm (default: /dev/ttyUSB0)",
+        help=(
+            "Serial port for SO-101 follower arm. "
+            "Default reads $LERO_FOLLOWER_PORT, falling back to /dev/ttyUSB0."
+        ),
     )
     p.add_argument(
         "--leader-port",
-        default=None,
+        default=env_leader,
         metavar="PORT",
-        help="Serial port for SO-101 leader arm. Omit for scripted/replay mode.",
+        help=(
+            "Serial port for SO-101 leader arm. Omit for scripted/replay mode. "
+            "Default reads $LERO_LEADER_PORT."
+        ),
     )
     p.add_argument(
         "--max-steps",
         type=int,
-        default=200,
+        default=18000,
         metavar="N",
-        help="Maximum steps per episode (default: 200). Used as episode timeout.",
+        help=(
+            "Hard safety ceiling on episode length (default: 18000 = 10 min "
+            "@ 30 Hz). Episodes normally end when the operator presses "
+            "SPACE/ENTER; this cap only triggers if no key is pressed."
+        ),
     )
 
     # Session control
@@ -154,7 +171,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
 
-    from lerobot_isaac_recorder.config import RecordingConfig  # noqa: PLC0415
+    from robot_data_recorder.config import RecordingConfig  # noqa: PLC0415
 
     # Start from YAML base if --config provided
     if args.config:
@@ -183,12 +200,12 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     if args.dry_run:
-        print("[lerobot-isaac-record] DRY RUN — resolved config:")
+        print("[robot-data-record] DRY RUN — resolved config:")
         print(json.dumps(cfg.to_dict(), indent=2))
         print()
-        print("[lerobot-isaac-record] Would run:")
+        print("[robot-data-record] Would run:")
         print(
-            f"  lerobot-isaac-record "
+            f"  robot-data-record "
             f"--repo-id={cfg.repo_id} "
             f"--num-episodes={cfg.num_episodes} "
             f"--format={cfg.format} "
@@ -197,10 +214,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     # Real recording path
-    from lerobot_isaac_recorder.d435 import make_d435  # noqa: PLC0415
-    from lerobot_isaac_recorder.dual_writer import DualWriter  # noqa: PLC0415
-    from lerobot_isaac_recorder.recorder import RecordingSession  # noqa: PLC0415
-    from lerobot_isaac_recorder.so101_teleop import SO101Teleop  # noqa: PLC0415
+    from robot_data_recorder.d435 import make_d435  # noqa: PLC0415
+    from robot_data_recorder.dual_writer import DualWriter  # noqa: PLC0415
+    from robot_data_recorder.recorder import RecordingSession  # noqa: PLC0415
+    from robot_data_recorder.so101_teleop import SO101Teleop  # noqa: PLC0415
 
     camera = make_d435(
         serial=cfg.camera_serial,
@@ -213,17 +230,27 @@ def main(argv: list[str] | None = None) -> int:
 
     with RecordingSession(cfg, camera=camera, teleop=teleop, writer=writer) as session:
         for ep_idx in range(cfg.num_episodes):
+            if not session.wait_for_start(ep_idx, cfg.num_episodes):
+                print("[robot-data-record] Session aborted before recording.")
+                break
             print(
-                f"[lerobot-isaac-record] Recording episode {ep_idx + 1}/{cfg.num_episodes} ..."
+                f"[robot-data-record] Recording episode {ep_idx + 1}/{cfg.num_episodes} ..."
             )
             buf = session.record_episode(ep_idx)
+            if session.abort_requested and len(buf.pixels) == 0:
+                # Operator aborted before a single frame landed — discard.
+                print("[robot-data-record] Aborted before any frames recorded.")
+                break
             session.save_episode(buf)
             print(
-                f"[lerobot-isaac-record] Episode {ep_idx + 1} saved ({len(buf.pixels)} steps)"
+                f"[robot-data-record] Episode {ep_idx + 1} saved ({len(buf.pixels)} steps)"
             )
+            if session.abort_requested:
+                print("[robot-data-record] Abort requested; stopping session.")
+                break
 
     paths = writer.finalize()
-    print("[lerobot-isaac-record] Done. Output paths:")
+    print("[robot-data-record] Done. Output paths:")
     for fmt, p in paths.items():
         print(f"  {fmt}: {p}")
 

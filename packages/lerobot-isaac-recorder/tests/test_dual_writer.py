@@ -20,7 +20,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from lerobot_isaac_recorder.config import RecordingConfig
+from robot_data_recorder.config import RecordingConfig
 
 
 # ------------------------------------------------------------------ #
@@ -106,14 +106,14 @@ def test_parquet_format_only_calls_lerobot(tmp_path: Path) -> None:
         output_dir=str(tmp_path),
     )
 
-    import lerobot_isaac_recorder.dual_writer as dw_mod
+    import robot_data_recorder.dual_writer as dw_mod
 
     with _patch_lerobot(mock_ds), _patch_stable_worldmodel(mock_writer):
         with (
             patch.object(dw_mod, "_HAS_LEROBOT", True),
             patch.object(dw_mod, "_HAS_STABLE_WORLDMODEL", False),
         ):
-            from lerobot_isaac_recorder.dual_writer import DualWriter  # noqa: PLC0415
+            from robot_data_recorder.dual_writer import DualWriter  # noqa: PLC0415
 
             writer = DualWriter.__new__(DualWriter)
             writer._config = cfg
@@ -139,14 +139,14 @@ def test_hdf5_format_only_calls_hdf5writer(tmp_path: Path) -> None:
     mock_ds = _make_mock_lerobot_dataset()
     mock_writer = _make_mock_hdf5_writer()
 
-    import lerobot_isaac_recorder.dual_writer as dw_mod
+    import robot_data_recorder.dual_writer as dw_mod
 
     with _patch_stable_worldmodel(mock_writer):
         with (
             patch.object(dw_mod, "_HAS_LEROBOT", False),
             patch.object(dw_mod, "_HAS_STABLE_WORLDMODEL", True),
         ):
-            from lerobot_isaac_recorder.dual_writer import DualWriter  # noqa: PLC0415
+            from robot_data_recorder.dual_writer import DualWriter  # noqa: PLC0415
 
             writer = DualWriter.__new__(DualWriter)
             writer._config = RecordingConfig(
@@ -175,14 +175,14 @@ def test_dual_format_calls_both(tmp_path: Path) -> None:
     mock_ds = _make_mock_lerobot_dataset()
     mock_writer = _make_mock_hdf5_writer()
 
-    import lerobot_isaac_recorder.dual_writer as dw_mod
+    import robot_data_recorder.dual_writer as dw_mod
 
     with _patch_lerobot(mock_ds), _patch_stable_worldmodel(mock_writer):
         with (
             patch.object(dw_mod, "_HAS_LEROBOT", True),
             patch.object(dw_mod, "_HAS_STABLE_WORLDMODEL", True),
         ):
-            from lerobot_isaac_recorder.dual_writer import DualWriter  # noqa: PLC0415
+            from robot_data_recorder.dual_writer import DualWriter  # noqa: PLC0415
 
             writer = DualWriter.__new__(DualWriter)
             writer._config = RecordingConfig(
@@ -212,10 +212,10 @@ def test_dual_format_calls_both(tmp_path: Path) -> None:
 
 
 def test_write_lerobot_raises_importerror_when_lerobot_missing(tmp_path: Path) -> None:
-    import lerobot_isaac_recorder.dual_writer as dw_mod
+    import robot_data_recorder.dual_writer as dw_mod
 
     with patch.object(dw_mod, "_HAS_LEROBOT", False):
-        from lerobot_isaac_recorder.dual_writer import DualWriter  # noqa: PLC0415
+        from robot_data_recorder.dual_writer import DualWriter  # noqa: PLC0415
 
         writer = DualWriter.__new__(DualWriter)
         writer._config = RecordingConfig(
@@ -234,30 +234,26 @@ def test_write_lerobot_raises_importerror_when_lerobot_missing(tmp_path: Path) -
 
 
 # ------------------------------------------------------------------ #
-# ImportError for stable_worldmodel missing in hdf5/dual mode
+# HDF5 writer is now local — does NOT require stable_worldmodel
 # ------------------------------------------------------------------ #
 
+def test_hdf5_writer_works_without_stable_worldmodel(tmp_path: Path) -> None:
+    """The local _HDF5EpisodeWriter only needs h5py; stable_worldmodel is read-only."""
+    import robot_data_recorder.dual_writer as dw_mod
 
-def test_write_hdf5_raises_importerror_when_swm_missing(tmp_path: Path) -> None:
-    import lerobot_isaac_recorder.dual_writer as dw_mod
-
+    cfg = RecordingConfig(
+        repo_id="test/swm-missing",
+        format="hdf5",
+        output_dir=str(tmp_path),
+    )
     with patch.object(dw_mod, "_HAS_STABLE_WORLDMODEL", False):
-        from lerobot_isaac_recorder.dual_writer import DualWriter  # noqa: PLC0415
-
-        writer = DualWriter.__new__(DualWriter)
-        writer._config = RecordingConfig(
-            repo_id="test/swm-missing",
-            format="hdf5",
-            output_dir=str(tmp_path),
-        )
-        writer._lerobot_dataset = None
-        writer._hdf5_writer = None
-        writer._episode_count = 0
-        writer._output_paths = {}
-
+        writer = dw_mod.DualWriter(cfg)
         ep = _make_episode()
-        with pytest.raises(ImportError, match="stable_worldmodel is required"):
-            writer._write_hdf5(ep)
+        writer.write_episode(ep)
+        paths = writer.finalize()
+
+    assert "hdf5" in paths
+    assert paths["hdf5"].exists()
 
 
 # ------------------------------------------------------------------ #
@@ -269,14 +265,14 @@ def test_write_episode_validates_schema(tmp_path: Path) -> None:
     mock_ds = _make_mock_lerobot_dataset()
     mock_writer = _make_mock_hdf5_writer()
 
-    import lerobot_isaac_recorder.dual_writer as dw_mod
+    import robot_data_recorder.dual_writer as dw_mod
 
     with _patch_lerobot(mock_ds), _patch_stable_worldmodel(mock_writer):
         with (
             patch.object(dw_mod, "_HAS_LEROBOT", True),
             patch.object(dw_mod, "_HAS_STABLE_WORLDMODEL", True),
         ):
-            from lerobot_isaac_recorder.dual_writer import DualWriter  # noqa: PLC0415
+            from robot_data_recorder.dual_writer import DualWriter  # noqa: PLC0415
 
             writer = DualWriter.__new__(DualWriter)
             writer._config = RecordingConfig(

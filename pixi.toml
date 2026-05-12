@@ -21,7 +21,7 @@ lerobot-isaac-adapters = { path = "packages/lerobot-isaac-adapters", editable = 
 lerobot-isaac-autoresearch = { path = "packages/lerobot-isaac-autoresearch", editable = true }
 lerobot-isaac-synthetic = { path = "packages/lerobot-isaac-synthetic", editable = true }
 lerobot-isaac-configs = { path = "packages/lerobot-isaac-configs", editable = true }
-lerobot-isaac-recorder = { path = "packages/lerobot-isaac-recorder", editable = true }
+robot-data-recorder = { path = "packages/lerobot-isaac-recorder", editable = true }
 lerobot-isaac-dashboard = { path = "packages/lerobot-isaac-dashboard", editable = true }
 
 [feature.dev.dependencies]

@@ -1,35 +1,45 @@
-# lerobot-isaac-recorder — Examples
+# robot-data-recorder — Examples
+
+> **Requires pixi env.** The `robot-data-record` console script is installed
+> into the workspace pixi environment. Activate first:
+> ```bash
+> pixi shell        # then call robot-data-record directly
+> # or
+> pixi run robot-data-record ...   # one-shot prefix
+> ```
+> Plain `robot-data-record` outside pixi gives `command not found`. All bash
+> examples below assume `pixi shell` is active.
 
 ---
 
 ## 1. Minimal Dry-Run (no hardware, no deps)
 
 ```bash
-lerobot-isaac-record \
-  --repo-id=koen/so101-test \
+robot-data-record \
+  --repo-id=myuser/so101-test \
   --num-episodes=1 \
   --dry-run
 ```
 
 Expected output:
 ```
-[lerobot-isaac-record] DRY RUN — resolved config:
+[robot-data-record] DRY RUN — resolved config:
 {
-  "repo_id": "koen/so101-test",
+  "repo_id": "myuser/so101-test",
   "num_episodes": 1,
   "format": "dual",
   "output_dir": "./datasets",
   ...
 }
-[lerobot-isaac-record] Would run:
-  lerobot-isaac-record --repo-id=koen/so101-test --num-episodes=1 --format=dual --output-dir=./datasets
+[robot-data-record] Would run:
+  robot-data-record --repo-id=myuser/so101-test --num-episodes=1 --format=dual --output-dir=./datasets
 ```
 
 Equivalent in Python:
 ```python
-from lerobot_isaac_recorder.cli import main
+from robot_data_recorder.cli import main
 
-rc = main(["--repo-id=koen/so101-test", "--num-episodes=1", "--dry-run"])
+rc = main(["--repo-id=myuser/so101-test", "--num-episodes=1", "--dry-run"])
 assert rc == 0
 ```
 
@@ -46,45 +56,50 @@ bash scripts/install_lerobot.sh
 pip install stable-worldmodel
 ```
 
+**Hardware env vars** (set by `pixi run setup-env` or exported in `~/.bashrc`):
+```bash
+export LERO_FOLLOWER_PORT=<follower-tty>   # SO-101 follower serial port
+export LERO_LEADER_PORT=<leader-tty>       # SO-101 leader serial port
+export LERO_CAM_SERIAL=<d435-serial>       # RealSense D435 serial number
+```
+
+When set, `--arm-port`, `--leader-port`, `--camera-serial` (and the matching
+`RecordingConfig` fields) default to those values — omit them to use env defaults.
+
 **Wired through the workspace meta CLI (preferred):**
 ```bash
 lerobot-isaac record \
-  --repo-id=koen/so101-pickplace \
+  --repo-id=myuser/so101-pickplace \
   --num-episodes=50 \
   --format=dual \
-  --arm-port=/dev/ttyUSB0 \
-  --leader-port=/dev/ttyUSB1 \
-  --camera-serial=AUTO \
   --fps=30 \
   --task="pick and place cube" \
   --output-dir=./datasets
+# arm/leader/camera resolved from $LERO_FOLLOWER_PORT / $LERO_LEADER_PORT / $LERO_CAM_SERIAL
 ```
 
 **Direct package CLI:**
 ```bash
-lerobot-isaac-record \
-  --repo-id=koen/so101-pickplace \
+robot-data-record \
+  --repo-id=myuser/so101-pickplace \
   --num-episodes=50 \
   --format=dual \
-  --arm-port=/dev/ttyUSB0 \
-  --leader-port=/dev/ttyUSB1 \
   --output-dir=./datasets \
   --task="pick and place cube"
 ```
 
-**Python API equivalent:**
+**Python API equivalent (env defaults):**
 ```python
-from lerobot_isaac_recorder import RecordingConfig, RecordingSession
-from lerobot_isaac_recorder.d435 import make_d435
-from lerobot_isaac_recorder.dual_writer import DualWriter
-from lerobot_isaac_recorder.so101_teleop import SO101Teleop
+from robot_data_recorder import RecordingConfig, RecordingSession
+from robot_data_recorder.d435 import make_d435
+from robot_data_recorder.dual_writer import DualWriter
+from robot_data_recorder.so101_teleop import SO101Teleop
 
+# arm_port / leader_port / camera_serial pulled from env vars
 cfg = RecordingConfig(
-    repo_id="koen/so101-pickplace",
+    repo_id="myuser/so101-pickplace",
     num_episodes=50,
     format="dual",
-    arm_port="/dev/ttyUSB0",
-    leader_port="/dev/ttyUSB1",
     output_dir="./datasets",
     task="pick and place cube",
 )
@@ -110,12 +125,11 @@ print(f"HDF5:    {paths.get('hdf5')}")
 When you only want to train a policy and skip world-model data collection:
 
 ```bash
-lerobot-isaac-record \
-  --repo-id=koen/so101-pickplace \
+# Uses $LERO_FOLLOWER_PORT, $LERO_LEADER_PORT, $LERO_CAM_SERIAL
+robot-data-record \
+  --repo-id=myuser/so101-pickplace \
   --format=parquet \
-  --num-episodes=50 \
-  --arm-port=/dev/ttyUSB0 \
-  --leader-port=/dev/ttyUSB1
+  --num-episodes=50
 ```
 
 Requires: `pyrealsense2` + `lerobot`.
@@ -128,12 +142,11 @@ Does NOT require: `stable-worldmodel`.
 When you only want to train a world model and skip LeRobot policy data:
 
 ```bash
-lerobot-isaac-record \
-  --repo-id=koen/so101-pickplace \
+# Uses $LERO_FOLLOWER_PORT, $LERO_LEADER_PORT, $LERO_CAM_SERIAL
+robot-data-record \
+  --repo-id=myuser/so101-pickplace \
   --format=hdf5 \
-  --num-episodes=50 \
-  --arm-port=/dev/ttyUSB0 \
-  --leader-port=/dev/ttyUSB1
+  --num-episodes=50
 ```
 
 Requires: `pyrealsense2` + `stable-worldmodel`.
@@ -144,7 +157,7 @@ Does NOT require: `lerobot`.
 import h5py
 import numpy as np
 
-with h5py.File("datasets/koen__so101-pickplace.h5", "r") as f:
+with h5py.File("datasets/myuser__so101-pickplace.h5", "r") as f:
     n_ep = len(f["ep_len"])
     for ep_idx in range(n_ep):
         start = int(f["ep_offset"][ep_idx])
@@ -163,7 +176,7 @@ with h5py.File("datasets/koen__so101-pickplace.h5", "r") as f:
 
 ```python
 # Future: multiple D435 cameras (e.g. front + wrist)
-from lerobot_isaac_recorder.d435 import make_d435
+from robot_data_recorder.d435 import make_d435
 
 front_cam = make_d435(serial="123456789", resolution=(640, 480), fps=30)
 wrist_cam = make_d435(serial="987654321", resolution=(640, 480), fps=30)
@@ -183,10 +196,10 @@ Until multi-camera is implemented, record each camera separately and merge HDF5 
 
 ```bash
 # Record with front camera
-lerobot-isaac-record --repo-id=koen/front --camera-serial=123456789 --format=hdf5
+robot-data-record --repo-id=myuser/front --camera-serial=123456789 --format=hdf5
 
 # Record with wrist camera (separate session)
-lerobot-isaac-record --repo-id=koen/wrist --camera-serial=987654321 --format=hdf5
+robot-data-record --repo-id=myuser/wrist --camera-serial=987654321 --format=hdf5
 ```
 
 ---
@@ -197,12 +210,12 @@ Save a config file and reference it by name:
 
 ```yaml
 # configs/recording_default.yaml
-repo_id: koen/so101-pickplace
+repo_id: myuser/so101-pickplace
 num_episodes: 50
 format: dual
 fps: 30
-arm_port: /dev/ttyUSB0
-leader_port: /dev/ttyUSB1
+arm_port: /dev/ttyUSB0       # or omit to use $LERO_FOLLOWER_PORT
+leader_port: /dev/ttyUSB1    # or omit to use $LERO_LEADER_PORT
 resolution: [640, 480]
 task: "pick and place cube"
 max_steps: 300
@@ -210,9 +223,9 @@ output_dir: ./datasets
 ```
 
 ```bash
-lerobot-isaac-record --config=recording_default --dry-run
+robot-data-record --config=recording_default --dry-run
 # or override individual fields:
-lerobot-isaac-record --config=recording_default --num-episodes=10 --dry-run
+robot-data-record --config=recording_default --num-episodes=10 --dry-run
 ```
 
 In Python:

@@ -15,11 +15,11 @@ by ``max_steps`` (scaffolding) or a keyboard interrupt (real deployment).
 
 Usage::
 
-    from lerobot_isaac_recorder.recorder import RecordingSession
-    from lerobot_isaac_recorder.d435 import make_d435
-    from lerobot_isaac_recorder.so101_teleop import MockSO101Teleop
-    from lerobot_isaac_recorder.dual_writer import DualWriter
-    from lerobot_isaac_recorder.config import RecordingConfig
+    from robot_data_recorder.recorder import RecordingSession
+    from robot_data_recorder.d435 import make_d435
+    from robot_data_recorder.so101_teleop import MockSO101Teleop
+    from robot_data_recorder.dual_writer import DualWriter
+    from robot_data_recorder.config import RecordingConfig
 
     cfg = RecordingConfig(repo_id="test", format="hdf5", dry_run=True)
     cam = make_d435(mock=True)
@@ -33,16 +33,26 @@ Usage::
 
 from __future__ import annotations
 
+import sys
 import time
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
 
-from lerobot_isaac_recorder.config import RecordingConfig
+from robot_data_recorder.config import RecordingConfig
+from robot_data_recorder.keylistener import KeyListener, NullKeyListener
 
 if TYPE_CHECKING:
-    from lerobot_isaac_recorder.dual_writer import DualWriter
+    from robot_data_recorder.dual_writer import DualWriter
+
+
+# Keys that mark "this episode is done"
+_END_EPISODE_KEYS = frozenset({" ", "\n", "\r", "s", "S"})
+# Keys that mark "start the next episode"
+_START_EPISODE_KEYS = _END_EPISODE_KEYS
+# Keys that mark "abort the whole session"
+_ABORT_KEYS = frozenset({"q", "Q", "\x03"})  # Ctrl-C as a printable byte
 
 
 @dataclass
@@ -117,12 +127,77 @@ class RecordingSession:
         config: RecordingConfig,
         camera: Any,
         teleop: Any,
-        writer: DualWriter | None,
+        writer: Optional["DualWriter"],
+        key_listener: Optional[Any] = None,
     ) -> None:
         self._config = config
         self._camera = camera
         self._teleop = teleop
         self._writer = writer
+        # Allow injection for tests; default behaviour picks the right
+        # backend based on whether stdin is a tty.
+        if key_listener is not None:
+            self._key_listener = key_listener
+        else:
+            kl = KeyListener()
+            self._key_listener = kl if kl.is_tty else NullKeyListener()
+        self._abort_requested = False
+
+    @property
+    def abort_requested(self) -> bool:
+        """True after the operator pressed an abort key (``q``)."""
+        return self._abort_requested
+
+    # ------------------------------------------------------------------ #
+    # Inter-episode gate
+    # ------------------------------------------------------------------ #
+
+    def wait_for_start(self, episode_idx: int, total: int) -> bool:
+        """Block until the operator confirms the next episode should begin.
+
+        Used between episodes so the operator can reset the workspace
+        before recording starts. SPACE / ENTER / ``s`` starts the next
+        episode; ``q`` aborts the whole session. Non-tty environments
+        fall through immediately so scripted runs are unchanged.
+
+        Returns
+        -------
+        bool
+            ``True`` if recording should proceed, ``False`` if the
+            operator asked to abort.
+        """
+        if self._config.dry_run:
+            return True
+        if not getattr(self._key_listener, "is_tty", False):
+            return True
+
+        prompt = (
+            f"[robot-data-record] Reset workspace, then press SPACE/ENTER to "
+            f"start episode {episode_idx + 1}/{total} (q to abort)... "
+        )
+        # Use sys.stdout for an inline prompt without an extra newline
+        sys.stdout.write(prompt)
+        sys.stdout.flush()
+        try:
+            while True:
+                key = self._key_listener.poll(timeout=0.05)
+                if key is None:
+                    continue
+                if key in _ABORT_KEYS:
+                    self._abort_requested = True
+                    sys.stdout.write("aborted.\n")
+                    sys.stdout.flush()
+                    return False
+                if key in _START_EPISODE_KEYS:
+                    sys.stdout.write("go.\n")
+                    sys.stdout.flush()
+                    return True
+                # Ignore everything else — keep waiting.
+        except KeyboardInterrupt:
+            self._abort_requested = True
+            sys.stdout.write("aborted.\n")
+            sys.stdout.flush()
+            return False
 
     # ------------------------------------------------------------------ #
     # Context manager
@@ -131,9 +206,14 @@ class RecordingSession:
     def __enter__(self) -> RecordingSession:
         self._camera.start()
         self._teleop.start()
+        self._key_listener.__enter__()
         return self
 
     def __exit__(self, *_: object) -> None:
+        try:
+            self._key_listener.__exit__(None, None, None)
+        except Exception:
+            pass
         try:
             self._camera.stop()
         except Exception:
@@ -156,8 +236,11 @@ class RecordingSession:
         """Record one episode.
 
         Ticks at ``1/fps``, reads camera + arm, appends to buffer until
-        ``max_steps`` is reached.  In dry-run mode, returns a synthetic
-        5-step episode without touching hardware.
+        the operator presses SPACE / Enter (end episode) or ``q`` (abort
+        session). ``max_steps`` is still honoured as a hard safety
+        ceiling so a forgotten terminal cannot record forever. When stdin
+        is not a tty the key listener is a no-op and the loop falls back
+        to ``max_steps``.
 
         Parameters
         ----------
@@ -176,31 +259,58 @@ class RecordingSession:
         period = 1.0 / self._config.fps
         max_steps = self._config.max_steps
 
+        if getattr(self._key_listener, "is_tty", False):
+            print(
+                f"[robot-data-record] Episode {episode_idx + 1}: "
+                "press SPACE/ENTER to save, 'q' to abort session "
+                f"(safety cap: {max_steps} steps)."
+            )
+
+        ended_by_key = False
+        last_step = 0
         for step in range(max_steps):
+            last_step = step
             t0 = time.monotonic()
 
             frame = self._camera.read_frame()
             arm_state = self._teleop.read_state()
             action = self._teleop.read_action()
 
-            # Build state vector: [joint_pos(6), gripper(1)]
-            state_vec = np.concatenate(
-                [arm_state["joint_pos"], [arm_state["gripper"]]]
-            ).astype(np.float32)
+            # State vector = full motor positions (5 joints + gripper).
+            # lerobot 0.4.4 already includes the gripper in joint_pos, so
+            # we copy the array directly without an extra concat.
+            state_vec = np.asarray(arm_state["joint_pos"], dtype=np.float32)
 
             buf.pixels.append(frame["rgb"])
             buf.action.append(action)
             buf.state.append(state_vec)
             buf.proprio.append(state_vec.copy())  # proprio = state for SO-101
-            buf.done.append(step == max_steps - 1)
+            # Will fix the last entry to True after the loop.
+            buf.done.append(False)
             buf.timestamp.append(float(arm_state["timestamp"]))
             buf.reward.append(0.0)
+
+            key = self._key_listener.poll()
+            if key in _END_EPISODE_KEYS:
+                ended_by_key = True
+                break
+            if key in _ABORT_KEYS:
+                self._abort_requested = True
+                ended_by_key = True
+                break
 
             elapsed = time.monotonic() - t0
             sleep_time = period - elapsed
             if sleep_time > 0:
                 time.sleep(sleep_time)
 
+        if buf.done:
+            buf.done[-1] = True
+        if not ended_by_key and last_step == max_steps - 1:
+            print(
+                f"[robot-data-record] Episode {episode_idx + 1}: hit max_steps "
+                f"({max_steps}); auto-saving. Increase --max-steps for longer episodes."
+            )
         return buf
 
     @staticmethod
@@ -211,8 +321,8 @@ class RecordingSession:
 
         for t in range(n_steps):
             buf.pixels.append(rng.integers(0, 255, (480, 640, 3), dtype=np.uint8))
-            buf.action.append(rng.standard_normal(7).astype(np.float32))
-            state = rng.standard_normal(7).astype(np.float32)
+            buf.action.append(rng.standard_normal(6).astype(np.float32))
+            state = rng.standard_normal(6).astype(np.float32)
             buf.state.append(state)
             buf.proprio.append(state.copy())
             buf.done.append(t == n_steps - 1)
@@ -242,9 +352,9 @@ class MockRecordingSession(RecordingSession):
     instantiating real camera/teleop objects.
     """
 
-    def __init__(self, config: RecordingConfig, writer: Any | None = None) -> None:
-        from lerobot_isaac_recorder.d435 import MockD435Stream
-        from lerobot_isaac_recorder.so101_teleop import MockSO101Teleop
+    def __init__(self, config: RecordingConfig, writer: Optional[Any] = None) -> None:
+        from robot_data_recorder.d435 import MockD435Stream
+        from robot_data_recorder.so101_teleop import MockSO101Teleop
 
         cam = MockD435Stream(resolution=config.resolution, fps=config.fps)
         teleop = MockSO101Teleop()

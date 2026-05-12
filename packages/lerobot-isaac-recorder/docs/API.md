@@ -1,13 +1,13 @@
-# lerobot-isaac-recorder — Public API Reference
+# robot-data-recorder — Public API Reference
 
 ---
 
-## Module: `lerobot_isaac_recorder`
+## Module: `robot_data_recorder`
 
 Top-level public exports.
 
 ```python
-from lerobot_isaac_recorder import (
+from robot_data_recorder import (
     RecordingConfig,
     RecordingSession,
     DualWriter,
@@ -26,7 +26,7 @@ from lerobot_isaac_recorder import (
 
 ---
 
-## Module: `lerobot_isaac_recorder.config`
+## Module: `robot_data_recorder.config`
 
 ### `class RecordingConfig`
 
@@ -42,13 +42,19 @@ Flat dataclass capturing all recording session parameters.
 | `output_dir` | `str` | `"./datasets"` | Base output directory |
 | `task` | `str` | `"unspecified"` | Task description for metadata |
 | `fps` | `int` | `30` | Recording frame rate (Hz) |
-| `arm_port` | `str` | `"/dev/ttyUSB0"` | SO-101 follower serial port |
-| `leader_port` | `str \| None` | `None` | SO-101 leader serial port |
-| `camera_serial` | `str \| None` | `None` | D435 serial (`None` = AUTO) |
+| `arm_port` | `str` | `$LERO_FOLLOWER_PORT` or `"/dev/ttyUSB0"` | SO-101 follower serial port |
+| `leader_port` | `str \| None` | `$LERO_LEADER_PORT` or `None` | SO-101 leader serial port |
+| `camera_serial` | `str \| None` | `$LERO_CAM_SERIAL` or `None` | D435 serial (`None` = AUTO) |
 | `resolution` | `tuple[int,int]` | `(640, 480)` | Camera (width, height) |
 | `enable_depth` | `bool` | `False` | Enable depth stream |
 | `max_steps` | `int` | `200` | Max steps per episode |
 | `dry_run` | `bool` | `False` | Skip hardware, print config |
+
+**Env-var defaults:** `arm_port`, `leader_port`, `camera_serial` use
+`field(default_factory=...)` reading `LERO_FOLLOWER_PORT`, `LERO_LEADER_PORT`,
+`LERO_CAM_SERIAL` at instantiation time. Env values are written by
+`pixi run setup-env` (workspace `.env`) or exported in `~/.bashrc`.
+Explicit constructor arguments and CLI flags override env defaults.
 
 **Class methods:**
 
@@ -68,7 +74,7 @@ Return JSON-serialisable dict for `--dry-run` printout.
 
 ---
 
-## Module: `lerobot_isaac_recorder.schema`
+## Module: `robot_data_recorder.schema`
 
 ### `class EpisodeSchema` (frozen dataclass)
 
@@ -115,7 +121,7 @@ Build LeRobot v3 features dict for `LeRobotDataset.create()`.
 
 ---
 
-## Module: `lerobot_isaac_recorder.d435`
+## Module: `robot_data_recorder.d435`
 
 ### `class D435Stream`
 
@@ -150,7 +156,7 @@ Factory function. Set `mock=True` for tests.
 
 ---
 
-## Module: `lerobot_isaac_recorder.so101_teleop`
+## Module: `robot_data_recorder.so101_teleop`
 
 ### `class SO101Teleop`
 
@@ -176,7 +182,7 @@ API-identical synthetic arm for tests.
 
 ---
 
-## Module: `lerobot_isaac_recorder.dual_writer`
+## Module: `robot_data_recorder.dual_writer`
 
 ### `class DualWriter`
 
@@ -207,7 +213,7 @@ Raises `ImportError` if required backend library is missing for the chosen forma
 
 ---
 
-## Module: `lerobot_isaac_recorder.recorder`
+## Module: `robot_data_recorder.recorder`
 
 ### `class EpisodeBuffer` (dataclass)
 
@@ -244,7 +250,7 @@ Subclass of `RecordingSession` that auto-creates `MockD435Stream` + `MockSO101Te
 
 ---
 
-## Module: `lerobot_isaac_recorder.cli`
+## Module: `robot_data_recorder.cli`
 
 ### `main(argv: list[str] | None = None) -> int`
 
@@ -259,9 +265,9 @@ CLI entrypoint. Returns `0` on success.
 | `--format` | `dual` | `parquet` / `hdf5` / `dual` |
 | `--resolution` | `640x480` | Camera resolution |
 | `--fps` | `30` | Frame rate |
-| `--arm-port` | `/dev/ttyUSB0` | SO-101 follower port |
-| `--leader-port` | `None` | SO-101 leader port |
-| `--camera-serial` | `None` | D435 serial (AUTO = first) |
+| `--arm-port` | `$LERO_FOLLOWER_PORT` or `/dev/ttyUSB0` | SO-101 follower port |
+| `--leader-port` | `$LERO_LEADER_PORT` | SO-101 leader port |
+| `--camera-serial` | `$LERO_CAM_SERIAL` (AUTO if unset) | D435 serial |
 | `--output-dir` | `./datasets` | Output directory |
 | `--task` | `unspecified` | Task description |
 | `--max-steps` | `200` | Episode timeout |

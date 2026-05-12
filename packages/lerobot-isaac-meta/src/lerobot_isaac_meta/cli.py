@@ -35,13 +35,13 @@ def _cmd_train(args: argparse.Namespace) -> int:
 
 
 def _cmd_record(args: argparse.Namespace) -> int:
-    """Delegate to lerobot_isaac_recorder.cli.main with all forwarded args."""
+    """Delegate to robot_data_recorder.cli.main with all forwarded args."""
     try:
-        from lerobot_isaac_recorder.cli import main as recorder_main
+        from robot_data_recorder.cli import main as recorder_main
     except ImportError as exc:
         print(
-            f"Error: cannot import lerobot_isaac_recorder.cli: {exc}\n"
-            "Ensure lerobot-isaac-recorder is installed: "
+            f"Error: cannot import robot_data_recorder.cli: {exc}\n"
+            "Ensure robot-data-recorder is installed: "
             "pip install -e packages/lerobot-isaac-recorder",
             file=sys.stderr,
         )
@@ -151,7 +151,7 @@ _SUBCOMMANDS: dict[str, tuple[callable, str]] = {
     "train": (_cmd_train, "train a policy or world model (Phase 2+)"),
     "record": (
         _cmd_record,
-        "record SO-101 teleop data (D435 + dual-write Parquet+HDF5 via lerobot-isaac-recorder)",
+        "record SO-101 teleop data (D435 + dual-write Parquet+HDF5 via robot-data-recorder)",
     ),
     "dr-replay": (
         _cmd_dr_replay,
