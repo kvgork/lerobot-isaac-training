@@ -1,7 +1,44 @@
 # Architecture — LeRobot + Isaac Lab Training Workspace
 
-**Status as of 2026-05-06:** Phases 0–5 complete (scaffolding). Training/eval wiring is future work.
+**Status as of 2026-05-13:** Post-spinout thin-meta-repo architecture (Phase B).
+Only `lerobot-isaac-meta` lives in `packages/`. The 7 sibling packages live in
+local bare repos at `~/workspaces/spinouts/<name>.git` and are installed via
+`git+file://` URLs. History-only copies remain in `archive/packages/<name>/`.
+**TODO:** swap `file://` URLs for `https://github.com/kvgork/<name>.git` once
+GitHub repos are published. See `docs/runbook/00-install.md` and
+`docs/runbook/09-publish-to-github.md`.
+
 **Plan reference:** `${CLAUDE_CODE_ROOT}/plans/2026-05-06-lerobot-isaac-workspace-plan.md`
+
+---
+
+## Dependency Graph (Post-Spinout)
+
+```
+        +----------------------------------+
+        | lerobot-isaac-meta  (live; packages/)
+        |   CLI: lerobot-isaac, lerobot-isaac-batch
+        +-----+----------------+-----------+
+              |  [post-spinout extra: git+file:// URLs]
+              v                v
+  +-----------+--+      +------+-----+      +---------+
+  | env          |      | adapters   |      | configs |
+  | (spinouts/)  |      | (spinouts/)|      |(spinouts/)
+  +--------------+      +------------+      +---------+
+  | autoresearch |      | synthetic  |      |dashboard|
+  | (spinouts/)  |      | (spinouts/)|      |(spinouts/)
+  +--------------+      +------------+      +---------+
+
+  robot-data-recorder (spinouts/) — STANDALONE, NOT a meta dep.
+  Install separately: pip install git+file://.../robot-data-recorder.git@main
+```
+
+In monorepo mode (this workspace), `pixi install` resolves all 7 from the
+bare repos at `~/workspaces/spinouts/` while keeping meta editable for hot-reload.
+
+In post-spinout mode (no monorepo):
+- `pip install "lerobot-isaac-meta[post-spinout]"` — pulls meta + 6 siblings
+- Recorder is separate: `pip install git+file://.../robot-data-recorder.git@main`
 
 ---
 

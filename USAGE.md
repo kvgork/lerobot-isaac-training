@@ -5,6 +5,11 @@
 **For workspace orientation:** `CLAUDE.md`
 **Plan reference:** `${CLAUDE_CODE_ROOT}/plans/2026-05-06-lerobot-isaac-workspace-plan.md`
 
+> **Architecture note (2026-05-13):** Post-spinout. Only `lerobot-isaac-meta` lives
+> in `packages/`. The 7 siblings live at `~/workspaces/spinouts/<name>.git` and
+> install via `git+file://` URLs. See `docs/runbook/00-install.md` for the install
+> path and `docs/runbook/09-publish-to-github.md` for the future GitHub-publish path.
+
 ---
 
 ## Prerequisites

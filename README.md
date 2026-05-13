@@ -19,18 +19,25 @@ domain-randomization synthetic-data pipeline, and an autoresearch hyperparameter
 
 ## What's inside
 
-Eight pip-installable packages under `packages/`, each independently spinout-able:
+**Thin-meta-repo architecture** (post-spinout, 2026-05-13): only
+`lerobot-isaac-meta` lives in `packages/` as a live workspace member. The other
+7 packages are spun out to local bare repos at `~/workspaces/spinouts/<name>.git`
+and installed via `git+file://` URLs. History-only copies remain in
+`archive/packages/<name>/`. See `docs/runbook/00-install.md`.
 
-| Package | Role |
-|---------|------|
-| [`lerobot-isaac-meta`](packages/lerobot-isaac-meta/) | Umbrella CLI + workspace path resolver |
-| [`lerobot-isaac-env`](packages/lerobot-isaac-env/) | Isaac Lab `ManagerBasedRLEnv` for SO-101 (obs / actions / rewards / DR) |
-| [`lerobot-isaac-adapters`](packages/lerobot-isaac-adapters/) | Single `lerobot-isaac-train` entrypoint; dispatches by `--target_arch` |
-| [`lerobot-isaac-autoresearch`](packages/lerobot-isaac-autoresearch/) | `program.md` configs + wrapper for the autoresearch HP-search loop |
-| [`lerobot-isaac-synthetic`](packages/lerobot-isaac-synthetic/) | DR-replay synthetic-data pipeline + MimicGen bridge stub |
-| [`lerobot-isaac-configs`](packages/lerobot-isaac-configs/) | Shared YAML configs per `target_arch` (leaf — no internal deps) |
-| [`robot-data-recorder`](packages/lerobot-isaac-recorder/) | RealSense D435 + SO-101 teleop dual-write recorder |
-| [`lerobot-isaac-dashboard`](packages/lerobot-isaac-dashboard/) | Streamlit + Plotly metrics dashboard with snapshot + N-way compare |
+| Package | Source of truth | Role |
+|---------|-----------------|------|
+| [`lerobot-isaac-meta`](packages/lerobot-isaac-meta/) | live workspace | Umbrella CLI + workspace path resolver |
+| `lerobot-isaac-env` | `~/workspaces/spinouts/lerobot-isaac-env.git` | Isaac Lab `ManagerBasedRLEnv` for SO-101 (obs / actions / rewards / DR) |
+| `lerobot-isaac-adapters` | `~/workspaces/spinouts/lerobot-isaac-adapters.git` | Single `lerobot-isaac-train` entrypoint; dispatches by `--target_arch` |
+| `lerobot-isaac-autoresearch` | `~/workspaces/spinouts/lerobot-isaac-autoresearch.git` | `program.md` configs + wrapper for the autoresearch HP-search loop |
+| `lerobot-isaac-synthetic` | `~/workspaces/spinouts/lerobot-isaac-synthetic.git` | DR-replay synthetic-data pipeline + MimicGen bridge stub |
+| `lerobot-isaac-configs` | `~/workspaces/spinouts/lerobot-isaac-configs.git` | Shared YAML configs per `target_arch` |
+| `robot-data-recorder` | `~/workspaces/spinouts/robot-data-recorder.git` | RealSense D435 + SO-101 teleop dual-write recorder (standalone — not a meta dep) |
+| `lerobot-isaac-dashboard` | `~/workspaces/spinouts/lerobot-isaac-dashboard.git` | Streamlit + Plotly metrics dashboard with snapshot + N-way compare |
+
+> **TODO:** swap `file://` URLs for `https://github.com/kvgork/<name>.git` once
+> GitHub repos are published. See `docs/runbook/09-publish-to-github.md`.
 
 Three training backends, one CLI:
 
@@ -53,9 +60,21 @@ cd lerobot-isaac-training
 
 ### 2. Install dependencies via pixi
 
+The 7 spun-out packages must exist as bare repos at `~/workspaces/spinouts/`
+before `pixi install` can resolve them. If you haven't yet created them, see
+`docs/runbook/00-install.md`.
+
 ```bash
 curl -fsSL https://pixi.sh/install.sh | bash    # one-time
-pixi install                                    # default env (dev + workspace)
+pixi install                                    # default env (dev + meta editable + 7 git+file:// installs)
+```
+
+For post-spinout standalone install (no monorepo, no pixi):
+
+```bash
+bash scripts/install.sh
+# or directly:
+pip install "git+file:///path/to/lerobot-isaac-meta.git@main[post-spinout]"
 ```
 
 The default `pixi install` activates `scripts/setup_env.sh`, which exports

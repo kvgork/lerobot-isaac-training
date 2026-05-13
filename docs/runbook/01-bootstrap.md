@@ -30,26 +30,34 @@ Expected: Python 3.11+, PyTorch, h5py, pyarrow, pandas, wandb, hydra available.
 
 ---
 
-## Step 3: Install Workspace Packages (Editable)
+## Step 3: Install Workspace Packages
 
+**Thin-meta-repo (post-spinout, 2026-05-13):** only `lerobot-isaac-meta` lives in
+`packages/`. The 7 siblings (env, adapters, autoresearch, synthetic, configs,
+dashboard, recorder) live in local bare repos at `~/workspaces/spinouts/<name>.git`
+and are installed automatically by `pixi install` via `git+file://` URLs.
+
+Prerequisite: the bare repos must exist at `~/workspaces/spinouts/`. See
+`docs/runbook/00-install.md` if you need to (re-)create them.
+
+Verify after `pixi install`:
 ```bash
-# Install all packages from workspace root:
-uv sync
-
-# Or install individually:
-pip install -e packages/lerobot-isaac-meta[all]
-pip install -e packages/lerobot-isaac-env
-pip install -e packages/lerobot-isaac-adapters
-pip install -e packages/lerobot-isaac-autoresearch
-pip install -e packages/lerobot-isaac-synthetic
-pip install -e packages/lerobot-isaac-configs
+pixi run -e default python -c "import lerobot_isaac_meta; print('meta OK')"
+pixi run -e default python -c "import lerobot_isaac_adapters; print('adapters OK')"
+pixi run -e default python -c "import lerobot_isaac_synthetic; print('synthetic OK')"
+pixi run -e default python -c "import lerobot_isaac_configs; print('configs OK')"
+pixi run -e default python -c "import lerobot_isaac_dashboard; print('dashboard OK')"
+pixi run -e default python -c "import lerobot_isaac_env; print('env OK')"
+pixi run -e default python -c "import lerobot_isaac_autoresearch; print('autoresearch OK')"
+pixi run -e default python -c "import robot_data_recorder; print('recorder OK')"
 ```
 
-Verify:
+**Post-spinout standalone install** (no monorepo, no pixi):
 ```bash
-python -c "import lerobot_isaac_meta; print('meta OK')"
-python -c "import lerobot_isaac_adapters; print('adapters OK')"
-python -c "import lerobot_isaac_synthetic; print('synthetic OK')"
+bash scripts/install.sh
+# or:
+pip install "git+file://$HOME/workspaces/spinouts/lerobot-isaac-meta.git@main[post-spinout]"
+pip install git+file://$HOME/workspaces/spinouts/robot-data-recorder.git@main   # standalone
 ```
 
 ---

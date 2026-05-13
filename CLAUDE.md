@@ -31,18 +31,31 @@ To update installed agents after editing source: `cd ${CLAUDE_CODE_ROOT} && ./in
 
 ---
 
-## Package Map (8 packages under `packages/`)
+## Architecture: Thin-Meta-Repo (post-spinout, 2026-05-13)
 
-| Package | Dir | Phase | Status |
-|---------|-----|-------|--------|
-| `lerobot-isaac-meta` | `packages/lerobot-isaac-meta/` | 0 | Scaffolded |
-| `lerobot-isaac-env` | `packages/lerobot-isaac-env/` | 1 | Un-stubbed (real Isaac Lab API; soft-import) |
-| `lerobot-isaac-adapters` | `packages/lerobot-isaac-adapters/` | 2 | Un-stubbed (subprocess dispatchers) |
-| `lerobot-isaac-autoresearch` | `packages/lerobot-isaac-autoresearch/` | 3 | Un-stubbed |
-| `lerobot-isaac-synthetic` | `packages/lerobot-isaac-synthetic/` | 4 | Un-stubbed (DR replay; MimicGen deferred) |
-| `lerobot-isaac-configs` | `packages/lerobot-isaac-configs/` | 0/A | 6 YAML configs populated |
-| `robot-data-recorder` | `packages/lerobot-isaac-recorder/` | §14 | D435 + SO-101 dual-write (Parquet + LeWM HDF5) |
-| `lerobot-isaac-dashboard` | `packages/lerobot-isaac-dashboard/` | §dashboard | Live + static metrics dashboard with snapshot save/load + 2-way and N-way compare |
+Only `lerobot-isaac-meta` lives in `packages/` as a live workspace member.
+The other 7 packages have been spun out to local bare git repos at
+`~/workspaces/spinouts/<name>.git` and are installed via `git+file://` URLs.
+
+**TODO:** swap `file://` URLs for `https://github.com/kvgork/<name>.git` once GitHub
+repos exist (see `docs/runbook/09-publish-to-github.md`).
+
+## Package Map (8 packages, 1 live + 7 spun-out)
+
+| Package | Location | Install path |
+|---------|----------|--------------|
+| `lerobot-isaac-meta` | `packages/lerobot-isaac-meta/` (live) | editable workspace member |
+| `lerobot-isaac-env` | `~/workspaces/spinouts/lerobot-isaac-env.git` | `git+file://...@main` |
+| `lerobot-isaac-adapters` | `~/workspaces/spinouts/lerobot-isaac-adapters.git` | `git+file://...@main` |
+| `lerobot-isaac-autoresearch` | `~/workspaces/spinouts/lerobot-isaac-autoresearch.git` | `git+file://...@main` |
+| `lerobot-isaac-synthetic` | `~/workspaces/spinouts/lerobot-isaac-synthetic.git` | `git+file://...@main` |
+| `lerobot-isaac-configs` | `~/workspaces/spinouts/lerobot-isaac-configs.git` | `git+file://...@main` |
+| `lerobot-isaac-dashboard` | `~/workspaces/spinouts/lerobot-isaac-dashboard.git` | `git+file://...@main` |
+| `robot-data-recorder` | `~/workspaces/spinouts/robot-data-recorder.git` | `git+file://...@main` (standalone — NOT a meta dep) |
+
+History-only copies of the 7 spun-out packages remain in `archive/packages/<name>/`
+(via `git mv`, full history preserved). Treat them as read-only — edit the bare
+repos and re-push to `~/workspaces/spinouts/` for canonical changes.
 
 ---
 
