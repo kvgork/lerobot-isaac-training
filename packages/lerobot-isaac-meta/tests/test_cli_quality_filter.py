@@ -156,6 +156,7 @@ class TestDryRun:
         assert "0.15" in captured.out
         assert "dry-run" in captured.out.lower() or "dry_run" in captured.out.lower()
 
+    @pytest.mark.requires_workspace_root
     def test_dry_run_does_not_call_adapter(self, capsys, tmp_path: Path):
         """--dry-run must NOT import or call apply_quality_filter."""
         from lerobot_isaac_meta.cli import main
@@ -193,6 +194,7 @@ class TestDryRun:
 
 
 class TestQualityFilterDispatch:
+    @pytest.mark.requires_workspace_root
     def test_success_path(self, tmp_path: Path, capsys):
         """When apply_quality_filter returns success, cli returns 0."""
         ds = tmp_path / "ds"
@@ -216,6 +218,7 @@ class TestQualityFilterDispatch:
         captured = capsys.readouterr()
         assert "kept=7" in captured.out
 
+    @pytest.mark.requires_workspace_root
     def test_failure_path_returns_nonzero(self, tmp_path: Path, capsys):
         """When apply_quality_filter returns success=False, cli returns nonzero."""
         ds = tmp_path / "ds"

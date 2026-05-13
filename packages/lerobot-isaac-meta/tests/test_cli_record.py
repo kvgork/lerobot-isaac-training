@@ -37,6 +37,7 @@ class TestRecordSubcommand:
         out = capsys.readouterr().out
         assert "recorder_args" in out or "recorder" in out.lower()
 
+    @pytest.mark.requires_workspace_root
     def test_record_dry_run_via_meta(self, capsys):
         """Forwarding `record -- --dry-run ...` must hit recorder CLI and exit 0."""
         from lerobot_isaac_meta.cli import main

@@ -22,6 +22,7 @@ def test_workspace_root_is_directory():
     )
 
 
+@pytest.mark.requires_workspace_root
 def test_workspace_root_contains_pyproject():
     """WORKSPACE_ROOT should contain pyproject.toml (workspace marker)."""
     from lerobot_isaac_meta.workspace_paths import WORKSPACE_ROOT
