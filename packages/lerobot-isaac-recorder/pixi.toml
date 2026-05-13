@@ -6,14 +6,24 @@
 # pattern (ADR-0003); tests use mocks. This is what `pixi install` in a spun-out
 # tree (where the sibling lerobot/ path does not exist) will install.
 #
-# Hardware env: adds lerobot + pyrealsense2 + stable-worldmodel for real D435 +
-# SO-101 sessions in `--format=dual` (Parquet + HDF5). Opt-in via:
+# Hardware env: adds pyrealsense2 + stable-worldmodel for real D435 + LeWM HDF5
+# writer. Opt-in via:
 #   pixi install -e hardware
 #   pixi run -e hardware robot-data-record
 #
-# In monorepo mode the workspace-root pixi.toml installs the same hardware deps
-# transparently. This package-local env is used when invoking from inside this
-# directory or after spinout to a standalone repo.
+# lerobot is NOT declared here as a path-dep. Two reasons:
+#   1. pixi canonicalizes all path-deps during a single solve, even for non-
+#      default envs, so a hard-coded `../../../lerobot/src/lerobot` would fail
+#      `pixi install` in any spun-out tree.
+#   2. In monorepo mode the workspace-root pixi.toml owns the lerobot editable
+#      install (see ../../pixi.toml [feature.lerobot]). The package-local
+#      pixi.toml is dormant in monorepo mode per the workspace contract.
+#
+# For real SO-101 hardware use in a standalone (spun-out) tree, install lerobot
+# separately after `pixi install -e hardware`:
+#   pixi run -e hardware pip install "lerobot[feetech,intelrealsense]"
+# or point at a local checkout:
+#   pixi run -e hardware pip install -e /path/to/lerobot/src/lerobot
 
 [workspace]
 name = "robot-data-recorder"
@@ -45,15 +55,14 @@ pytest = "*"
 hatchling = "*"
 
 # --- hardware feature ---------------------------------------------------------
-# Opt-in deps for real D435 camera + SO-101 teleop + LeWM HDF5 writer.
-# In a spun-out (standalone) tree the lerobot path will not resolve and
-# this feature will be unusable until the user installs lerobot another way.
-# Default env intentionally OMITS this so `pixi install` works in spinout.
+# Opt-in deps for real D435 camera + LeWM HDF5 writer.
+# lerobot is intentionally not declared (see header). Install separately for
+# real SO-101 sessions. Default env omits this entire feature so
+# `pixi install` in a spun-out tree succeeds.
 [feature.hardware.dependencies]
 pyrealsense2 = "*"
 
 [feature.hardware.pypi-dependencies]
-lerobot = { path = "../../../lerobot/src/lerobot", editable = true, extras = ["feetech", "intelrealsense"] }
 stable-worldmodel = "*"
 
 [environments]
