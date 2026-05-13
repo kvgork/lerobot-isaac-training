@@ -50,3 +50,9 @@ packages/*/.git/
 .local/
 *.bak
 *.orig
+
+# Editable-siblings dev clones (Phase B opt-in workflow).
+# Each entry under src/<pkg>/ is an independent git clone of a spinout bare repo;
+# they are NOT part of this repo. The src/ directory itself stays tracked
+# (anchored by src/.gitkeep) so `pixi run sync` always has a target to write into.
+/src/*/

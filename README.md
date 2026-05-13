@@ -60,21 +60,40 @@ cd lerobot-isaac-training
 
 ### 2. Install dependencies via pixi
 
-The 7 spun-out packages must exist as bare repos at `~/workspaces/spinouts/`
-before `pixi install` can resolve them. If you haven't yet created them, see
-`docs/runbook/00-install.md`.
+The 6 sibling spun-out packages must exist as bare repos at `~/workspaces/spinouts/<name>/`
+(no `.git` suffix) before `pixi install` can resolve them. If you haven't yet created them,
+see `docs/runbook/00-install.md`.
 
 ```bash
 curl -fsSL https://pixi.sh/install.sh | bash    # one-time
-pixi install                                    # default env (dev + meta editable + 7 git+file:// installs)
+pixi install                                    # default env: meta editable + 6 git+file:// installs
 ```
 
-For post-spinout standalone install (no monorepo, no pixi):
+#### Editable dev mode (opt-in)
+
+Want to edit a sibling package and see changes reflected without reinstalling?
+Use the opt-in `editable` env, which installs the 6 siblings as editable path deps
+from local clones under `src/`:
+
+```bash
+pixi run sync               # clone the 6 spinouts into src/<name>/  (idempotent)
+pixi install -e editable    # resolve siblings as editable path deps
+pixi run -e editable test   # tests run against the editable clones
+
+# Later: pull updates into the local clones
+pixi run sync-update        # git fetch && git pull --ff-only on each src/lerobot-isaac-*
+```
+
+Default `pixi install` is unaffected — the two envs live side-by-side. Recorder dev is
+also opt-in: `pixi run sync-recorder` clones it, then install manually with
+`pixi run -e default pip install -e src/robot-data-recorder`.
+
+#### Standalone install (no monorepo, no pixi)
 
 ```bash
 bash scripts/install.sh
 # or directly:
-pip install "git+file:///path/to/lerobot-isaac-meta.git@main[post-spinout]"
+pip install "git+file:///path/to/lerobot-isaac-meta@main[post-spinout]"
 ```
 
 The default `pixi install` activates `scripts/setup_env.sh`, which exports
@@ -85,7 +104,8 @@ Other environments (see `pixi.toml`):
 
 | env | purpose |
 |------|---------|
-| `default` | dev tooling, lint, unit tests |
+| `default` | dev tooling, lint, unit tests (siblings via git+file://) |
+| `editable` | sibling dev with edit-and-reload (siblings via path dep from `src/`) |
 | `train-policy` | LeRobot policy training (SmolVLA / ACT / Diffusion) |
 | `train-dreamer` | DreamerV3 world-model training |
 | `train-lewm` | HF LeWorldModel training |

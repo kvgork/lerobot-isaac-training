@@ -14,18 +14,10 @@ pyyaml = "*"
 # blocking pip uninstall when isaacsim/lerobot install their own pinned numpy)
 
 [pypi-dependencies]
-# Thin-meta-repo mode: only meta lives in packages/. The 6 siblings + recorder
-# install from local bare repos (~/workspaces/spinouts/<name>.git) via git+file:// URLs.
-# Meta itself is editable so monorepo dev workflow (cli.py + batch.py) still hot-reloads.
-# TODO: swap file:// URLs for https://github.com/kvgork/<name>.git when repos are published.
+# Always-on workspace member. The 6 siblings live in feature.git-siblings (default
+# env) OR feature.editable-siblings (opt-in editable env) — never both in the same
+# environment (pixi can't resolve same package from two different URL sources).
 lerobot-isaac-meta = { path = "packages/lerobot-isaac-meta", editable = true }
-lerobot-isaac-configs = { git = "file:///home/koen/workspaces/spinouts/lerobot-isaac-configs.git", branch = "main" }
-lerobot-isaac-dashboard = { git = "file:///home/koen/workspaces/spinouts/lerobot-isaac-dashboard.git", branch = "main" }
-lerobot-isaac-autoresearch = { git = "file:///home/koen/workspaces/spinouts/lerobot-isaac-autoresearch.git", branch = "main" }
-lerobot-isaac-env = { git = "file:///home/koen/workspaces/spinouts/lerobot-isaac-env.git", branch = "main" }
-lerobot-isaac-adapters = { git = "file:///home/koen/workspaces/spinouts/lerobot-isaac-adapters.git", branch = "main" }
-lerobot-isaac-synthetic = { git = "file:///home/koen/workspaces/spinouts/lerobot-isaac-synthetic.git", branch = "main" }
-robot-data-recorder = { git = "file:///home/koen/workspaces/spinouts/robot-data-recorder.git", branch = "main" }
 
 [feature.dev.dependencies]
 pytest = "*"
@@ -61,15 +53,49 @@ pyarrow = ">=15.0"
 jinja2 = ">=3.1"
 watchdog = ">=3.0"
 
+# Default sibling install source: git+file:// against bare repos at
+# ~/workspaces/spinouts/<name>/ (NO `.git` suffix — they are bare dirs whose
+# `config` declares `bare = true`). Included in every "normal" environment.
+# robot-data-recorder is intentionally NOT listed — standalone hardware package.
+# TODO: swap file:// URLs for https://github.com/kvgork/<name>.git when published.
+[feature.git-siblings.pypi-dependencies]
+lerobot-isaac-configs = { git = "file:///home/koen/workspaces/spinouts/lerobot-isaac-configs", branch = "main" }
+lerobot-isaac-dashboard = { git = "file:///home/koen/workspaces/spinouts/lerobot-isaac-dashboard", branch = "main" }
+lerobot-isaac-autoresearch = { git = "file:///home/koen/workspaces/spinouts/lerobot-isaac-autoresearch", branch = "main" }
+lerobot-isaac-env = { git = "file:///home/koen/workspaces/spinouts/lerobot-isaac-env", branch = "main" }
+lerobot-isaac-adapters = { git = "file:///home/koen/workspaces/spinouts/lerobot-isaac-adapters", branch = "main" }
+lerobot-isaac-synthetic = { git = "file:///home/koen/workspaces/spinouts/lerobot-isaac-synthetic", branch = "main" }
+
+# Opt-in editable feature. Activated ONLY by the `editable` environment below
+# (i.e. `pixi install -e editable`). When activated, the 6 sibling packages
+# resolve from local clones at `src/<name>/` as editable path deps — INSTEAD
+# of the git+file:// installs in feature.git-siblings (they are not co-included
+# in the same environment, so there is no URL conflict).
+#
+# Workflow:
+#   1. pixi run sync               # clones the 6 spinouts into src/
+#   2. pixi install -e editable    # resolves with editable path deps
+#   3. edit src/<pkg>/...          # changes reflect immediately, no reinstall
+#
+# Default `pixi install` is unaffected and keeps using git+file://.
+[feature.editable-siblings.pypi-dependencies]
+lerobot-isaac-configs       = { path = "src/lerobot-isaac-configs",       editable = true }
+lerobot-isaac-dashboard     = { path = "src/lerobot-isaac-dashboard",     editable = true }
+lerobot-isaac-autoresearch  = { path = "src/lerobot-isaac-autoresearch",  editable = true }
+lerobot-isaac-env           = { path = "src/lerobot-isaac-env",           editable = true }
+lerobot-isaac-adapters      = { path = "src/lerobot-isaac-adapters",      editable = true }
+lerobot-isaac-synthetic     = { path = "src/lerobot-isaac-synthetic",     editable = true }
+
 [environments]
-default = ["dev"]
-train-policy = ["dev", "lerobot"]
-train-dreamer = ["dev", "lerobot", "dreamerv3"]
-train-lewm = ["dev", "lerobot", "leworldmodel"]
-sim = ["dev", "lerobot", "isaaclab"]
-record = ["dev", "lerobot", "realsense", "stable-worldmodel"]
-full = ["dev", "lerobot", "dreamerv3", "leworldmodel", "isaaclab", "realsense", "stable-worldmodel"]
-dashboard = ["dev", "dashboard"]
+default = ["dev", "git-siblings"]
+train-policy = ["dev", "lerobot", "git-siblings"]
+train-dreamer = ["dev", "lerobot", "dreamerv3", "git-siblings"]
+train-lewm = ["dev", "lerobot", "leworldmodel", "git-siblings"]
+sim = ["dev", "lerobot", "isaaclab", "git-siblings"]
+record = ["dev", "lerobot", "realsense", "stable-worldmodel", "git-siblings"]
+full = ["dev", "lerobot", "dreamerv3", "leworldmodel", "isaaclab", "realsense", "stable-worldmodel", "git-siblings"]
+dashboard = ["dev", "dashboard", "git-siblings"]
+editable = ["dev", "editable-siblings"]
 
 [activation]
 # Auto-export workspace env vars whenever a pixi shell or task is started.
@@ -77,7 +103,10 @@ dashboard = ["dev", "dashboard"]
 scripts = ["scripts/setup_env.sh"]
 
 [tasks]
-test = "pytest packages/lerobot-isaac-meta/tests/ archive/packages/*/tests/"
+# NOTE: archive/packages/lerobot-isaac-recorder/tests/ excluded — those tests import
+# `robot_data_recorder`, which is no longer a workspace dep (recorder is standalone /
+# opt-in via `pixi run sync-recorder` + manual pip install of src/robot-data-recorder/).
+test = "pytest packages/lerobot-isaac-meta/tests/ archive/packages/*/tests/ --ignore-glob='archive/packages/lerobot-isaac-recorder/*'"
 lint = "ruff check packages/ archive/packages/"
 fmt = "ruff format packages/ archive/packages/"
 setup-env = "bash scripts/setup_env.sh"
@@ -90,3 +119,13 @@ dashboard = "lerobot-isaac-dashboard"  # installed CLI entry point (was: streaml
 report = "python -m lerobot_isaac_dashboard.report --workspace ."
 snapshot = "python -m lerobot_isaac_dashboard.snapshots --workspace ."
 compare = "python -m lerobot_isaac_dashboard.compare --workspace ."
+
+# --- Editable-siblings workflow tasks --------------------------------------
+# Implementation lives in scripts/sync/*.sh (pixi tasks invoke them via bash).
+# - sync          : clone the 6 spinouts into src/<name>/ (idempotent)
+# - sync-update   : git fetch && git pull --ff-only on each src/lerobot-isaac-*
+# - sync-recorder : opt-in clone of robot_data_recorder into src/robot-data-recorder
+# LEROBOT_SPINOUTS_BASE overrides bare-repo location (default ~/workspaces/spinouts).
+sync = "bash scripts/sync/sync_siblings.sh"
+sync-update = "bash scripts/sync/sync_update.sh"
+sync-recorder = "bash scripts/sync/sync_recorder.sh"

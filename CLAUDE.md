@@ -34,44 +34,97 @@ To update installed agents after editing source: `cd ${CLAUDE_CODE_ROOT} && ./in
 ## Architecture: Thin-Meta-Repo (post-spinout, 2026-05-13)
 
 Only `lerobot-isaac-meta` lives in `packages/` as a live workspace member.
-The other 7 packages have been spun out to local bare git repos at
-`~/workspaces/spinouts/<name>.git` and are installed via `git+file://` URLs.
+The other 6 siblings have been spun out to local bare git repos at
+`~/workspaces/spinouts/<name>/` (NO `.git` suffix — they are bare directories whose
+`config` declares `bare = true`) and are installed via `git+file://` URLs in the
+default pixi environment.
+
+A separate opt-in `editable` pixi environment installs the 6 siblings as editable
+path deps from local clones at `src/<name>/` — for hands-on development without
+reinstalls. See "Editable dev mode" below.
+
+`robot-data-recorder` is a **standalone hardware package** and is NOT a meta dep.
+It is opt-in via `pixi run sync-recorder`.
 
 **TODO:** swap `file://` URLs for `https://github.com/kvgork/<name>.git` once GitHub
 repos exist (see `docs/runbook/09-publish-to-github.md`).
 
-## Package Map (8 packages, 1 live + 7 spun-out)
+## Package Map (8 packages, 1 live + 6 spun-out + 1 standalone)
 
-| Package | Location | Install path |
-|---------|----------|--------------|
+| Package | Location | Install path (default env) |
+|---------|----------|----------------------------|
 | `lerobot-isaac-meta` | `packages/lerobot-isaac-meta/` (live) | editable workspace member |
-| `lerobot-isaac-env` | `~/workspaces/spinouts/lerobot-isaac-env.git` | `git+file://...@main` |
-| `lerobot-isaac-adapters` | `~/workspaces/spinouts/lerobot-isaac-adapters.git` | `git+file://...@main` |
-| `lerobot-isaac-autoresearch` | `~/workspaces/spinouts/lerobot-isaac-autoresearch.git` | `git+file://...@main` |
-| `lerobot-isaac-synthetic` | `~/workspaces/spinouts/lerobot-isaac-synthetic.git` | `git+file://...@main` |
-| `lerobot-isaac-configs` | `~/workspaces/spinouts/lerobot-isaac-configs.git` | `git+file://...@main` |
-| `lerobot-isaac-dashboard` | `~/workspaces/spinouts/lerobot-isaac-dashboard.git` | `git+file://...@main` |
-| `robot-data-recorder` | `~/workspaces/spinouts/robot-data-recorder.git` | `git+file://...@main` (standalone — NOT a meta dep) |
+| `lerobot-isaac-env` | `~/workspaces/spinouts/lerobot-isaac-env/` | `git+file://...@main` |
+| `lerobot-isaac-adapters` | `~/workspaces/spinouts/lerobot-isaac-adapters/` | `git+file://...@main` |
+| `lerobot-isaac-autoresearch` | `~/workspaces/spinouts/lerobot-isaac-autoresearch/` | `git+file://...@main` |
+| `lerobot-isaac-synthetic` | `~/workspaces/spinouts/lerobot-isaac-synthetic/` | `git+file://...@main` |
+| `lerobot-isaac-configs` | `~/workspaces/spinouts/lerobot-isaac-configs/` | `git+file://...@main` |
+| `lerobot-isaac-dashboard` | `~/workspaces/spinouts/lerobot-isaac-dashboard/` | `git+file://...@main` |
+| `robot-data-recorder` | `~/workspaces/spinouts/robot_data_recorder/` | standalone — opt-in via `pixi run sync-recorder` |
 
-History-only copies of the 7 spun-out packages remain in `archive/packages/<name>/`
+In `editable` env, the 6 siblings install from `src/<name>/` (editable=true, path dep)
+instead. See "Editable dev mode" below.
+
+History-only copies of the spun-out packages remain in `archive/packages/<name>/`
 (via `git mv`, full history preserved). Treat them as read-only — edit the bare
-repos and re-push to `~/workspaces/spinouts/` for canonical changes.
+repos (default mode) or the `src/<name>/` clones (editable mode) for canonical changes.
 
 ---
 
 ## Where to Find Things
 
 - **Docs:** `docs/research/` (external lib refs), `docs/runbook/` (how-tos)
-- **YAML configs:** `packages/lerobot-isaac-configs/configs/`
+- **YAML configs:** `packages/lerobot-isaac-configs/configs/` (in default env, served by `importlib.resources` from the git+file install; in editable env, served from `src/lerobot-isaac-configs/src/lerobot_isaac_configs/configs/`)
+- **Editable sibling clones (gitignored):** `src/<name>/` — only present after `pixi run sync`
 - **Datasets (gitignored):** `datasets/`
 - **Checkpoints/outputs (gitignored):** `outputs/`
 - **Agent orchestration state (gitignored):** `.agent-state/{sessionId}/events.jsonl`
-- **Package CLAUDE.md files:** each `packages/*/CLAUDE.md`
+- **Package CLAUDE.md files:** each `packages/*/CLAUDE.md` (and each `src/*/CLAUDE.md` once cloned)
 - **Top-level docs:** `README.md` | `ARCHITECTURE.md` | `USAGE.md`
 
 ---
 
 ## How to Continue Work
+
+### Default workflow (siblings installed from git+file://, no source-level editing)
+
+```bash
+pixi install               # default env: meta editable + 6 git+file:// installs
+pixi run test              # 659 passing, 14 skipped
+```
+
+### Editable dev mode (opt-in, edit-and-reload on siblings)
+
+Use this mode when you want to make changes to a sibling package (e.g.
+`lerobot-isaac-adapters`) and have them reflected in the workspace immediately
+without `pip install --force-reinstall`.
+
+```bash
+pixi run sync              # clones the 6 spinouts into src/<name>/ (idempotent)
+pixi install -e editable   # resolves 6 siblings as editable path deps
+pixi shell -e editable     # enter the env
+# edit src/lerobot-isaac-<pkg>/src/... — changes reflect on next import
+pixi run sync-update       # later: pull updates from the bare repos
+```
+
+Then commit + push **inside the relevant `src/<pkg>/`** directory — each is an
+independent git checkout of its bare repo. The workspace `.gitignore` ignores
+`src/<pkg>/` entirely.
+
+| Mode | Env | Sibling source |
+|------|-----|----------------|
+| Default | `default` | git+file:// from `~/workspaces/spinouts/<name>` |
+| Editable | `editable` | path deps from `src/<name>/` (editable=true) |
+
+Switching modes does NOT require uninstalling — `.pixi/envs/default/` and
+`.pixi/envs/editable/` live side-by-side.
+
+### Recorder dev (opt-in, separate from meta deps)
+
+```bash
+pixi run sync-recorder                           # clones into src/robot-data-recorder
+pixi run -e default pip install -e src/robot-data-recorder   # install into chosen env
+```
 
 ### Invoke training orchestrator (Phase 2+)
 ```
@@ -80,7 +133,7 @@ Task(lerobot-training-orchestrator, {workspace_root: "$PWD"})
 The orchestrator expects:
 - `datasets/` for input Parquet files
 - `outputs/` for checkpoints
-- `packages/lerobot-isaac-configs/configs/` for per-target YAML
+- Configs served by `lerobot_isaac_configs.load_config(...)` (resolved via importlib.resources)
 
 ### Train a world model (Phase 2+)
 Step 1 — Convert Parquet to HDF5:
@@ -91,12 +144,12 @@ Step 2 — Train:
 ```bash
 python -m lerobot_isaac_adapters.train \
   --target_arch dreamerv3 \
-  --config packages/lerobot-isaac-configs/configs/wm_dreamerv3.yaml
+  --config <(python -c "from lerobot_isaac_configs import get_configs_dir; print(get_configs_dir() / 'wm_dreamerv3.yaml')")
 ```
 
 ### Run autoresearch (Phase 3+)
 ```
-/autoresearch packages/lerobot-isaac-autoresearch/programs/lerobot-policy.md --type ml_model
+/autoresearch <path-to-program.md> --type ml_model
 ```
 
 ---
@@ -111,13 +164,18 @@ after a package is spun out to a standalone repo via `git subtree split`.
 
 | Environment | Features included | Use case |
 |-------------|-------------------|----------|
-| `default` | dev | Unit tests, linting, format |
-| `train-policy` | dev + lerobot | Train LeRobot policies (ACT / SmolVLA / Diffusion) |
-| `train-dreamer` | dev + lerobot + dreamerv3 | Train DreamerV3 world model |
-| `train-lewm` | dev + lerobot + leworldmodel | Train HF LeWorldModel |
-| `sim` | dev + lerobot + isaaclab | Isaac Lab simulation (post-install) |
-| `dashboard` | dev + dashboard | Live + static metrics dashboard |
-| `full` | all features | All targets simultaneously |
+| `default` | dev + git-siblings | Unit tests, linting, format — siblings installed from git+file:// |
+| `editable` | dev + editable-siblings | Sibling dev with edit-and-reload — siblings from `src/<name>/` |
+| `train-policy` | dev + lerobot + git-siblings | Train LeRobot policies (ACT / SmolVLA / Diffusion) |
+| `train-dreamer` | dev + lerobot + dreamerv3 + git-siblings | Train DreamerV3 world model |
+| `train-lewm` | dev + lerobot + leworldmodel + git-siblings | Train HF LeWorldModel |
+| `sim` | dev + lerobot + isaaclab + git-siblings | Isaac Lab simulation (post-install) |
+| `dashboard` | dev + dashboard + git-siblings | Live + static metrics dashboard |
+| `full` | all features + git-siblings | All targets simultaneously |
+
+The `git-siblings` and `editable-siblings` features are mutually exclusive — they
+provide the same 6 package names from different URL sources. Pixi cannot resolve
+both in one env, so the `editable` env opts out of `git-siblings`.
 
 ### Common commands
 
@@ -128,11 +186,17 @@ pixi install
 # Install for a specific environment
 pixi install -e train-policy
 
+# Editable dev mode: clone-and-install workflow
+pixi run sync                  # one-time: clone 6 spinouts into src/<name>/
+pixi install -e editable       # resolve as editable path deps
+pixi run sync-update           # later: git fetch && git pull --ff-only on each clone
+pixi run sync-recorder         # opt-in clone of robot_data_recorder into src/
+
 # Run tests in the default environment
 pixi run test
 
-# Run tests inside the sim environment
-pixi run -e sim test
+# Run tests inside the editable environment
+pixi run -e editable test
 
 # Lint / format
 pixi run lint
@@ -162,6 +226,7 @@ Isaac Lab requires a separate manual step (GPU + disk space).
 - [x] Phase 4 — Synthetic Data Generation (`lerobot-isaac-synthetic` scaffolded)
 - [x] Phase 5 — Documentation finalization (README, ARCHITECTURE, USAGE, runbooks, research docs)
 - [x] Phase A — lerobot-isaac-dashboard package (live UI + static report + snapshot/compare)
+- [x] Phase B — Thin-meta-repo + opt-in editable-siblings workflow (`pixi run sync` + `pixi install -e editable`)
 - [x] Phase 1 impl — Isaac Lab MDP wiring (soft-import; cfg construction green; camera obs deferred)
 - [x] Phase 2 impl — LeRobot / DreamerV3 / LeWM backends wired (subprocess + metric extraction; dry-run smoke green)
 - [x] Phase 3 impl — Autoresearch e2e dry-run green (`train_wrapper → train → metric` chain enforced by test)
@@ -228,6 +293,11 @@ Isaac Lab requires a separate manual step (GPU + disk space).
 - **LeWM HDF5 schema:** Undocumented. Use `(96,96)` preset in `lerobot_world_model_bridge`.
   See `skills/lerobot_world_model_bridge/SKILL.md` for schema notes.
 - **Spinout to standalone repo:** Use `git subtree split` per Section 11.7 of the build plan.
+- **`pixi install -e editable` requires `pixi run sync` first** — the editable env's
+  path deps cannot canonicalize if `src/<pkg>/` does not yet exist on disk.
+- **Bare-repo URLs have no `.git` suffix.** The on-disk bare repos are named
+  `~/workspaces/spinouts/<name>/` (NOT `<name>.git`). Recorder is the exception:
+  `~/workspaces/spinouts/robot_data_recorder/` (underscore, working tree).
 - **No eager `from . import <runnable_module>` in package `__init__.py`:** if the
   submodule is also invokable as `python -m <pkg>.<mod>`, eager re-export triggers
   `RuntimeWarning: '<pkg>.<mod>' found in sys.modules`. Use a deferred local
@@ -236,8 +306,7 @@ Isaac Lab requires a separate manual step (GPU + disk space).
   `lerobot_isaac_synthetic.isaac_dr.replay_runner`.
 - **Dry-run is the default acceptance bar pre-data:** every entrypoint must accept
   `--dry_run`, print the resolved subprocess command, and exit 0 — never actually
-  reach the heavy backend. Tested by
-  `packages/lerobot-isaac-autoresearch/tests/test_e2e_dry_run.py`.
+  reach the heavy backend.
 
 ---
 
@@ -272,6 +341,7 @@ All documentation files in this workspace with one-line descriptions:
 | `USAGE.md` | Comprehensive runbook: all 10 workflows, CLI reference, common errors |
 | `CLAUDE.md` (this file) | Session orientation: agents, skills, pitfalls, vault links |
 | `docs/api-reference.md` | Public Python API for all 6 packages: signatures + examples |
+| `docs/runbook/00-install.md` | Thin-meta-repo install: default + editable modes + recorder dev |
 | `docs/runbook/01-bootstrap.md` | First-time setup: pixi, Isaac Lab, USD, smoke tests |
 | `docs/runbook/02-collect-data.md` | Collect and quality-filter SO-101 teleop data |
 | `docs/runbook/03-train-policy.md` | Train SmolVLA / ACT / Diffusion policy end-to-end |
@@ -301,7 +371,8 @@ All documentation files in this workspace with one-line descriptions:
 
 | I want to... | Read this |
 |-------------|----------|
-| Get started for the first time | `docs/runbook/01-bootstrap.md` |
+| Get started for the first time | `docs/runbook/00-install.md` then `docs/runbook/01-bootstrap.md` |
+| Edit a sibling package's source | `docs/runbook/00-install.md` §"Editable dev mode" |
 | Collect real SO-101 data | `docs/runbook/02-collect-data.md` |
 | Train a policy | `docs/runbook/03-train-policy.md` + `docs/research/` for the chosen arch |
 | Train a world model | `docs/runbook/04-train-world-model.md` + `docs/research/dreamerv3-reference.md` |

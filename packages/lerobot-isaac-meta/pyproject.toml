@@ -21,14 +21,15 @@ dependencies = [
 #   pulled by any meta extras. Install it separately when needed.
 
 [project.optional-dependencies]
-# TODO: swap file:// URLs for https://github.com/kvgork/<name>.git when repos are published
+# TODO: swap file:// URLs for https://github.com/kvgork/<name>.git when repos are published.
+# The on-disk bare repos do NOT carry a `.git` suffix on the directory name.
 post-spinout = [
-  "lerobot-isaac-configs @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-configs.git@main",
-  "lerobot-isaac-dashboard @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-dashboard.git@main",
-  "lerobot-isaac-autoresearch @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-autoresearch.git@main",
-  "lerobot-isaac-env @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-env.git@main",
-  "lerobot-isaac-adapters @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-adapters.git@main",
-  "lerobot-isaac-synthetic @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-synthetic.git@main",
+  "lerobot-isaac-configs @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-configs@main",
+  "lerobot-isaac-dashboard @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-dashboard@main",
+  "lerobot-isaac-autoresearch @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-autoresearch@main",
+  "lerobot-isaac-env @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-env@main",
+  "lerobot-isaac-adapters @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-adapters@main",
+  "lerobot-isaac-synthetic @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-synthetic@main",
 ]
 
 [project.scripts]
