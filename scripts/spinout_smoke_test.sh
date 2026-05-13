@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Smoke-test that lerobot-isaac-configs can be subtree-split and stand alone.
+# Smoke-test that a package can be subtree-split and stand alone.
+#
+# After subtree-split we install via the package's dormant pixi.toml and run
+# pytest inside that environment. This mirrors what a downstream consumer
+# would do after cloning the spun-out repo.
 
 PKG="${1:-lerobot-isaac-configs}"
 TMPDIR=$(mktemp -d -t spinout-smoke-XXXX)
@@ -9,13 +13,25 @@ trap "rm -rf '$TMPDIR'" EXIT
 cd "$(dirname "$0")/.."
 WORKSPACE_ROOT=$(pwd)
 
-# Subtree split
-git subtree split --prefix="packages/$PKG" -b "spinout/$PKG-$$" 2>&1
-git clone -b "spinout/$PKG-$$" "$WORKSPACE_ROOT" "$TMPDIR/$PKG"
-git branch -D "spinout/$PKG-$$"
+# --- timing helper ------------------------------------------------------------
+_t0=$(date +%s)
+_step() {
+    local _now=$(date +%s)
+    local _dt=$((_now - _t0))
+    echo "[+${_dt}s] $1"
+}
+
+# --- 1. subtree split ---------------------------------------------------------
+_step "subtree split: packages/$PKG"
+git subtree split --prefix="packages/$PKG" -b "spinout/$PKG-$$" 2>&1 >/dev/null
+git clone -q -b "spinout/$PKG-$$" "$WORKSPACE_ROOT" "$TMPDIR/$PKG"
+git branch -D "spinout/$PKG-$$" >/dev/null
 
 # In the spun-out tree:
 cd "$TMPDIR/$PKG"
+
+# --- 2. structural checks -----------------------------------------------------
+_step "structural checks"
 [ -f pyproject.toml ] || { echo "FAIL: no pyproject.toml in spinout"; exit 1; }
 [ -f pixi.toml ] || { echo "FAIL: no pixi.toml in spinout"; exit 1; }
 [ -f README.md ] || { echo "FAIL: no README.md in spinout"; exit 1; }
@@ -34,7 +50,30 @@ else:
 
 [ -d "src/$SRC_PKG" ] || { echo "FAIL: no src/$SRC_PKG (pyproject-declared or fallback)"; exit 1; }
 
-# Run package tests
-python3 -m pytest tests/ -q --no-header 2>&1 | tail -3
+# --- 3. pixi install in the spun-out tree -------------------------------------
+# Detect whether the package's pixi.toml defines a `default` environment.
+HAS_DEFAULT_ENV=$(python3 -c "
+import tomllib
+with open('pixi.toml','rb') as f:
+    d = tomllib.load(f)
+print('1' if 'default' in d.get('environments', {}) else '0')
+" 2>/dev/null || echo "0")
 
+_step "pixi install (env-aware)"
+if [ "$HAS_DEFAULT_ENV" = "1" ]; then
+    pixi install -e default >/dev/null
+else
+    pixi install >/dev/null
+fi
+
+# --- 4. pytest inside the pixi env -------------------------------------------
+_step "pytest (excluding GPU-only markers)"
+PYTEST_MARKERS='not requires_isaaclab and not requires_lerobot and not requires_dreamerv3'
+if [ "$HAS_DEFAULT_ENV" = "1" ]; then
+    pixi run -e default pytest tests/ -q --no-header -m "$PYTEST_MARKERS" 2>&1 | tail -5
+else
+    pixi run pytest tests/ -q --no-header -m "$PYTEST_MARKERS" 2>&1 | tail -5
+fi
+
+_step "done"
 echo "PASS: $PKG spinout smoke test (src/$SRC_PKG)"
