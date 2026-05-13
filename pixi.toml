@@ -14,7 +14,8 @@ pyyaml = "*"
 # blocking pip uninstall when isaacsim/lerobot install their own pinned numpy)
 
 [pypi-dependencies]
-# Sibling packages — editable installs (active in monorepo mode)
+# Sibling packages — editable installs (active in monorepo mode).
+# Post-spinout, install meta with the [post-spinout] extra (git+file:// URLs).
 lerobot-isaac-meta = { path = "packages/lerobot-isaac-meta", editable = true }
 lerobot-isaac-env = { path = "packages/lerobot-isaac-env", editable = true }
 lerobot-isaac-adapters = { path = "packages/lerobot-isaac-adapters", editable = true }

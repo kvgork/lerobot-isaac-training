@@ -7,20 +7,27 @@ requires-python = ">=3.10"
 dependencies = [
   "pyyaml>=6.0",
 ]
-# NOTE: sibling workspace packages are NOT listed in [project] dependencies
-# because pixi installs them as editable workspace deps via pypi-dependencies in
-# root pixi.toml (avoids URL-conflict between plain name + editable path).
-# Standalone post-spinout install: also pip install lerobot-isaac-{env,adapters,
-# autoresearch,synthetic,configs,recorder} explicitly, OR use the [monorepo] extra.
+# NOTE: Sibling workspace packages are intentionally NOT in [project.dependencies].
+#
+# - In MONOREPO mode (this workspace), pixi installs siblings as editable workspace
+#   members via [pypi-dependencies] in the root pixi.toml. Meta requires no extras.
+#
+# - POST-SPINOUT, install meta with the `post-spinout` extra to pull the 6 sibling
+#   repos from their canonical bare-repo / GitHub URLs:
+#     pip install "lerobot-isaac-meta[post-spinout]"
+#
+# - Recorder (robot-data-recorder) is a standalone hardware-tier package and is NOT
+#   pulled by any meta extras. Install it separately when needed.
 
 [project.optional-dependencies]
-monorepo = [
-  "lerobot-isaac-env",
-  "lerobot-isaac-adapters",
-  "lerobot-isaac-autoresearch",
-  "lerobot-isaac-synthetic",
-  "lerobot-isaac-configs",
-  "robot-data-recorder",
+# TODO: swap file:// URLs for https://github.com/kvgork/<name>.git when repos are published
+post-spinout = [
+  "lerobot-isaac-configs @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-configs.git@main",
+  "lerobot-isaac-dashboard @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-dashboard.git@main",
+  "lerobot-isaac-autoresearch @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-autoresearch.git@main",
+  "lerobot-isaac-env @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-env.git@main",
+  "lerobot-isaac-adapters @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-adapters.git@main",
+  "lerobot-isaac-synthetic @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-synthetic.git@main",
 ]
 
 [project.scripts]
@@ -33,6 +40,25 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/lerobot_isaac_meta"]
+
+[tool.hatch.metadata]
+# Required because the post-spinout extra uses direct git+file:// URLs.
+allow-direct-references = true
+
+[tool.uv.sources]
+# Monorepo override: in this workspace, the `post-spinout` extras above reference
+# workspace members by name; uv requires each name to be redirected to either a
+# workspace member (monorepo) or git URL (the @ specifier in [project.optional-dependencies]).
+# These entries make uv resolve to the workspace member, so installing the extra
+# inside the monorepo gives editable workspace installs. Outside the workspace
+# (plain pip install), this [tool.uv.sources] block is ignored and the @ git+file://
+# URLs in the extras above are used.
+lerobot-isaac-configs = { workspace = true }
+lerobot-isaac-dashboard = { workspace = true }
+lerobot-isaac-autoresearch = { workspace = true }
+lerobot-isaac-env = { workspace = true }
+lerobot-isaac-adapters = { workspace = true }
+lerobot-isaac-synthetic = { workspace = true }
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
