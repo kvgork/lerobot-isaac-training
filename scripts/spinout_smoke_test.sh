@@ -22,8 +22,17 @@ _step() {
 }
 
 # --- 1. subtree split ---------------------------------------------------------
-_step "subtree split: packages/$PKG"
-git subtree split --prefix="packages/$PKG" -b "spinout/$PKG-$$" 2>&1 >/dev/null
+# Locate the package: live workspace member (packages/) vs archived (archive/packages/).
+if [ -d "$WORKSPACE_ROOT/packages/$PKG" ]; then
+    PKG_PREFIX="packages/$PKG"
+elif [ -d "$WORKSPACE_ROOT/archive/packages/$PKG" ]; then
+    PKG_PREFIX="archive/packages/$PKG"
+else
+    echo "FAIL: package $PKG not found in packages/ or archive/packages/" >&2
+    exit 1
+fi
+_step "subtree split: $PKG_PREFIX"
+git subtree split --prefix="$PKG_PREFIX" -b "spinout/$PKG-$$" 2>&1 >/dev/null
 git clone -q -b "spinout/$PKG-$$" "$WORKSPACE_ROOT" "$TMPDIR/$PKG"
 git branch -D "spinout/$PKG-$$" >/dev/null
 

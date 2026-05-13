@@ -9,8 +9,9 @@ dependencies = [
 ]
 # NOTE: Sibling workspace packages are intentionally NOT in [project.dependencies].
 #
-# - In MONOREPO mode (this workspace), pixi installs siblings as editable workspace
-#   members via [pypi-dependencies] in the root pixi.toml. Meta requires no extras.
+# - In MONOREPO mode (this workspace, post-archive), siblings are installed from
+#   local bare repos via [pypi-dependencies] in the root pixi.toml (same git+file://
+#   URLs as the [post-spinout] extra below).
 #
 # - POST-SPINOUT, install meta with the `post-spinout` extra to pull the 6 sibling
 #   repos from their canonical bare-repo / GitHub URLs:
@@ -45,20 +46,6 @@ packages = ["src/lerobot_isaac_meta"]
 # Required because the post-spinout extra uses direct git+file:// URLs.
 allow-direct-references = true
 
-[tool.uv.sources]
-# Monorepo override: in this workspace, the `post-spinout` extras above reference
-# workspace members by name; uv requires each name to be redirected to either a
-# workspace member (monorepo) or git URL (the @ specifier in [project.optional-dependencies]).
-# These entries make uv resolve to the workspace member, so installing the extra
-# inside the monorepo gives editable workspace installs. Outside the workspace
-# (plain pip install), this [tool.uv.sources] block is ignored and the @ git+file://
-# URLs in the extras above are used.
-lerobot-isaac-configs = { workspace = true }
-lerobot-isaac-dashboard = { workspace = true }
-lerobot-isaac-autoresearch = { workspace = true }
-lerobot-isaac-env = { workspace = true }
-lerobot-isaac-adapters = { workspace = true }
-lerobot-isaac-synthetic = { workspace = true }
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
