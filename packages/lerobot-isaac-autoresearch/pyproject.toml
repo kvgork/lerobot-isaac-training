@@ -20,3 +20,8 @@ lerobot-isaac-train-wrapper = "lerobot_isaac_autoresearch.train_wrapper:main"
 [project.optional-dependencies]
 dev = ["pytest", "pyyaml"]
 monorepo = ["lerobot-isaac-adapters"]
+
+[tool.pytest.ini_options]
+markers = [
+    "requires_workspace_root: marks tests that require the monorepo workspace layout (sibling packages, workspace pyproject.toml). Auto-skipped when run from a standalone spun-out tree.",
+]

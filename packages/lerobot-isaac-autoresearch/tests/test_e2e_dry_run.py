@@ -62,6 +62,7 @@ def _run_wrapper(arch: str, tmp_path: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
+@pytest.mark.requires_workspace_root
 @pytest.mark.parametrize("arch", list(ARCH_METRIC))
 def test_wrapper_dry_run_emits_final_metric_line(arch: str, tmp_path: Path) -> None:
     """train_wrapper subprocess must terminate with a regex-parseable metric.
@@ -99,6 +100,7 @@ def test_wrapper_dry_run_emits_final_metric_line(arch: str, tmp_path: Path) -> N
     float(metric_value)  # raises ValueError on bad float
 
 
+@pytest.mark.requires_workspace_root
 def test_wrapper_dry_run_does_not_invoke_heavy_backend(tmp_path: Path) -> None:
     """Confirm that --dry_run never reaches the heavy training subprocess.
 
