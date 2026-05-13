@@ -26,7 +26,9 @@ hatchling = "*"
 
 [feature.lerobot]
 # Pip-install lerobot manually inside this env (gymnasium pin conflicts with sheeprl;
-# cannot co-resolve via pixi). After `pixi shell -e train-policy`: pip install "lerobot[all]"
+# cannot co-resolve via pixi). After `pixi install -e train-policy`, run:
+#   bash scripts/install_train_deps.sh --policy
+# (default extras: smolvla — set LEROBOT_EXTRAS=all to install all heavy extras).
 
 [feature.realsense.pypi-dependencies]
 pyrealsense2 = "*"
@@ -35,11 +37,20 @@ pyrealsense2 = "*"
 stable-worldmodel = "*"
 
 [feature.dreamerv3]
-# Pip-install sheeprl manually: pip install "sheeprl[dreamer]>=0.5"
-# (Cannot co-install with lerobot due to gymnasium version conflict.)
+# Pip-install sheeprl manually after `pixi install -e train-dreamer`:
+#   bash scripts/install_train_deps.sh --dreamer
+# Notes:
+#  - PyPI wheels pin `python<3.12`. The env is Python 3.12, so the helper
+#    script installs from git master with `--ignore-requires-python`.
+#  - Cannot co-install with lerobot here due to gymnasium version conflict.
 
 [feature.leworldmodel]
-# HF LeWorldModel installed via lerobot's extras or HF directly — pinned at install time
+# Pip-install lerobot manually after `pixi install -e train-lewm`:
+#   bash scripts/install_train_deps.sh --lewm
+# KNOWN GAP (2026-05-13): lerobot 0.5.x does NOT ship
+# `lerobot.scripts.train_world_model`, so the `le_world_model` adapter target
+# cannot dispatch a real training run today. Dry-run works. See
+# docs/runbook/00-install.md §"Known training-backend gap: LeWorldModel".
 
 [feature.isaaclab]
 # Isaac Lab installed via its own setup script (NOT pip) — see scripts/install_isaac_lab.sh
@@ -113,6 +124,7 @@ setup-env = "bash scripts/setup_env.sh"
 batch = "lerobot-isaac-batch"
 train-and-compare = "lerobot-isaac-batch --config archive/packages/lerobot-isaac-configs/src/lerobot_isaac_configs/configs/batches/example.yaml"
 install-isaac-lab = "bash scripts/install_isaac_lab.sh"
+install-train-deps = "bash scripts/install_train_deps.sh"
 download-usd = "bash archive/packages/lerobot-isaac-env/assets/usd/download_so101_urdf.sh"
 record-dry-run = "lerobot-isaac-record --repo-id=local/test --num-episodes=1 --dry-run"
 dashboard = "lerobot-isaac-dashboard"  # installed CLI entry point (was: streamlit run packages/lerobot-isaac-dashboard/...)

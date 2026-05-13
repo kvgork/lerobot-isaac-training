@@ -158,7 +158,55 @@ isolated.
 
 ---
 
-## Step 4: Opt-in recorder dev clone
+## Step 4: Install heavyweight training deps (lerobot + sheeprl)
+
+`pixi install` resolves the workspace's pixi-managed deps but **does not**
+install the two big training libraries. They are pinned/structured in a way
+that prevents pixi from co-resolving them with the rest of the workspace:
+
+- **lerobot** (used by `train-policy` and `train-lewm`) — gymnasium version pin
+  conflicts with sheeprl's pin.
+- **sheeprl** (used by `train-dreamer`) — published wheel metadata pins
+  `python<3.12`, but the train-dreamer pixi env runs Python 3.12.
+
+Run the helper script once after `pixi install`:
+
+```bash
+bash scripts/install_train_deps.sh             # installs all 3 envs
+# Or per-env:
+bash scripts/install_train_deps.sh --policy    # train-policy: lerobot[smolvla]
+bash scripts/install_train_deps.sh --dreamer   # train-dreamer: sheeprl from git (--ignore-requires-python)
+bash scripts/install_train_deps.sh --lewm      # train-lewm: lerobot
+```
+
+You can also invoke it via `pixi run install-train-deps`.
+
+Override the lerobot extras with `LEROBOT_EXTRAS`:
+```bash
+LEROBOT_EXTRAS=all bash scripts/install_train_deps.sh --policy
+```
+
+The script is idempotent — re-runs skip already-installed envs.
+
+### Why `--ignore-requires-python` for sheeprl?
+
+sheeprl's pyproject.toml pins `requires-python = ">=3.8,<3.12"`. The
+`dreamer_v3` algorithm itself works fine on 3.12 in practice, but `pip`
+refuses to install based on the metadata pin alone. The helper script
+passes `--ignore-requires-python` on Python ≥ 3.12 to bypass the check.
+Drop this flag once sheeprl publishes a 3.12-compatible release.
+
+### Known training-backend gap: LeWorldModel
+
+`lerobot 0.5.x` does NOT ship `lerobot.scripts.train_world_model`. The
+`le_world_model` adapter target therefore cannot dispatch a real training
+run today — `--dry_run` works but actual training will exit with a
+`ModuleNotFoundError`. Tracked as a system-improvement gap. The
+DreamerV3 path (`--target_arch dreamerv3`) is unaffected.
+
+---
+
+## Step 5: Opt-in recorder dev clone
 
 `robot-data-recorder` is intentionally NOT a workspace dep. It's a standalone hardware
 package. To pull a local clone for development:
@@ -171,7 +219,7 @@ pixi run -e default pip install -e src/robot-data-recorder
 
 ---
 
-## Step 5: Install standalone (post-spinout, no monorepo)
+## Step 6: Install standalone (post-spinout, no monorepo)
 
 If you're on a machine that doesn't have the monorepo cloned, use `scripts/install.sh`:
 

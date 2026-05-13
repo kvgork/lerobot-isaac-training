@@ -307,6 +307,27 @@ Isaac Lab requires a separate manual step (GPU + disk space).
 - **Dry-run is the default acceptance bar pre-data:** every entrypoint must accept
   `--dry_run`, print the resolved subprocess command, and exit 0 — never actually
   reach the heavy backend.
+- **Heavy training deps are NOT pip-installed by `pixi install`.** Run
+  `bash scripts/install_train_deps.sh` (or `pixi run install-train-deps`) once after
+  `pixi install` to put `lerobot` in `train-policy`/`train-lewm` and `sheeprl` (from
+  git, `--ignore-requires-python` on Py3.12) in `train-dreamer`. Documented in
+  `docs/runbook/00-install.md §Step 4`.
+- **lerobot 0.5+ CLI broke older adapter flags.** Adapter `policy_lerobot.py` emits
+  `--batch_size` / `--steps` / `--optimizer.lr` / `--config_path` /
+  `--policy.push_to_hub=false` — NOT the legacy `--training.*` / `--config` shape.
+  If you see `unknown argument --training.batch_size` from `lerobot-train`, the
+  adapter is stale and must be reinstalled from the bare repo.
+- **Local LeRobotDataset path:** pass the on-disk root as `--dataset`. The adapter
+  splits it into `--dataset.repo_id=<parent>/<name>` + `--dataset.root=<path>`.
+  Do NOT pre-flatten it into an HF cache layout.
+- **LeWorldModel real training is BLOCKED (2026-05-13).** `lerobot 0.5.x` does not
+  ship `lerobot.scripts.train_world_model`. The `le_world_model` adapter dry-run
+  works but real dispatch fails. Use `--target_arch dreamerv3` for any actual
+  WM training until upstream lands a CLI.
+- **Bridge `dtype: image` (PNG bytes in parquet) is now supported** as of
+  claude_code commit 4e6e21c — the older bridge required MP4 files under
+  `videos/`. If you re-pin the bridge skill, ensure the
+  `_load_episode_frames_from_parquet` helper is present (cv2-free PIL path).
 
 ---
 

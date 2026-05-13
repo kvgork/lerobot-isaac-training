@@ -8,13 +8,15 @@ This directory contains installation and verification scripts for the LeRobot + 
 
 1. **`pixi install`** — Install workspace Python packages (lerobot-isaac-env, lerobot-isaac-adapters, etc.) into the pixi-managed environment. Must run first; the later scripts import these packages.
 
-2. **`bash scripts/install_isaac_lab.sh`** — Clone and install Isaac Lab. _Isaac Sim must already be installed on the system before this step_ (see Troubleshooting).
+2. **`bash scripts/install_train_deps.sh`** — Pip-install the heavyweight per-env training libraries that pixi cannot co-resolve: `lerobot[smolvla]` into `train-policy` / `train-lewm`, and `sheeprl` (from git, `--ignore-requires-python` on Python 3.12) into `train-dreamer`. Required before any real training run. Also exposed as `pixi run install-train-deps`. See `docs/runbook/00-install.md §Step 4` for the rationale.
 
-3. **`bash scripts/install_lerobot.sh`** — Install the LeRobot library from PyPI (`pip install lerobot[all]`). Can run in parallel with step 2.
+3. **`bash scripts/install_isaac_lab.sh`** — Clone and install Isaac Lab. _Isaac Sim must already be installed on the system before this step_ (see Troubleshooting).
 
-4. **`bash scripts/download_so101_usd.sh`** — Clone `TheRobotStudio/SO-ARM100`, convert the SO-101 URDF to a USD asset using Isaac Lab's `convert_urdf.py`, and place the result at `packages/lerobot-isaac-env/assets/usd/so101.usd`. Requires Isaac Lab (step 2).
+4. **`bash scripts/install_lerobot.sh`** — Legacy single-env installer (`pip install lerobot[all]` into the *current* Python). Prefer step 2 for pixi-managed envs; this script remains useful outside pixi.
 
-5. **`bash scripts/verify_install.sh`** — Run 6 smoke tests covering Isaac Lab, LeRobot, all workspace packages, and the USD asset. Exit code = number of failures.
+5. **`bash scripts/download_so101_usd.sh`** — Clone `TheRobotStudio/SO-ARM100`, convert the SO-101 URDF to a USD asset using Isaac Lab's `convert_urdf.py`, and place the result at `packages/lerobot-isaac-env/assets/usd/so101.usd`. Requires Isaac Lab (step 3).
+
+6. **`bash scripts/verify_install.sh`** — Run 6 smoke tests covering Isaac Lab, LeRobot, all workspace packages, and the USD asset. Exit code = number of failures.
 
 ---
 
@@ -22,10 +24,12 @@ This directory contains installation and verification scripts for the LeRobot + 
 
 | Script | Purpose | Idempotent | Depends on |
 |---|---|---|---|
+| `install_train_deps.sh` | Pip-install lerobot + sheeprl into each pixi training env | Yes — skips already-installed envs | `pixi install -e <env>` first |
 | `install_isaac_lab.sh` | Clone Isaac Lab `v2.1.0`, run `./isaaclab.sh --install` | Yes — skips if `import isaaclab` succeeds | Isaac Sim pre-installed |
-| `install_lerobot.sh` | `pip install lerobot[all]` from PyPI or editable from source | Yes — skips if `import lerobot` succeeds | Python ≥ 3.10, pip |
+| `install_lerobot.sh` | `pip install lerobot[all]` from PyPI or editable from source (current shell only) | Yes — skips if `import lerobot` succeeds | Python ≥ 3.10, pip |
 | `download_so101_usd.sh` | Clone SO-ARM100, convert URDF → USD via Isaac Lab | Yes — skips if `so101.usd` exists | Isaac Lab installed |
 | `verify_install.sh` | 6-check smoke test: isaaclab, lerobot, env, adapters, synthetic, USD | N/A (read-only) | All of the above |
+| `pipeline_smoke.sh` | 7-stage end-to-end smoke (dry-run by default; budget 15 min) | Yes | `pixi install` (default + dashboard) |
 
 ---
 
@@ -36,7 +40,8 @@ This directory contains installation and verification scripts for the LeRobot + 
 | `ISAAC_LAB_DIR` | `~/IsaacLab` | `install_isaac_lab.sh`, `download_so101_usd.sh` |
 | `SO_ARM100_DIR` | `/tmp/SO-ARM100` | `download_so101_usd.sh` |
 | `LEROBOT_SRC` | (PyPI install) | `install_lerobot.sh` (editable mode only) |
-| `LEROBOT_EXTRAS` | `all` | `install_lerobot.sh` |
+| `LEROBOT_EXTRAS` | `all` (legacy) / `smolvla` (`install_train_deps.sh`) | both lerobot install scripts |
+| `SHEEPRL_GIT_URL` | `git+https://github.com/Eclectic-Sheep/sheeprl.git` | `install_train_deps.sh` |
 | `ISAAC_LAB_TAG` | `v2.1.0` | `install_isaac_lab.sh` |
 
 ---
@@ -47,7 +52,8 @@ After running `pixi install`, the following shortcuts are available (defined in 
 
 ```bash
 pixi run install-isaac-lab      # equivalent to bash scripts/install_isaac_lab.sh
-pixi run install-lerobot        # equivalent to bash scripts/install_lerobot.sh
+pixi run install-train-deps     # equivalent to bash scripts/install_train_deps.sh
+pixi run install-lerobot        # equivalent to bash scripts/install_lerobot.sh (legacy)
 pixi run download-usd           # equivalent to bash scripts/download_so101_usd.sh
 pixi run verify                 # equivalent to bash scripts/verify_install.sh
 ```
