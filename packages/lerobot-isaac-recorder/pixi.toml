@@ -1,11 +1,19 @@
 # packages/robot-data-recorder/pixi.toml
 #
-# Active pixi env for the recorder package. Includes full hardware deps
-# (pyrealsense2 + lerobot + stable-worldmodel) so `pixi run robot-data-record`
-# works for real D435 + SO-101 sessions in `--format=dual` (Parquet + HDF5).
+# Active pixi env for the recorder package.
 #
-# In monorepo mode the workspace-root pixi.toml installs the same deps. This
-# package-local env is used when invoking from inside this directory.
+# Default env: lightweight — no hardware deps. Imports succeed via soft-import
+# pattern (ADR-0003); tests use mocks. This is what `pixi install` in a spun-out
+# tree (where the sibling lerobot/ path does not exist) will install.
+#
+# Hardware env: adds lerobot + pyrealsense2 + stable-worldmodel for real D435 +
+# SO-101 sessions in `--format=dual` (Parquet + HDF5). Opt-in via:
+#   pixi install -e hardware
+#   pixi run -e hardware robot-data-record
+#
+# In monorepo mode the workspace-root pixi.toml installs the same hardware deps
+# transparently. This package-local env is used when invoking from inside this
+# directory or after spinout to a standalone repo.
 
 [workspace]
 name = "robot-data-recorder"
@@ -21,8 +29,6 @@ pip = "*"
 numpy = "*"
 h5py = "*"
 pyyaml = "*"
-# Real D435 camera support
-pyrealsense2 = "*"
 # Torch via conda for CUDA compat (matches workspace root pixi.toml)
 pytorch = ">=2.2.1,<2.8.0"
 torchvision = ">=0.21.0,<0.23.0"
@@ -33,14 +39,23 @@ fsspec = "<=2025.9.0"
 
 [pypi-dependencies]
 robot-data-recorder = { path = ".", editable = true }
-# LeRobot Parquet writer (parquet / dual format)
-lerobot = { path = "../../../lerobot/src/lerobot", editable = true, extras = ["feetech", "intelrealsense"] }
-# LeWM HDF5 writer (hdf5 / dual format)
-stable-worldmodel = "*"
 
 [feature.dev.dependencies]
 pytest = "*"
 hatchling = "*"
 
+# --- hardware feature ---------------------------------------------------------
+# Opt-in deps for real D435 camera + SO-101 teleop + LeWM HDF5 writer.
+# In a spun-out (standalone) tree the lerobot path will not resolve and
+# this feature will be unusable until the user installs lerobot another way.
+# Default env intentionally OMITS this so `pixi install` works in spinout.
+[feature.hardware.dependencies]
+pyrealsense2 = "*"
+
+[feature.hardware.pypi-dependencies]
+lerobot = { path = "../../../lerobot/src/lerobot", editable = true, extras = ["feetech", "intelrealsense"] }
+stable-worldmodel = "*"
+
 [environments]
 default = ["dev"]
+hardware = ["dev", "hardware"]
