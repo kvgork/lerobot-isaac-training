@@ -142,9 +142,7 @@ class TestRunBatch:
             ]
             cmp_.return_value = tmp_path / "report.html"
 
-            result = run_batch(
-                cfg, workspace_root=tmp_path, train_runner=fake_runner
-            )
+            result = run_batch(cfg, workspace_root=tmp_path, train_runner=fake_runner)
 
         assert snap.call_count == 2
         assert cmp_.call_count == 1
@@ -166,9 +164,7 @@ class TestRunBatch:
             snap.return_value = ("bx-b", tmp_path / "snap-b")
             cmp_.return_value = None
 
-            result = run_batch(
-                cfg, workspace_root=tmp_path, train_runner=fake_runner
-            )
+            result = run_batch(cfg, workspace_root=tmp_path, train_runner=fake_runner)
 
         assert [r.exit_code for r in result.runs] == [1, 0]
         # Only the second (successful) run is snapshotted.
@@ -188,9 +184,7 @@ class TestRunBatch:
             mock.patch.object(batch_mod, "_snapshot_run") as snap,
             mock.patch.object(batch_mod, "_export_compare") as cmp_,
         ):
-            result = run_batch(
-                cfg, workspace_root=tmp_path, train_runner=fake_runner
-            )
+            result = run_batch(cfg, workspace_root=tmp_path, train_runner=fake_runner)
 
         assert result.aborted is True
         assert len(result.runs) == 1
@@ -213,9 +207,7 @@ class TestRunBatch:
             snap.return_value = ("bx-b", tmp_path / "snap-b")
             cmp_.return_value = None
 
-            result = run_batch(
-                cfg, workspace_root=tmp_path, train_runner=fake_runner
-            )
+            result = run_batch(cfg, workspace_root=tmp_path, train_runner=fake_runner)
 
         assert result.runs[0].exit_code == -1
         assert "python missing" in (result.runs[0].error or "")

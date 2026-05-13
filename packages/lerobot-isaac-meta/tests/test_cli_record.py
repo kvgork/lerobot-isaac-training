@@ -1,22 +1,29 @@
-"""test_cli_record.py — Tests for the `record` subcommand wiring (Addendum 4 §14)."""
+"""test_cli_record.py — Tests for the `record` subcommand wiring (Addendum 4 §14).
+
+Tests are organized into two tiers:
+
+  1. **Tier 1 — parser-only** tests run anywhere, no sibling pkg needed. They
+     verify that ``lerobot-isaac record`` is registered, has the expected
+     help text, and respects the ``--`` separator convention.
+
+  2. **Tier 2 — delegation** tests need the ``robot_data_recorder`` package
+     to be importable. They auto-skip when ``importlib.util.find_spec``
+     reports the package missing, so the test file works both in monorepo
+     mode (where ``robot_data_recorder`` is installed as an editable workspace
+     dep) and in standalone mode (where it may or may not be installed).
+"""
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
+import importlib.util
 
 import pytest
 
-
-@pytest.fixture(autouse=True)
-def _add_recorder_src_to_path():
-    """Insert robot-data-recorder src on sys.path so meta CLI delegation resolves."""
-    recorder_src = (
-        Path(__file__).resolve().parents[3] / "lerobot-isaac-recorder" / "src"
-    )
-    if str(recorder_src) not in sys.path:
-        sys.path.insert(0, str(recorder_src))
-    yield
+_HAS_RECORDER = importlib.util.find_spec("robot_data_recorder") is not None
+_recorder_required = pytest.mark.skipif(
+    not _HAS_RECORDER,
+    reason="robot_data_recorder is not installed; pip install robot-data-recorder to run",
+)
 
 
 class TestRecordSubcommand:
@@ -37,7 +44,7 @@ class TestRecordSubcommand:
         out = capsys.readouterr().out
         assert "recorder_args" in out or "recorder" in out.lower()
 
-    @pytest.mark.requires_workspace_root
+    @_recorder_required
     def test_record_dry_run_via_meta(self, capsys):
         """Forwarding `record -- --dry-run ...` must hit recorder CLI and exit 0."""
         from lerobot_isaac_meta.cli import main
@@ -68,8 +75,6 @@ class TestRecordSubcommand:
     def test_record_import_error_when_recorder_missing(self, monkeypatch, capsys):
         """If robot_data_recorder is not importable, record subcommand returns 1."""
         import sys as _sys
-        # Block import by injecting a fake finder that raises on robot_data_recorder
-        # Strategy: pop any cached module + insert a sentinel that fails import via meta_path
 
         class _BlockingFinder:
             def find_spec(self, name, path=None, target=None):

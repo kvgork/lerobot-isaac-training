@@ -1,22 +1,34 @@
 """
 test_cli_quality_filter.py — Tests for the quality-filter CLI subcommand.
 
-Tests:
-  - quality-filter subcommand is registered in the parser.
-  - --dry-run path returns exit 0 and prints expected lines.
-  - --help output includes quality-filter.
-  - Required --dataset arg.
-  - Argparse defaults match spec.
+Tier 1 — parser & dry-run tests run with no sibling deps. They cover:
+  - quality-filter subcommand registration in build_parser()
+  - argparse defaults and required args
+  - --dry-run path exits 0 without importing lerobot_isaac_adapters
+
+Tier 2 — dispatch tests need ``lerobot_isaac_adapters`` importable. They auto-skip
+via ``importlib.util.find_spec`` when the package is absent, so the test file
+works in both monorepo and standalone trees.
 
 Plan reference: §13.1 Bundle A, deliverable A6
 """
 
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+
+_HAS_ADAPTERS = importlib.util.find_spec("lerobot_isaac_adapters") is not None
+_adapters_required = pytest.mark.skipif(
+    not _HAS_ADAPTERS,
+    reason=(
+        "lerobot_isaac_adapters is not installed; "
+        "pip install lerobot-isaac-adapters to run"
+    ),
+)
 
 
 # ---------------------------------------------------------------------------
@@ -156,17 +168,11 @@ class TestDryRun:
         assert "0.15" in captured.out
         assert "dry-run" in captured.out.lower() or "dry_run" in captured.out.lower()
 
-    @pytest.mark.requires_workspace_root
+    @_adapters_required
     def test_dry_run_does_not_call_adapter(self, capsys, tmp_path: Path):
         """--dry-run must NOT import or call apply_quality_filter."""
         from lerobot_isaac_meta.cli import main
 
-        with patch("lerobot_isaac_meta.cli._cmd_quality_filter") as mock_handler:
-            mock_handler.return_value = 0
-            # We need to call the real handler to test dry_run logic;
-            # just verify that the import path isn't reached during dry_run.
-            pass
-        # Real test: run with dry_run and verify no side-effects
         with patch("lerobot_isaac_adapters.quality.apply_quality_filter") as mock_aqf:
             rc = main(
                 [
@@ -194,14 +200,14 @@ class TestDryRun:
 
 
 class TestQualityFilterDispatch:
-    @pytest.mark.requires_workspace_root
+    @_adapters_required
     def test_success_path(self, tmp_path: Path, capsys):
         """When apply_quality_filter returns success, cli returns 0."""
         ds = tmp_path / "ds"
         ds.mkdir()
 
-        from lerobot_isaac_meta.cli import main
         from lerobot_isaac_adapters.quality import OperationResult
+        from lerobot_isaac_meta.cli import main
 
         with patch("lerobot_isaac_adapters.quality.apply_quality_filter") as mock_aqf:
             mock_aqf.return_value = OperationResult(
@@ -218,14 +224,14 @@ class TestQualityFilterDispatch:
         captured = capsys.readouterr()
         assert "kept=7" in captured.out
 
-    @pytest.mark.requires_workspace_root
+    @_adapters_required
     def test_failure_path_returns_nonzero(self, tmp_path: Path, capsys):
         """When apply_quality_filter returns success=False, cli returns nonzero."""
         ds = tmp_path / "ds"
         ds.mkdir()
 
-        from lerobot_isaac_meta.cli import main
         from lerobot_isaac_adapters.quality import OperationResult
+        from lerobot_isaac_meta.cli import main
 
         with patch("lerobot_isaac_adapters.quality.apply_quality_filter") as mock_aqf:
             mock_aqf.return_value = OperationResult(

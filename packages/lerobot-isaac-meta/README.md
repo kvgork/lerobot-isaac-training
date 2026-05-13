@@ -111,7 +111,8 @@ lerobot-isaac train --help
 - **`lerobot_isaac_meta.cli.build_parser() -> argparse.ArgumentParser`** — returns
   the parser with all subcommands registered; useful for testing.
 - **`lerobot_isaac_meta.workspace_paths.WORKSPACE_ROOT`** — `Path` to the workspace
-  root; resolved from `LEROBOT_ISAAC_WORKSPACE` env var or `__file__`.
+  root, **or `None` when installed standalone** outside any workspace. Resolved
+  via env var, walk-up from CWD, or walk-up from `__file__` (in that order).
 - **`lerobot_isaac_meta.workspace_paths.DATASETS_DIR`** — `WORKSPACE_ROOT/datasets`.
 - **`lerobot_isaac_meta.workspace_paths.OUTPUTS_DIR`** — `WORKSPACE_ROOT/outputs`.
 - **`lerobot_isaac_meta.workspace_paths.CONFIGS_DIR`** — path to configs inside
@@ -159,18 +160,24 @@ sibling packages at call time and are not required for the meta package itself.
 
 ## Configuration
 
-### Environment variable: `LEROBOT_ISAAC_WORKSPACE`
+### Environment variable: `LEROBOT_ISAAC_WORKSPACE_ROOT`
 
 Override the workspace root directory (useful in Docker/CI):
 
 ```bash
-export LEROBOT_ISAAC_WORKSPACE=/opt/workspace
+export LEROBOT_ISAAC_WORKSPACE_ROOT=/opt/workspace
 python -c "from lerobot_isaac_meta.workspace_paths import WORKSPACE_ROOT; print(WORKSPACE_ROOT)"
 # /opt/workspace
 ```
 
-If this variable is set to a path that does not exist, `workspace_paths` raises
+The legacy name `LEROBOT_ISAAC_WORKSPACE` is still honored as a fallback. If
+either variable is set to a path that does not exist, `workspace_paths` raises
 `FileNotFoundError` at import time.
+
+When **no** env var is set and no workspace marker is discoverable via walk-up
+from either CWD or the package install location, `WORKSPACE_ROOT` is `None`
+(standalone install). `ensure_dirs()` becomes a no-op and
+`require_workspace_root()` raises `RuntimeError` with guidance.
 
 ### Subcommand arguments
 

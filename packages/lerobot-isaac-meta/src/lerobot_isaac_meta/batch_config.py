@@ -123,11 +123,7 @@ class BatchConfig:
         if len(set(ids)) != len(ids):
             duplicates = sorted({i for i in ids if ids.count(i) > 1})
             raise BatchConfigError(f"duplicate run ids: {duplicates}")
-        if (
-            self.compare.enabled
-            and self.compare.mode == "2way"
-            and len(self.runs) != 2
-        ):
+        if self.compare.enabled and self.compare.mode == "2way" and len(self.runs) != 2:
             raise BatchConfigError(
                 f"compare.mode='2way' requires exactly 2 runs, got {len(self.runs)}"
             )
@@ -175,9 +171,7 @@ def load_batch_config(path: str | Path) -> BatchConfig:
 def _from_mapping(raw: dict[str, Any]) -> BatchConfig:
     runs_raw = raw.get("runs") or []
     if not isinstance(runs_raw, list):
-        raise BatchConfigError(
-            f"'runs' must be a list, got {type(runs_raw).__name__}"
-        )
+        raise BatchConfigError(f"'runs' must be a list, got {type(runs_raw).__name__}")
 
     runs = []
     for i, r in enumerate(runs_raw):
