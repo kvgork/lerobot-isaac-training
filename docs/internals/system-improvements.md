@@ -86,3 +86,17 @@ infrastructure/missing-agent gaps land here.
 - **Gap:** `lerobot_world_model_bridge.lerobot_to_worldmodel()` only handled the `dtype: video` layout (MP4 files under `videos/`). When `meta/info.json` declares `dtype: image` (encoded PNG/JPG bytes stored inline in parquet's struct column), the skill errored with "No video directories found". Additionally, the silent `cv2` ImportError fallback obscured the root cause.
 - **Workaround applied:** Patched `skills/lerobot_world_model_bridge/operations.py` (commit `4e6e21c` in the claude_code repo) to auto-detect `dtype: image` features from `meta/info.json` and decode inline bytes via Pillow + numpy (no cv2 dep — works in any pixi env without opencv-python).
 - **Suggested fix:** Regression-test the new `_load_episode_frames_from_parquet` helper. Add the SO-101 `dtype: image` dataset (or a 1-episode synthetic equivalent) to the skill's `tests/` fixtures.
+
+### 2026-05-14 — `_lewm_minimal` trainer drops checkpoint on SIGTERM
+- **Type:** code (downstream adapter)
+- **Discovered in:** `20260513-pipeline-validation-so101` follow-up (Stage D2).
+- **Gap:** `lerobot_isaac_adapters.targets._lewm_minimal.train()` writes `lewm_minimal_last.pt` only after the training loop's natural exit (`step > total_steps`). The 30-min watchdog SIGKILL skips that save, so a long real run produces metrics-only output and no usable checkpoint.
+- **Workaround applied:** None — the metric stream itself proved convergence (pred_loss 0.02 → 0.0009). Re-run with `--steps` ≤ the watchdog budget to get a checkpoint, or wait for the fix below.
+- **Suggested fix:** install `signal.signal(signal.SIGTERM, …)` (and `SIGINT`) handlers that flush a final checkpoint + final `pred_loss=` line to stdout before exiting. Mirror the same fix in `train_wrapper.py` so autoresearch executors see `FALLBACK_METRIC_LINE` instead of nothing when the wrapper is killed.
+
+### 2026-05-14 — Dashboard N-way compare hits plotly duplicate-name error
+- **Type:** infrastructure (dashboard package)
+- **Discovered in:** `20260513-pipeline-validation-so101` follow-up (Stage F2).
+- **Gap:** `lerobot_isaac_dashboard.compare --mode nway --snapshots A B C` raises `plotly.graph_objs._bar.Bar() got multiple values for keyword argument 'name'`. 2-way (`--mode 2way` default) is unaffected.
+- **Workaround applied:** Stage F + F2 use 2-way compare only.
+- **Suggested fix:** Audit how `compare.py` builds plotly Bar traces in N-way mode — likely passes `name=` both positionally and via kwargs when grouping by snapshot. Bare-repo `lerobot-isaac-dashboard`.
