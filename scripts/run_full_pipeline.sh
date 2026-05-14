@@ -143,11 +143,19 @@ if [ "$SKIP_POLICY" = 1 ]; then
 else
     _stage_begin policy_train
     rm -rf "$POLICY_DIR"
-    # Pick save_freq so even short trainings produce at least one checkpoint
-    # (eval needs a checkpoint to run). 2.5 sps × seconds × 0.4 → ~one save
-    # at 40% of the budget, leaving headroom for the final overwrite.
     POLICY_SAVE_FREQ=$(( TRAIN_SECONDS * 25 / 10 / 3 ))
     [ "$POLICY_SAVE_FREQ" -lt 100 ] && POLICY_SAVE_FREQ=100
+
+    # GPU monitor — runs in background, terminated on SIGTERM at stage end.
+    GPU_METRICS="$RUN_DIR/system_metrics/policy_train/gpu_metrics.parquet"
+    mkdir -p "$(dirname "$GPU_METRICS")"
+    "$WORKSPACE/.pixi/envs/default/bin/python" "$WORKSPACE/scripts/_gpu_monitor.py" \
+        --output "$GPU_METRICS" \
+        --stage policy_train \
+        --run-id "$(basename "$RUN_DIR")" \
+        --interval-s 2 > "$RUN_DIR/logs/policy_train_gpu.log" 2>&1 &
+    MON_PID=$!
+
     (
         export PATH="$WORKSPACE/.pixi/envs/train-policy/bin:$PATH"
         timeout --signal=SIGTERM "$TRAIN_SECONDS" \
@@ -162,7 +170,7 @@ else
             -- --policy.device=cuda --save_freq="$POLICY_SAVE_FREQ" --log_freq=50
     ) > "$RUN_DIR/logs/policy_train.log" 2>&1
     rc=$?
-    # timeout returns 124 on SIGTERM; treat as planned cap, not failure.
+    kill -SIGTERM $MON_PID 2>/dev/null; wait $MON_PID 2>/dev/null
     [ "$rc" -eq 124 ] && rc=0
     _stage_end policy_train $rc
 fi
@@ -198,6 +206,17 @@ PY
         _stage_end wm_train $bridge_rc
     else
         rm -rf "$WM_DIR"
+
+        # GPU monitor for the WM run
+        GPU_METRICS_WM="$RUN_DIR/system_metrics/wm_train/gpu_metrics.parquet"
+        mkdir -p "$(dirname "$GPU_METRICS_WM")"
+        "$WORKSPACE/.pixi/envs/default/bin/python" "$WORKSPACE/scripts/_gpu_monitor.py" \
+            --output "$GPU_METRICS_WM" \
+            --stage wm_train \
+            --run-id "$(basename "$RUN_DIR")" \
+            --interval-s 2 > "$RUN_DIR/logs/wm_train_gpu.log" 2>&1 &
+        MON_PID=$!
+
         timeout --signal=SIGTERM "$TRAIN_SECONDS" \
             "$WORKSPACE/.pixi/envs/train-dreamer/bin/python" -m lerobot_isaac_adapters.train \
             --target_arch dreamerv3 \
@@ -210,6 +229,7 @@ PY
             -- env.capture_video=False fabric.accelerator=gpu fabric.devices=1 \
             > "$RUN_DIR/logs/wm_train.log" 2>&1
         rc=$?
+        kill -SIGTERM $MON_PID 2>/dev/null; wait $MON_PID 2>/dev/null
         [ "$rc" -eq 124 ] && rc=0
         _stage_end wm_train $rc
     fi
