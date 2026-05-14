@@ -10,6 +10,12 @@ GitHub repos are published. See `docs/runbook/00-install.md` and
 
 **Plan reference:** `${CLAUDE_CODE_ROOT}/plans/2026-05-06-lerobot-isaac-workspace-plan.md`
 
+> **For an end-to-end pipeline walkthrough** (data collection → synthetic
+> augmentation → policy/world-model training → evaluation → dashboard →
+> autoresearch), read [`docs/pipeline-overview.md`](docs/pipeline-overview.md)
+> alongside this file. This document covers *coupling* and *spinout*; the
+> overview covers *dataflow* and *per-stage contracts*.
+
 ---
 
 ## Dependency Graph (Post-Spinout)

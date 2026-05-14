@@ -17,21 +17,31 @@ produces this same format so training is format-agnostic and datasets can be mer
 ### Directory Layout
 
 ```
-datasets/<name>/
+datasets/<org>/<repo_id>/                 # two-level layout used by lerobot 0.5+
   data/
     chunk-000/
-      episode_000001.parquet
-      episode_000002.parquet
-      ...
-    chunk-001/
-      ...
+      file-000.parquet     # ALL frames concatenated, episode_index col separates them
+      file-001.parquet     # additional shards when total_frames > chunks_size
   meta/
-    info.json          # total_episodes, total_frames, fps, features dict
-    stats.json         # per-column mean, std, min, max
-    episodes.parquet   # episode-level metadata: episode_index, length, source
-    tasks.jsonl        # task description per episode (optional)
-  videos/              # optional: MP4 for each camera per episode
+    info.json              # codebase_version, total_episodes, total_frames, fps, features
+    stats.json             # per-column mean, std, min, max
+    episodes/              # per-episode metadata, ALSO sharded under chunk-XXX/file-XXX.parquet
+      chunk-000/
+        file-000.parquet   # episode_index, length, dataset_from_index, dataset_to_index, source, per-col stats
+    tasks.parquet          # task table (id, name)
+  videos/                  # ONLY when info.features.<image>.dtype = "video" (MP4 per camera)
+  images/                  # ONLY when an explicit image dir is used; usually empty for dtype=image
 ```
+
+**Two layouts coexist in the wild:**
+
+- **lerobot v2.x**: single `meta/episodes.parquet`, single `data/chunk-000/episode_NNNNNN.parquet` per episode.
+- **lerobot 0.5+ (v3.0)**: sharded `meta/episodes/chunk-XXX/file-XXX.parquet` + sharded `data/chunk-XXX/file-XXX.parquet` (one file per chunk, episodes separated by `episode_index` column).
+
+The dashboard's `load_parquet_dataset` and `load_synthetic` loaders detect
+both layouts. The bridge skill auto-detects `dtype: image` vs `dtype: video`
+features from `meta/info.json` and decodes inline PNG bytes via Pillow when
+videos/ is absent.
 
 ### Per-Episode Parquet Columns
 
@@ -60,9 +70,11 @@ The Parquet stores real resolution; world-model targets resize at conversion tim
 
 ```
 SO-101 hardware (30 Hz)
-  -> LeRobot record script (python -m lerobot.scripts.record)
-  -> LeRobotDataset.create() + add_frame() per timestep
-  -> datasets/<name>/data/chunk-000/episode_XXXXXX.parquet
+  -> LeRobot record script (lerobot 0.5+: `lerobot-record` console entry)
+  -> LeRobotDataset.create() + add_frame({"task": ..., ...}) + save_episode()
+  -> dataset.finalize()  # MANDATORY in 0.5 — otherwise the data parquet has no footer
+  -> datasets/<org>/<repo_id>/data/chunk-000/file-000.parquet
+  -> datasets/<org>/<repo_id>/meta/episodes/chunk-000/file-000.parquet
 ```
 
 Column mapping from LeRobot's SO-101 config:

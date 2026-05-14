@@ -1,8 +1,16 @@
 # Autoresearch Integration — Internals
 
-**Cross-references:** [ARCHITECTURE.md](../../ARCHITECTURE.md) | [training-dispatch.md](./training-dispatch.md)
+**Cross-references:** [pipeline-overview.md](../pipeline-overview.md) | [ARCHITECTURE.md](../../ARCHITECTURE.md) | [training-dispatch.md](./training-dispatch.md)
 **Agent source:** `${CLAUDE_CODE_ROOT}/agents/orchestrators/autoresearch-loop-orchestrator.md`
 **Skill source:** `${CLAUDE_CODE_ROOT}/skills/autoresearch/`
+**Workspace shim:** `archive/packages/lerobot-isaac-autoresearch/src/lerobot_isaac_autoresearch/train_wrapper.py`
+(also installed into every `train-*` pixi env via `git+file://`).
+**Programs:** `archive/packages/lerobot-isaac-autoresearch/programs/*.md` (canonical)
+and `programs/lerobot-policy-short.md` (workspace-local 30-min variant).
+**Persisted state:** `.agent-state/<session>/autoresearch/<slug>/{history.jsonl,program.json,best.json,plateau.json}` — these
+are exactly the files the dashboard's `load_autoresearch` loader picks up.
+**Deterministic bash fallback:** `scripts/_run_autoresearch_smoke.sh` when the
+orchestrator agent isn't invocable in the current session.
 
 ---
 

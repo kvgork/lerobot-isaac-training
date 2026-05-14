@@ -196,12 +196,14 @@ and spinout mechanics.
 
 | Want to … | Read |
 |-----------|------|
+| **Get the full pipeline picture in one doc** | [**`docs/pipeline-overview.md`**](docs/pipeline-overview.md) |
+| Run everything end-to-end with one command | [`scripts/run_full_pipeline.sh`](scripts/run_full_pipeline.sh) (or `pixi run pipeline`) |
 | Get started for the first time | [`docs/runbook/01-bootstrap.md`](docs/runbook/01-bootstrap.md) |
 | Collect SO-101 teleop data | [`docs/runbook/02-collect-data.md`](docs/runbook/02-collect-data.md) |
 | Train a policy | [`docs/runbook/03-train-policy.md`](docs/runbook/03-train-policy.md) |
 | Train a world model | [`docs/runbook/04-train-world-model.md`](docs/runbook/04-train-world-model.md) |
 | Generate synthetic data | [`docs/runbook/05-augment-with-dr.md`](docs/runbook/05-augment-with-dr.md) |
-| Run autoresearch | [`USAGE.md`](USAGE.md) §F |
+| Run autoresearch | [`docs/internals/autoresearch-integration.md`](docs/internals/autoresearch-integration.md) + [`USAGE.md`](USAGE.md) §F |
 | View metrics / compare runs | [`docs/runbook/07-dashboard.md`](docs/runbook/07-dashboard.md) |
 | Batch train multiple archs + auto-compare | [`docs/runbook/08-batch-train-and-compare.md`](docs/runbook/08-batch-train-and-compare.md) |
 | Understand the architecture | [`ARCHITECTURE.md`](ARCHITECTURE.md) |

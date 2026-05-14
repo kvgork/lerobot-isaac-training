@@ -361,6 +361,7 @@ All documentation files in this workspace with one-line descriptions:
 | `ARCHITECTURE.md` | Full system architecture: diagrams, state machine, coupling rules, glossary |
 | `USAGE.md` | Comprehensive runbook: all 10 workflows, CLI reference, common errors |
 | `CLAUDE.md` (this file) | Session orientation: agents, skills, pitfalls, vault links |
+| `docs/pipeline-overview.md` | **End-to-end pipeline walkthrough**: data collection → autoresearch. Single source of truth for stage layout, contracts, and recent bugfix trail. |
 | `docs/api-reference.md` | Public Python API for all 6 packages: signatures + examples |
 | `docs/runbook/00-install.md` | Thin-meta-repo install: default + editable modes + recorder dev |
 | `docs/runbook/01-bootstrap.md` | First-time setup: pixi, Isaac Lab, USD, smoke tests |
@@ -400,6 +401,8 @@ All documentation files in this workspace with one-line descriptions:
 | Generate synthetic data | `docs/runbook/05-augment-with-dr.md` |
 | Run autoresearch HP search | `USAGE.md §Workflow F` + `docs/internals/autoresearch-integration.md` |
 | View metrics / compare runs | `docs/runbook/07-dashboard.md` |
+| **See the full pipeline in one doc** | **`docs/pipeline-overview.md`** |
+| Run everything end-to-end (one cmd) | `scripts/run_full_pipeline.sh` (or `pixi run pipeline`) |
 | Understand how the system fits together | `ARCHITECTURE.md` |
 | Understand the data format | `docs/internals/data-pipeline.md` |
 | Understand how training dispatch works | `docs/internals/training-dispatch.md` |

@@ -1,16 +1,26 @@
 # Training Dispatch — Internals
 
-**Cross-references:** [ARCHITECTURE.md](../../ARCHITECTURE.md) | [data-pipeline.md](./data-pipeline.md) | [autoresearch-integration.md](./autoresearch-integration.md)
+**Cross-references:** [pipeline-overview.md](../pipeline-overview.md) | [ARCHITECTURE.md](../../ARCHITECTURE.md) | [data-pipeline.md](./data-pipeline.md) | [autoresearch-integration.md](./autoresearch-integration.md)
 
 ---
 
 ## Overview
 
-The training entrypoint `lerobot-isaac-train` is implemented by
-`packages/lerobot-isaac-adapters/src/lerobot_isaac_adapters/train.py`.
+The training entrypoint `lerobot-isaac-train` is implemented by the spun-out
+`lerobot-isaac-adapters` package (bare repo at `~/workspaces/spinouts/lerobot-isaac-adapters/`,
+installed via `git+file://` URL into every `train-*` pixi env). The source path
+in this workspace (for the editable-dev workflow) is
+`src/lerobot-isaac-adapters/src/lerobot_isaac_adapters/train.py`.
+
 It is a **thin dispatcher**: it reads `--target_arch`, resolves the config, and delegates to
 one of three target modules. All targets share the same argument surface and the same
 metric emission contract.
+
+For the full end-to-end picture (data collection → dashboard) see
+[pipeline-overview.md](../pipeline-overview.md). For per-flag CLI behaviour of
+the underlying `lerobot-train` (lerobot 0.5+ shape: `--batch_size`, `--steps`,
+`--optimizer.lr`, `--config_path`, `--policy.push_to_hub=false`), see the
+`policy_lerobot.py` source.
 
 ---
 

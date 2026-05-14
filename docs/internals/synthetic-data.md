@@ -1,7 +1,13 @@
 # Synthetic Data — Internals
 
-**Cross-references:** [ARCHITECTURE.md](../../ARCHITECTURE.md) | [data-pipeline.md](./data-pipeline.md) | [isaac-lab-integration.md](./isaac-lab-integration.md)
-**Package:** `packages/lerobot-isaac-synthetic/`
+**Cross-references:** [pipeline-overview.md](../pipeline-overview.md) | [ARCHITECTURE.md](../../ARCHITECTURE.md) | [data-pipeline.md](./data-pipeline.md) | [isaac-lab-integration.md](./isaac-lab-integration.md)
+**Package:** `lerobot-isaac-synthetic` (bare repo: `~/workspaces/spinouts/lerobot-isaac-synthetic/`; editable source: `src/lerobot-isaac-synthetic/`; installed via `git+file://`).
+
+> **Real end-to-end synthetic data generation works** as of 2026-05-14 on the
+> Isaac Sim 6.0 + Isaac Lab 0.54 + lerobot 0.5 stack. See
+> [pipeline-overview.md §5](../pipeline-overview.md#5-where-each-recent-bugfix-lives)
+> for the bugfix trail. Single-command reproduction:
+> `bash scripts/run_full_pipeline.sh --skip-policy --skip-worldmodel --skip-eval`.
 
 ---
 
