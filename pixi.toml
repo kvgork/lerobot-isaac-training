@@ -126,6 +126,7 @@ batch = "lerobot-isaac-batch"
 train-and-compare = "lerobot-isaac-batch --config archive/packages/lerobot-isaac-configs/src/lerobot_isaac_configs/configs/batches/example.yaml"
 install-isaac-lab = "bash scripts/install_isaac_lab.sh"
 install-train-deps = "bash scripts/install_train_deps.sh"
+pipeline = "bash scripts/run_full_pipeline.sh"
 download-usd = "bash archive/packages/lerobot-isaac-env/assets/usd/download_so101_urdf.sh"
 record-dry-run = "lerobot-isaac-record --repo-id=local/test --num-episodes=1 --dry-run"
 dashboard = "lerobot-isaac-dashboard"  # installed CLI entry point (was: streamlit run packages/lerobot-isaac-dashboard/...)
