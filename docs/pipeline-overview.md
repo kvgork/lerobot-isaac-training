@@ -407,9 +407,13 @@ full page reloads that wipe widget state (`d50ef57`+`ee0cef9`).
 | What | Where |
 |------|-------|
 | Orchestrator | `${CLAUDE_CODE_ROOT}/agents/orchestrators/autoresearch-loop-orchestrator.md` |
+| ML proposer (domain-aware) | `${CLAUDE_CODE_ROOT}/agents/workers/autoresearch-ml-proposer-worker.md` — patched to load `domain_knowledge:` ref card when present. |
+| ML executor | `${CLAUDE_CODE_ROOT}/agents/workers/autoresearch-ml-executor-worker.md` |
 | Skill | `${CLAUDE_CODE_ROOT}/skills/autoresearch/` |
 | Workspace shim | `archive/packages/lerobot-isaac-autoresearch/src/lerobot_isaac_autoresearch/train_wrapper.py` (also installed via `git+file://`) |
-| Programs | `archive/packages/lerobot-isaac-autoresearch/programs/*.md` and `programs/lerobot-policy-short.md` |
+| **Domain pack (this stack)** | [`programs/_domain_knowledge.md`](../programs/_domain_knowledge.md) — VRAM ceilings, lerobot 0.5+ flag shape, sheeprl Hydra paths, OOM recovery, operator priority |
+| **Per-arch programs** | [`programs/`](../programs/) — diffusion, smolvla, act, dreamerv3, lewm + short smoke variant |
+| Wrapper | [`scripts/run_autoresearch.sh`](../scripts/run_autoresearch.sh) — name → path resolver, env-var injection, deterministic bash fallback |
 | State | `.agent-state/<session>/autoresearch/<slug>/{history.jsonl,program.json,best.json,plateau.json}` |
 | Internals | [docs/internals/autoresearch-integration.md](internals/autoresearch-integration.md) |
 

@@ -399,7 +399,7 @@ All documentation files in this workspace with one-line descriptions:
 | Train a policy | `docs/runbook/03-train-policy.md` + `docs/research/` for the chosen arch |
 | Train a world model | `docs/runbook/04-train-world-model.md` + `docs/research/dreamerv3-reference.md` |
 | Generate synthetic data | `docs/runbook/05-augment-with-dr.md` |
-| Run autoresearch HP search | `USAGE.md §Workflow F` + `docs/internals/autoresearch-integration.md` |
+| Run autoresearch HP search | `programs/README.md` → `bash scripts/run_autoresearch.sh --program <name>` (domain-aware) + `docs/internals/autoresearch-integration.md` |
 | View metrics / compare runs | `docs/runbook/07-dashboard.md` |
 | **See the full pipeline in one doc** | **`docs/pipeline-overview.md`** |
 | Run everything end-to-end (one cmd) | `scripts/run_full_pipeline.sh` (or `pixi run pipeline`) |
