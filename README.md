@@ -198,6 +198,7 @@ and spinout mechanics.
 |-----------|------|
 | **Get the full pipeline picture in one doc** | [**`docs/pipeline-overview.md`**](docs/pipeline-overview.md) |
 | Run everything end-to-end with one command | [`scripts/run_full_pipeline.sh`](scripts/run_full_pipeline.sh) (or `pixi run pipeline`) |
+| **Deploy a trained policy on the real SO-101** | [**`docs/runbook/10-deploy-to-hardware.md`**](docs/runbook/10-deploy-to-hardware.md) |
 | Get started for the first time | [`docs/runbook/01-bootstrap.md`](docs/runbook/01-bootstrap.md) |
 | Collect SO-101 teleop data | [`docs/runbook/02-collect-data.md`](docs/runbook/02-collect-data.md) |
 | Train a policy | [`docs/runbook/03-train-policy.md`](docs/runbook/03-train-policy.md) |

@@ -403,6 +403,7 @@ All documentation files in this workspace with one-line descriptions:
 | View metrics / compare runs | `docs/runbook/07-dashboard.md` |
 | **See the full pipeline in one doc** | **`docs/pipeline-overview.md`** |
 | Run everything end-to-end (one cmd) | `scripts/run_full_pipeline.sh` (or `pixi run pipeline`) |
+| **Deploy trained policy on real SO-101** | **`docs/runbook/10-deploy-to-hardware.md`** + `lerobot-isaac-deploy` |
 | Understand how the system fits together | `ARCHITECTURE.md` |
 | Understand the data format | `docs/internals/data-pipeline.md` |
 | Understand how training dispatch works | `docs/internals/training-dispatch.md` |

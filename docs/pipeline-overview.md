@@ -402,6 +402,39 @@ full page reloads that wipe widget state (`d50ef57`+`ee0cef9`).
 
 ---
 
+### Stage I — Hardware Deployment
+
+| What | Where |
+|------|-------|
+| CLI | `lerobot-isaac-deploy` (entry from `lerobot-isaac-adapters`) |
+| Module | `lerobot_isaac_adapters.deploy` |
+| Robot driver (upstream) | `lerobot.robots.so_follower.SO101Follower` |
+| Runbook | [`docs/runbook/10-deploy-to-hardware.md`](runbook/10-deploy-to-hardware.md) |
+
+Single command runs a trained policy on the physical SO-101 follower.
+Safety layers (6) are stacked: dry-run default, `max_relative_target`
+server-side clip, fixed rate limit (30 Hz), stuck-action watchdog,
+SIGINT clean exit + optional home-on-exit, and the always-available
+physical power switch.
+
+```bash
+# DRY-RUN first
+lerobot-isaac-deploy \
+    --policy-path outputs/.../checkpoints/last/pretrained_model \
+    --port /dev/ttyACM0 \
+    --dataset-root datasets/kvgork/so101-pickplace1 \
+    --camera d435_rgb=/dev/video0,640,480 \
+    --duration-s 30 -v
+
+# EXECUTE only after dry-run looks sane
+lerobot-isaac-deploy --execute --max-relative-target 3.0 --home-on-exit ...
+```
+
+Observation / action conversion glue is in the same module
+(`_obs_to_policy_input`, `_action_to_robot_dict`) — about 120 LOC end to end.
+
+---
+
 ### Stage H — Autoresearch Loop
 
 | What | Where |
