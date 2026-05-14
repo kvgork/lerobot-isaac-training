@@ -58,6 +58,7 @@ stable-worldmodel = "*"
 
 [feature.dashboard.pypi-dependencies]
 streamlit = ">=1.32"
+streamlit-autorefresh = ">=1.0"   # avoids meta-refresh fallback that resets widgets
 plotly = ">=5.20"
 pandas = ">=2.1"
 pyarrow = ">=15.0"
