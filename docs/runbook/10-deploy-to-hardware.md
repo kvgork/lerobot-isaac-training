@@ -4,7 +4,10 @@
 on its data, and a desire to make the arm move.
 **Outcome:** the trained policy drives the arm in closed loop at 30 Hz, with
 safety clamps + e-stop, against the same dataset schema used for training.
-**CLI:** `lerobot-isaac-deploy` (installed by `lerobot-isaac-adapters`).
+**CLI:** `robot-data-run` (standalone `robot-data-runner` package at
+`~/workspaces/spinouts/robot_data_runner/`). The earlier
+`lerobot-isaac-deploy` entry-point still works as a backward-compat alias.
+**Install:** `pixi run sync-runner && pixi run -e train-policy pip install -e src/robot-data-runner`.
 **Cross-references:** [`docs/pipeline-overview.md §Stage I`](../pipeline-overview.md), [`docs/runbook/02-collect-data.md`](02-collect-data.md), [`docs/runbook/03-train-policy.md`](03-train-policy.md).
 
 ---
