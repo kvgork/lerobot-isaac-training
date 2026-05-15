@@ -184,12 +184,19 @@ Total expected wall-clock from "now" to "recommendation written":
 | Metric | Value |
 |--------|-------|
 | reference run dir | `outputs/long-train-2026-05-14-diffusion-dreamerv3-4h/` |
-| reference policy ckpt | `…/policy-diffusion/checkpoints/last/pretrained_model` |
-| reference raw_loss (final) | _TBD_ |
-| reference pc_success (eval on 17/18/19) | _TBD_ |
-| reference n_train_eps | 17 (all of pool 0..16; 17/18/19 held out) |
+| reference policy ckpt | `…/policy-diffusion/checkpoints/0024000/pretrained_model` (24,000 steps) |
+| reference raw_loss (final) | **0.015** (vs 0.040 at 30 min — 2.7× lower) |
+| reference pc_success (eval on 17/18/19) | **0.0003410836** |
+| reference mse | 2930.83 |
+| reference n_train_eps | 17 (training pool 0..16; 17/18/19 held out) |
+| reference n_frames_evaluated | 1306 |
+| training wall-clock | 14,400 s (4 h) |
+| GPU avg | 35.7% util / 9.3 GB / 62.2 °C / 174 W |
 
-Once filled, the "good" threshold is `pc_success ≥ 0.9 × reference_pc_success`.
+"Good" threshold: `pc_success ≥ 0.9 × 0.0003410836 = 0.000307`.
+NOTE: proxy is saturated → expect every trial within ±1% of reference.
+Closed-loop hardware eval on extremes (N=2 and N=17) is the actual
+discriminator (deferred to step 5 of the execution checklist).
 
 ---
 
