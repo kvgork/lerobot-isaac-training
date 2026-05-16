@@ -12,16 +12,30 @@
 #
 # Usage
 # -----
-#   bash scripts/run_full_pipeline.sh                          # 30 min/train
+#   bash scripts/run_full_pipeline.sh                          # 30 min/train, diffusion
 #   bash scripts/run_full_pipeline.sh --train-minutes 15       # 15 min/train
 #   bash scripts/run_full_pipeline.sh --skip-synthetic         # use existing
 #   bash scripts/run_full_pipeline.sh --dataset DIR            # alt dataset
+#   bash scripts/run_full_pipeline.sh --target-arch smolvla    # SmolVLA instead of diffusion
+#   bash scripts/run_full_pipeline.sh --target-arch act        # ACT
 #
 # Flags
 #   --train-minutes N   Per-training watchdog cap. Default 30.
 #   --n-synthetic N     Source episodes × variants for DR replay. Default 3 × 2.
 #   --dataset DIR       Real LeRobotDataset root. Default datasets/kvgork/so101-pickplace1.
 #   --run-dir DIR       Output root. Default outputs/full-pipeline-<ts>/.
+#   --target-arch ARCH  Policy arch: diffusion | smolvla | act. Default diffusion.
+#                       Drives output_dir name (policy-<arch>), batch_size default,
+#                       and arch-specific remainder args (smolvla adds
+#                       --policy.load_vlm_weights=true so the frozen VLM backbone
+#                       loads pretrained weights instead of random init).
+#   --policy-batch N    Override policy batch_size. Defaults: diffusion=8,
+#                       smolvla=4, act=8. Drop to 2 on OOM.
+#   --cache-frames      Enable in-RAM dataset cache (approach A). Adds ~16 min
+#                       warmup but lifts SmolVLA throughput ~7x by removing
+#                       PNG decode from the inner loop. Recommended for any
+#                       single training run > 30 min. See plans/2026-05-15-
+#                       dataloader-gpu-decode-plan.md.
 #   --skip-synthetic    Reuse existing synthetic dataset at <run_dir>/synthetic/.
 #   --skip-policy       Skip policy training.
 #   --skip-worldmodel   Skip world-model training.
@@ -43,6 +57,9 @@ N_SOURCE_EPISODES=3
 N_VARIANTS=2
 DATASET="datasets/kvgork/so101-pickplace1"
 RUN_DIR="outputs/full-pipeline-$(date +%Y-%m-%d-%H%M%S)"
+TARGET_ARCH="diffusion"
+POLICY_BATCH=""           # resolved from TARGET_ARCH if empty
+CACHE_FRAMES=0
 SKIP_SYNTHETIC=0
 SKIP_POLICY=0
 SKIP_WORLDMODEL=0
@@ -57,6 +74,9 @@ while [[ $# -gt 0 ]]; do
         --n-synthetic)      N_SOURCE_EPISODES="$2"; shift 2 ;;
         --dataset)          DATASET="$2"; shift 2 ;;
         --run-dir)          RUN_DIR="$2"; shift 2 ;;
+        --target-arch)      TARGET_ARCH="$2"; shift 2 ;;
+        --policy-batch)     POLICY_BATCH="$2"; shift 2 ;;
+        --cache-frames)     CACHE_FRAMES=1; shift ;;
         --skip-synthetic)   SKIP_SYNTHETIC=1; shift ;;
         --skip-policy)      SKIP_POLICY=1; shift ;;
         --skip-worldmodel)  SKIP_WORLDMODEL=1; shift ;;
@@ -70,6 +90,14 @@ done
 TRAIN_SECONDS=$(( TRAIN_MINUTES * 60 ))
 mkdir -p "$RUN_DIR/logs"
 RUN_DIR="$(realpath "$RUN_DIR")"
+
+# --- target-arch resolution -------------------------------------------------
+case "$TARGET_ARCH" in
+    diffusion) : "${POLICY_BATCH:=8}"  ; POLICY_EXTRA_REMAINDER=() ;;
+    smolvla)   : "${POLICY_BATCH:=4}"  ; POLICY_EXTRA_REMAINDER=( "--policy.load_vlm_weights=true" ) ;;
+    act)       : "${POLICY_BATCH:=8}"  ; POLICY_EXTRA_REMAINDER=() ;;
+    *) echo "unsupported --target-arch: $TARGET_ARCH (use diffusion|smolvla|act)" >&2; exit 2 ;;
+esac
 
 # --- color helpers ----------------------------------------------------------
 G='\033[0;32m'; R='\033[0;31m'; C='\033[0;36m'; Y='\033[1;33m'; NC='\033[0m'
@@ -105,10 +133,13 @@ _stage_begin preflight
     [ -d "$WORKSPACE/.pixi/envs/train-policy" ] || { err "pixi env 'train-policy' missing"; exit 2; }
     [ -d "$WORKSPACE/.pixi/envs/train-dreamer" ] || { err "pixi env 'train-dreamer' missing"; exit 2; }
     [ -d "$WORKSPACE/.pixi/envs/dashboard" ] || { err "pixi env 'dashboard' missing"; exit 2; }
-    echo "dataset    : $DATASET"
-    echo "run_dir    : $RUN_DIR"
-    echo "train mins : $TRAIN_MINUTES (watchdog = ${TRAIN_SECONDS}s)"
-    echo "synthetic  : ${N_SOURCE_EPISODES} source eps × ${N_VARIANTS} variants"
+    echo "dataset      : $DATASET"
+    echo "run_dir      : $RUN_DIR"
+    echo "target_arch  : $TARGET_ARCH"
+    echo "policy_batch : $POLICY_BATCH"
+    echo "extra remndr : ${POLICY_EXTRA_REMAINDER[*]:-(none)}"
+    echo "train mins   : $TRAIN_MINUTES (watchdog = ${TRAIN_SECONDS}s)"
+    echo "synthetic    : ${N_SOURCE_EPISODES} source eps × ${N_VARIANTS} variants"
 ) > "$RUN_DIR/logs/preflight.log" 2>&1
 _stage_end preflight $?
 cat "$RUN_DIR/logs/preflight.log" | tail -10
@@ -136,7 +167,7 @@ else
 fi
 
 # --- 3. policy training (timed) ---------------------------------------------
-POLICY_DIR="$RUN_DIR/policy-diffusion"
+POLICY_DIR="$RUN_DIR/policy-$TARGET_ARCH"
 if [ "$SKIP_POLICY" = 1 ]; then
     info "skipping policy training stage"
     STAGE_STATUS[policy_train]="SKIP"
@@ -156,18 +187,23 @@ else
         --interval-s 2 > "$RUN_DIR/logs/policy_train_gpu.log" 2>&1 &
     MON_PID=$!
 
+    info "policy_train: arch=$TARGET_ARCH batch=$POLICY_BATCH cache=$CACHE_FRAMES extra=${POLICY_EXTRA_REMAINDER[*]:-(none)}"
+    CACHE_ADAPTER_ARG=()
+    [ "$CACHE_FRAMES" = 1 ] && CACHE_ADAPTER_ARG+=( "--cache_frames" )
     (
         export PATH="$WORKSPACE/.pixi/envs/train-policy/bin:$PATH"
         timeout --signal=SIGTERM "$TRAIN_SECONDS" \
             "$WORKSPACE/.pixi/envs/train-policy/bin/python" -m lerobot_isaac_adapters.train \
-            --target_arch diffusion \
+            --target_arch "$TARGET_ARCH" \
             --dataset "$DATASET" \
             --output_dir "$POLICY_DIR" \
             --steps 1000000 \
-            --batch_size 8 \
+            --batch_size "$POLICY_BATCH" \
             --lr 1e-4 \
             --seed 42 \
-            -- --policy.device=cuda --save_freq="$POLICY_SAVE_FREQ" --log_freq=50
+            "${CACHE_ADAPTER_ARG[@]+"${CACHE_ADAPTER_ARG[@]}"}" \
+            -- --policy.device=cuda --save_freq="$POLICY_SAVE_FREQ" --log_freq=50 \
+            "${POLICY_EXTRA_REMAINDER[@]}"
     ) > "$RUN_DIR/logs/policy_train.log" 2>&1
     rc=$?
     kill -SIGTERM $MON_PID 2>/dev/null; wait $MON_PID 2>/dev/null

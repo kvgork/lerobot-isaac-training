@@ -328,6 +328,60 @@ Isaac Lab requires a separate manual step (GPU + disk space).
   claude_code commit 4e6e21c — the older bridge required MP4 files under
   `videos/`. If you re-pin the bridge skill, ensure the
   `_load_episode_frames_from_parquet` helper is present (cv2-free PIL path).
+- **SmolVLA throughput on RTX 3080 / so101-pickplace1.** Measured 2026-05-15
+  via `scripts/_smoke_train.sh`.
+  - **Without cache:** 1.45 step/s = 5.8 samples/s (data-bound — CPU PNG
+    decode dominates). VRAM 4.4 GB. 20k steps ≈ 230 min.
+  - **With `--cache_frames`:** **10.1 step/s = 40 samples/s** (7× win;
+    compute-bound on `updt_s=0.095 s`). VRAM 3.8 GB train + ~7 GB RAM
+    cache (uint8). Warmup cost: ~16 min for 7491 rows at 4 DataLoader
+    workers. 20k steps ≈ 33 min train + 16 min warmup = 49 min total.
+  - **Disk-cached warmup:** the post-warmup cache is pickled to
+    `outputs/cache_storage/<sig>.pt` (6.94 GB) and reloaded in **6.2 s**
+    on subsequent runs with the same dataset signature. Saves ~15.9 min
+    per subprocess — critical for autoresearch sweeps that spawn N
+    trials. Disable via `LEROBOT_ISAAC_CACHE_DISK_DIR=none`.
+  - **batch_size>4 hurts:** doubling batch halves step-rate (samples/s
+    unchanged) — bigger batches starve the data loader. Drop to 2 only
+    on OOM.
+  - Use the cached path for any real run; uncached only for diagnostics.
+    See `plans/2026-05-15-dataloader-gpu-decode-plan.md` (approach A).
+- **LeRobotDataset returns FLOAT32 normalized images, NOT uint8** (lerobot 0.5.1).
+  Per-row shape is also `(T, 3, H, W)` not `(3, H, W)` — the `T` dim comes
+  from `cfg.policy.observation_delta_indices` (defaults to `[0]` for SmolVLA,
+  giving T=1 but still 4-D). Pad masks `<key>_is_pad` are also returned
+  per row. Any in-RAM cache wrapper must:
+  1. Detect 4-D image tensors (not just 3-D).
+  2. uint8-compress + lazy-decast to float32/255 on read (saves 4× RAM,
+     keeps quantization error ≤ 1/255).
+  3. Parallelize the warmup decode via `torch.utils.data.DataLoader(
+     num_workers=N)` — single-thread decode is ~3× slower than the
+     steady-state lerobot dataloader (which already runs 4 workers).
+  Implementation lives in
+  `lerobot_isaac_adapters.data.cached_dataset.CachedDatasetWrapper` and
+  ships with the `--cache_frames` flag on `lerobot_isaac_adapters.train`.
+  Enabled cache size for so101-pickplace1 = 6.9 GB uint8 (vs 27.6 GB
+  float32 — would blow any reasonable RAM cap).
+- **Smoke-script I/O buffering** (`scripts/_smoke_train.sh`): subshell +
+  shell redirect + `timeout SIGTERM` previously discarded the python
+  subprocess stdout when the watchdog fired (0-byte `train.log`).
+  Fix: drop the subshell, use `PYTHONUNBUFFERED=1 stdbuf -oL -eL python
+  -u` + a direct `>> "$TRAIN_LOG" 2>&1` append-redirect. Confirmed via
+  smoke E → smoke G chain. If you reuse the watchdog pattern in any
+  new script, copy this shape, not the legacy subshell+pipe one.
+- **SmolVLA needs `--policy.load_vlm_weights=true` explicitly.** Default
+  `SmolVLAConfig.load_vlm_weights=False` leaves the SmolVLM2-500M backbone
+  at random init — useless even though `freeze_vision_encoder=True` and
+  `train_expert_only=True` are sensible defaults. The adapter does NOT add
+  this flag automatically; pass it via the `--` remainder.
+  - To resume from a checkpoint: `--policy.pretrained_path=<DIR>` (Path,
+    not HF repo id — `--policy.path=...` does NOT exist in lerobot 0.5.1).
+  - First launch downloads ~2 GB from
+    `HuggingFaceTB/SmolVLM2-500M-Video-Instruct`. Prefetch via
+    `bash scripts/_run_smolvla_tonight.sh --prefetch-weights` to keep the
+    training watchdog budget for actual training.
+  - VRAM: batch 4 fits on RTX 3080 10GB with the default
+    expert-only-trained config. Drop to batch 2 if OOM.
 
 ---
 

@@ -97,6 +97,7 @@ lerobot-isaac-autoresearch  = { path = "src/lerobot-isaac-autoresearch",  editab
 lerobot-isaac-env           = { path = "src/lerobot-isaac-env",           editable = true }
 lerobot-isaac-adapters      = { path = "src/lerobot-isaac-adapters",      editable = true }
 lerobot-isaac-synthetic     = { path = "src/lerobot-isaac-synthetic",     editable = true }
+robot-data-recorder         = { path = "src/robot-data-recorder",         editable = true }
 
 [environments]
 default = ["dev", "git-siblings"]

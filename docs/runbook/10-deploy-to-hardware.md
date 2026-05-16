@@ -196,6 +196,7 @@ lerobot-isaac-deploy [-h] --policy-path P [--port DEV] [--dataset-root DIR]
 |-------------------|---------|---------|
 | `--dataset-root`  | _none_  | LeRobotDataset root used to derive obs/action feature shapes when the checkpoint doesn't carry them. **Required for older lerobot checkpoints** — pass the same dataset used for training. |
 | `--seed`          | `42`    | Torch seed for non-deterministic policy layers. |
+| `--task`          | _none_  | **REQUIRED for VLA policies (SmolVLA, OpenVLA).** Natural-language task instruction (e.g. `"pick and place cube"`). Must match the string recorded in the training dataset's `meta/tasks.parquet`. Without it the SmolVLA preprocessor cannot tokenise the language input and `select_action` crashes with `KeyError: 'observation.language.tokens'`. Ignored by ACT / Diffusion. |
 
 ### Safety
 
@@ -381,7 +382,102 @@ body from `deploy.py` and adapt — it's ~120 LOC end-to-end.
 
 ---
 
-## 9. Related Files
+## 9. SmolVLA on so101-pickplace1 — concrete deploy recipe
+
+Best-known checkpoint after the 2026-05-15 overnight run is the **anchor**
+at step 49500:
+
+```
+outputs/overnight-smolvla-2026-05-15T210257-anchor/policy-smolvla/checkpoints/last/pretrained_model
+```
+
+Rescue eval (2026-05-16):
+
+| Checkpoint           | MSE   | pc_success |
+|----------------------|-------|------------|
+| **anchor (49.5 k)**  | 10.19 | **0.0893** |
+| trial-1 (lr=1e-5)    | 19.06 | 0.0499     |
+| trial-0 (baseline)   | 25.39 | 0.0379     |
+| trial-2 (lr=5e-5)    | 37.22 | 0.0262     |
+| trial-4 (+wd)        | 36.54 | 0.0266     |
+| trial-5 (seed=7)     | 42.43 | 0.0230     |
+| trial-3 (batch=2)    | 70.28 | 0.0140     |
+
+Deploy commands, in escalating risk order:
+
+```bash
+# Step A — Pre-flight: load checkpoint, dump I/O schema (NO motor writes).
+robot-data-run-check \
+    --policy-path outputs/overnight-smolvla-2026-05-15T210257-anchor/policy-smolvla/checkpoints/last/pretrained_model \
+    --dataset-root datasets/kvgork/so101-pickplace1
+
+# Step B — Bench dry-run: full inference loop, NO motor writes, 30 s.
+robot-data-run \
+    --policy-path outputs/overnight-smolvla-2026-05-15T210257-anchor/policy-smolvla/checkpoints/last/pretrained_model \
+    --dataset-root datasets/kvgork/so101-pickplace1 \
+    --port /dev/ttyACM0 \
+    --camera d435_rgb=/dev/video0,640,480 \
+    --rate-hz 30 --duration-s 30 \
+    --task "pick and place cube" \
+    -v
+# Expect: action lines logged every step; NO arm movement.
+
+# Step C — Bench execute, tight clamp (1° per step), 30 s.
+robot-data-run \
+    --policy-path outputs/overnight-smolvla-2026-05-15T210257-anchor/policy-smolvla/checkpoints/last/pretrained_model \
+    --dataset-root datasets/kvgork/so101-pickplace1 \
+    --port /dev/ttyACM0 \
+    --camera d435_rgb=/dev/video0,640,480 \
+    --rate-hz 30 --duration-s 30 \
+    --max-relative-target 1.0 \
+    --task "pick and place cube" \
+    --execute --home-on-exit \
+    -v
+# Keep finger on physical e-stop. Stop if motion is jerky or off-target.
+
+# Step D — Real task, larger clamp (3°), 60 s.
+robot-data-run \
+    --policy-path outputs/overnight-smolvla-2026-05-15T210257-anchor/policy-smolvla/checkpoints/last/pretrained_model \
+    --dataset-root datasets/kvgork/so101-pickplace1 \
+    --port /dev/ttyACM0 \
+    --camera d435_rgb=/dev/video0,640,480 \
+    --rate-hz 30 --duration-s 60 \
+    --max-relative-target 3.0 \
+    --task "pick and place cube" \
+    --execute --home-on-exit
+```
+
+Closed-loop multi-episode eval (recorded `pc_success`):
+
+```bash
+robot-data-run-eval \
+    --policy-path outputs/overnight-smolvla-2026-05-15T210257-anchor/policy-smolvla/checkpoints/last/pretrained_model \
+    --dataset-root datasets/kvgork/so101-pickplace1 \
+    --port /dev/ttyACM0 \
+    --camera d435_rgb=/dev/video0,640,480 \
+    --task "pick and place cube" \
+    --task-spec prompt_user_observer \
+    --n-episodes 10 \
+    --duration-per-episode-s 15 \
+    --output-json outputs/eval/anchor-closed-loop.json \
+    --i-have-read-the-safety-runbook
+```
+
+Notes:
+
+- **First closed-loop run on a machine requires the
+  `--i-have-read-the-safety-runbook` flag once** (stores a marker at
+  `~/.config/robot-data-runner/safety_ack`).
+- **`--task` is mandatory** for the SmolVLA anchor — without it,
+  `select_action` crashes on the missing `observation.language.tokens`
+  key (preprocessor builds it from `task` string).
+- After tonight's deeper sweep finishes, re-rank the trials by
+  `outputs/eval/<run-id>-best.json` and swap the `policy-path` to the
+  new winner if it beats the anchor (pc_success > 0.089).
+
+---
+
+## 10. Related Files
 
 - Adapter source: `src/lerobot-isaac-adapters/src/lerobot_isaac_adapters/deploy.py`
 - Console entry: `lerobot-isaac-deploy` (declared in adapters `pyproject.toml`)
