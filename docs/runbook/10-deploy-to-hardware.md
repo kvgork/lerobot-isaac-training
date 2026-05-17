@@ -384,36 +384,66 @@ body from `deploy.py` and adapt — it's ~120 LOC end-to-end.
 
 ## 9. SmolVLA on so101-pickplace1 — concrete deploy recipe
 
-Best-known checkpoint after the 2026-05-15 overnight run is the **anchor**
-at step 49500:
+Best-known checkpoint after the **2026-05-17 12-h overnight sweep** is
+**trial_7 (`batch_up`, bs=8, lr=3e-5)** at step 45 000:
 
 ```
-outputs/overnight-smolvla-2026-05-15T210257-anchor/policy-smolvla/checkpoints/last/pretrained_model
+outputs/autoresearch-lerobot-policy-smolvla/trial_7/checkpoints/045000/pretrained_model
 ```
 
-Rescue eval (2026-05-16):
+Re-rank eval (`outputs/eval/overnight-smolvla-2026-05-16T184411-rerank/winner.json`):
 
-| Checkpoint           | MSE   | pc_success |
-|----------------------|-------|------------|
-| **anchor (49.5 k)**  | 10.19 | **0.0893** |
-| trial-1 (lr=1e-5)    | 19.06 | 0.0499     |
-| trial-0 (baseline)   | 25.39 | 0.0379     |
-| trial-2 (lr=5e-5)    | 37.22 | 0.0262     |
-| trial-4 (+wd)        | 36.54 | 0.0266     |
-| trial-5 (seed=7)     | 42.43 | 0.0230     |
-| trial-3 (batch=2)    | 70.28 | 0.0140     |
+| Rank | Run                 | pc_success | MSE   | Op                |
+|------|---------------------|-----------:|------:|-------------------|
+| **1**| **trial_7**         | **0.1532** |  5.53 | batch_up (bs=8)   |
+| 2    | anchor (49.5 k)     | 0.1128     |  7.86 | reference         |
+| 3    | trial_6             | 0.0987     |  9.13 | lr_mid (2e-5)     |
+| 4    | trial_4             | 0.0809     | 11.35 | weight_decay      |
+| 5    | trial_2             | 0.0808     | 11.38 | lr_up (5e-5)      |
+| 6    | trial_5             | 0.0743     | 12.46 | seed_swap         |
+| 7    | trial_0             | 0.0725     | 12.79 | baseline          |
+| 8    | trial_1             | 0.0614     | 15.28 | lr_down (1e-5)    |
+| 9    | trial_3             | 0.0467     | 20.42 | batch_down (bs=2) |
+
+### Easy mode (laptop) — pixi run wrapper
+
+Once `winner.json` + ckpt are synced to the laptop, the
+`lerobot-isaac-deploy` package runs the full confirm-gated ladder:
+
+```bash
+cd ~/workspaces/lerobot-isaac-deploy
+
+# One-shot bootstrap (first time only).
+pixi run bootstrap
+
+# Pull winner + ckpt from desktop.
+pixi run sync-ckpt -- --from desktop --winner <desktop-winner.json>
+
+# Confirm-gated ladder: pre-flight → 1° clamp → 3° clamp → 10-ep eval.
+pixi run session -- --winner <local-winner.json> --execute
+```
+
+`pixi run session` calls `li-deploy-session` (console entry from
+`lerobot_isaac_deploy.cli:session_main`), which wraps the
+`robot-data-run*` ladder below. See `~/workspaces/lerobot-isaac-deploy/`
+for source.
+
+### Manual mode — `robot-data-run` ladder
+
+Below is what `pixi run session` invokes under the hood. Use this when
+debugging a single stage or when the wrapper is unavailable.
 
 Deploy commands, in escalating risk order:
 
 ```bash
 # Step A — Pre-flight: load checkpoint, dump I/O schema (NO motor writes).
 robot-data-run-check \
-    --policy-path outputs/overnight-smolvla-2026-05-15T210257-anchor/policy-smolvla/checkpoints/last/pretrained_model \
+    --policy-path outputs/autoresearch-lerobot-policy-smolvla/trial_7/checkpoints/045000/pretrained_model \
     --dataset-root datasets/kvgork/so101-pickplace1
 
 # Step B — Bench dry-run: full inference loop, NO motor writes, 30 s.
 robot-data-run \
-    --policy-path outputs/overnight-smolvla-2026-05-15T210257-anchor/policy-smolvla/checkpoints/last/pretrained_model \
+    --policy-path outputs/autoresearch-lerobot-policy-smolvla/trial_7/checkpoints/045000/pretrained_model \
     --dataset-root datasets/kvgork/so101-pickplace1 \
     --port /dev/ttyACM0 \
     --camera d435_rgb=/dev/video0,640,480 \
@@ -424,7 +454,7 @@ robot-data-run \
 
 # Step C — Bench execute, tight clamp (1° per step), 30 s.
 robot-data-run \
-    --policy-path outputs/overnight-smolvla-2026-05-15T210257-anchor/policy-smolvla/checkpoints/last/pretrained_model \
+    --policy-path outputs/autoresearch-lerobot-policy-smolvla/trial_7/checkpoints/045000/pretrained_model \
     --dataset-root datasets/kvgork/so101-pickplace1 \
     --port /dev/ttyACM0 \
     --camera d435_rgb=/dev/video0,640,480 \
@@ -437,7 +467,7 @@ robot-data-run \
 
 # Step D — Real task, larger clamp (3°), 60 s.
 robot-data-run \
-    --policy-path outputs/overnight-smolvla-2026-05-15T210257-anchor/policy-smolvla/checkpoints/last/pretrained_model \
+    --policy-path outputs/autoresearch-lerobot-policy-smolvla/trial_7/checkpoints/045000/pretrained_model \
     --dataset-root datasets/kvgork/so101-pickplace1 \
     --port /dev/ttyACM0 \
     --camera d435_rgb=/dev/video0,640,480 \
@@ -451,7 +481,7 @@ Closed-loop multi-episode eval (recorded `pc_success`):
 
 ```bash
 robot-data-run-eval \
-    --policy-path outputs/overnight-smolvla-2026-05-15T210257-anchor/policy-smolvla/checkpoints/last/pretrained_model \
+    --policy-path outputs/autoresearch-lerobot-policy-smolvla/trial_7/checkpoints/045000/pretrained_model \
     --dataset-root datasets/kvgork/so101-pickplace1 \
     --port /dev/ttyACM0 \
     --camera d435_rgb=/dev/video0,640,480 \
@@ -471,9 +501,10 @@ Notes:
 - **`--task` is mandatory** for the SmolVLA anchor — without it,
   `select_action` crashes on the missing `observation.language.tokens`
   key (preprocessor builds it from `task` string).
-- After tonight's deeper sweep finishes, re-rank the trials by
-  `outputs/eval/<run-id>-best.json` and swap the `policy-path` to the
-  new winner if it beats the anchor (pc_success > 0.089).
+- Winner updated 2026-05-17 from 12-h overnight sweep. trial_7
+  (batch_up, bs=8, lr=3e-5, 45k steps) reached pc_success=0.153,
+  +36 % over the prior 49.5k-step anchor (0.113). To swap winners,
+  edit `winner.json`'s `winner_policy_path` and re-run `pixi run session`.
 
 ---
 
