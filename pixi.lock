@@ -93,6 +93,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/c1/d4/59e74daffcb57a07668852eeeb6035af9f32cbfd7a1d2511f17d2fe6a738/smmap-5.0.3-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/0b/c9/584bc9651441b4ba60cc4d557d8a547b5aff901af35bda3a4ee30c819b82/starlette-1.0.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/d8/1a/3ca2293d8552bacea3e67e9600d2d1df7df4a325059769ad83d91c279595/streamlit-1.57.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/20/82/e378f178498f1d99a672d81df71ebe9693a106cec6a628ee52ce3288cd6d/streamlit_autorefresh-1.0.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/d7/c1/eb8f9debc45d3b7918a32ab756658a0904732f75e555402972246b0b8e71/tenacity-9.1.4-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/44/6f/7120676b6d73228c96e17f1f794d8ab046fc910d781c8d151120c3f1569e/toml-0.10.2-py2.py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/7f/3e/5db95bcf282c52709639744ca2a8b149baccf648e39c8cc87553df9eae0c/urllib3-2.7.0-py3-none-any.whl
@@ -263,6 +264,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/a0/61/5c78b91c3143ed5c14207f463aecfc8f9dbb5092fb2869baf37c273b2705/gitdb-4.0.12-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/20/7a/1c6e3562dfd8950adbb11ffbc65d21e7c89d01a6e4f137fa981056de25c5/gitpython-3.1.50-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/04/4b/29cac41a4d98d144bf5f6d33995617b185d14b22401f75ca86f384e87ff1/h11-0.16.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/9e/e9/1a19e42cd43cc1365e127db6aae85e1c671da1d9a5d746f4d34a50edb577/h5py-3.16.0-cp312-cp312-manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/84/a6/b3965e1e146ef5762870bbe76117876ceba51a201e18cc31f5703e454596/httptools-0.7.1-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/d2/23/408243171aa9aaba178d3e2559159c24c1171a641aa83b67bdd3394ead8e/idna-3.15-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/04/96/92447566d16df59b2a776c0fb82dbc4d9e07cd95062562af01e408583fc4/itsdangerous-2.2.0-py3-none-any.whl
@@ -287,6 +289,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/c1/d4/59e74daffcb57a07668852eeeb6035af9f32cbfd7a1d2511f17d2fe6a738/smmap-5.0.3-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/0b/c9/584bc9651441b4ba60cc4d557d8a547b5aff901af35bda3a4ee30c819b82/starlette-1.0.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/d8/1a/3ca2293d8552bacea3e67e9600d2d1df7df4a325059769ad83d91c279595/streamlit-1.57.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/20/82/e378f178498f1d99a672d81df71ebe9693a106cec6a628ee52ce3288cd6d/streamlit_autorefresh-1.0.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/d7/c1/eb8f9debc45d3b7918a32ab756658a0904732f75e555402972246b0b8e71/tenacity-9.1.4-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/44/6f/7120676b6d73228c96e17f1f794d8ab046fc910d781c8d151120c3f1569e/toml-0.10.2-py2.py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/7f/3e/5db95bcf282c52709639744ca2a8b149baccf648e39c8cc87553df9eae0c/urllib3-2.7.0-py3-none-any.whl
@@ -300,6 +303,7 @@ environments:
       - pypi: ./src/lerobot-isaac-dashboard
       - pypi: ./src/lerobot-isaac-env
       - pypi: ./src/lerobot-isaac-synthetic
+      - pypi: ./src/robot-data-recorder
   full:
     channels:
     - url: https://conda.anaconda.org/conda-forge/
@@ -1560,7 +1564,7 @@ packages:
 - pypi: ./src/lerobot-isaac-adapters
   name: lerobot-isaac-adapters
   version: 0.1.0
-  sha256: 5d959c646596690d1d72994bf07c1e0b0a0621053792d74f45e51febcdcc2732
+  sha256: 937fbe56b7ee0cf0f52cc140ff08c2c876937100a1bbffa979362ef1ab55b250
   requires_dist:
   - pyyaml
   - lerobot ; extra == 'lerobot'
@@ -1613,9 +1617,10 @@ packages:
 - pypi: ./src/lerobot-isaac-dashboard
   name: lerobot-isaac-dashboard
   version: 0.1.0
-  sha256: 844a0e058bdb733740f84de0e8b42f42a7f5e3ce2d78061146a3dd5e3395e288
+  sha256: 1fccbbb0a4d58847dd5dc0715a648990e46055bf0d6ef018c8edd51d690c0522
   requires_dist:
   - streamlit>=1.32
+  - streamlit-autorefresh>=1.0
   - plotly>=5.20
   - pandas>=2.1
   - pyarrow>=15.0
@@ -2499,6 +2504,22 @@ packages:
   - markdown-it-py>=2.2.0
   - pygments>=2.13.0,<3.0.0
   requires_python: '>=3.9.0'
+- pypi: ./src/robot-data-recorder
+  name: robot-data-recorder
+  version: 0.1.0
+  sha256: 696b8467445db4fe04bf3bc83dff397a5c0e41d8a65a3290fc39391a6569357f
+  requires_dist:
+  - h5py
+  - numpy
+  - pyyaml>=6.0
+  - pyrealsense2 ; extra == 'realsense'
+  - lerobot ; extra == 'lerobot'
+  - stable-worldmodel ; extra == 'worldmodel'
+  - pyrealsense2 ; extra == 'all'
+  - lerobot ; extra == 'all'
+  - stable-worldmodel ; extra == 'all'
+  - lerobot-isaac-configs ; extra == 'monorepo'
+  requires_python: '>=3.10'
 - pypi: https://files.pythonhosted.org/packages/60/1b/6f8f29f3f995c7ffdde46a626ddccd7c63aefc0efae881dc13b6e5d5bb16/rpds_py-0.30.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
   name: rpds-py
   version: 0.30.0
@@ -2639,6 +2660,13 @@ packages:
   - streamlit[auth,charts,pdf,performance,snowflake,sql] ; extra == 'all'
   - rich>=11.0.0 ; extra == 'all'
   requires_python: '>=3.10'
+- pypi: https://files.pythonhosted.org/packages/20/82/e378f178498f1d99a672d81df71ebe9693a106cec6a628ee52ce3288cd6d/streamlit_autorefresh-1.0.1-py3-none-any.whl
+  name: streamlit-autorefresh
+  version: 1.0.1
+  sha256: 8f0a772eff9d56807d19dc422e44ef92d900bbb22b1b85de31d8d82ea7d875f1
+  requires_dist:
+  - streamlit>=0.75
+  requires_python: '>=3.6'
 - pypi: https://files.pythonhosted.org/packages/a2/09/77d55d46fd61b4a135c444fc97158ef34a095e5681d0a6c10b75bf356191/sympy-1.14.0-py3-none-any.whl
   name: sympy
   version: 1.14.0
