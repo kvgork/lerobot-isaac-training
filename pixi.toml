@@ -2,7 +2,7 @@
 name = "lerobot-isaac-training"
 version = "0.1.0"
 description = "Modular monorepo for LeRobot + Isaac Lab + LeWorldModel training (SO-101)"
-authors = ["Koen van Gorkom <kvgorkom@smart-robotics.nl>"]
+authors = ["LeRobot Isaac Contributors"]
 channels = ["conda-forge", "nvidia"]
 platforms = ["linux-64"]
 
@@ -65,18 +65,22 @@ pyarrow = ">=15.0"
 jinja2 = ">=3.1"
 watchdog = ">=3.0"
 
-# Default sibling install source: git+file:// against bare repos at
-# ~/workspaces/spinouts/<name>/ (NO `.git` suffix — they are bare dirs whose
-# `config` declares `bare = true`). Included in every "normal" environment.
-# robot-data-recorder is intentionally NOT listed — standalone hardware package.
-# TODO: swap file:// URLs for https://github.com/kvgork/<name>.git when published.
+# Default sibling install source: HTTPS GitHub repos under kvgork/.
+# Included in every "normal" environment. robot-data-recorder is intentionally
+# NOT listed — standalone hardware package.
+#
+# History: this section previously used `git+file:///home/koen/workspaces/spinouts/<name>`
+# against local bare repos. Migrated to GitHub on 2026-05-20 once all 6 sibling
+# repos were published under github.com/kvgork/. The template file
+# (pixi.toml.template) still supports LEROBOT_SPINOUTS_BASE for local-only
+# development without internet.
 [feature.git-siblings.pypi-dependencies]
-lerobot-isaac-configs = { git = "file:///home/koen/workspaces/spinouts/lerobot-isaac-configs", branch = "main" }
-lerobot-isaac-dashboard = { git = "file:///home/koen/workspaces/spinouts/lerobot-isaac-dashboard", branch = "main" }
-lerobot-isaac-autoresearch = { git = "file:///home/koen/workspaces/spinouts/lerobot-isaac-autoresearch", branch = "main" }
-lerobot-isaac-env = { git = "file:///home/koen/workspaces/spinouts/lerobot-isaac-env", branch = "main" }
-lerobot-isaac-adapters = { git = "file:///home/koen/workspaces/spinouts/lerobot-isaac-adapters", branch = "main" }
-lerobot-isaac-synthetic = { git = "file:///home/koen/workspaces/spinouts/lerobot-isaac-synthetic", branch = "main" }
+lerobot-isaac-configs = { git = "https://github.com/kvgork/lerobot-isaac-configs.git", branch = "main" }
+lerobot-isaac-dashboard = { git = "https://github.com/kvgork/lerobot-isaac-dashboard.git", branch = "main" }
+lerobot-isaac-autoresearch = { git = "https://github.com/kvgork/lerobot-isaac-autoresearch.git", branch = "main" }
+lerobot-isaac-env = { git = "https://github.com/kvgork/lerobot-isaac-env.git", branch = "main" }
+lerobot-isaac-adapters = { git = "https://github.com/kvgork/lerobot-isaac-adapters.git", branch = "main" }
+lerobot-isaac-synthetic = { git = "https://github.com/kvgork/lerobot-isaac-synthetic.git", branch = "main" }
 
 # Opt-in editable feature. Activated ONLY by the `editable` environment below
 # (i.e. `pixi install -e editable`). When activated, the 6 sibling packages
