@@ -19,6 +19,7 @@ hyperparameter ranges, CLI flag shape, and known failure modes.
 |------|---------|----------------|------------------|
 | Strongest from-scratch policy | [`lerobot-policy-diffusion.md`](lerobot-policy-diffusion.md) | 30 min | ~5 h (10 exp) |
 | Pretrained policy, fast convergence | [`lerobot-policy-smolvla.md`](lerobot-policy-smolvla.md) | 1 h | ~8 h (8 exp) |
+| Pretrained policy + LoRA rank sweep | [`lerobot-policy-smolvla-lora.md`](lerobot-policy-smolvla-lora.md) | 1 h | ~10 h (12 exp) |
 | Fastest inference (chunked attention) | [`lerobot-policy-act.md`](lerobot-policy-act.md) | 45 min | ~6 h (8 exp) |
 | World model with full Dreamer RSSM | [`wm-dreamerv3.md`](wm-dreamerv3.md) | 1 h | ~8 h (8 exp) |
 | World-model smoke / cheap baseline | [`wm-lewm.md`](wm-lewm.md) | 10 min | ~1.5 h (8 exp) |
