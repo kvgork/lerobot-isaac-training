@@ -21,7 +21,7 @@ baseline-non-LoRA at <8% trainable params.
 
 ## Training Script
 path: src/lerobot-isaac-autoresearch/src/lerobot_isaac_autoresearch/train_wrapper.py
-entry_args: "--target_arch smolvla --dataset datasets/kvgork/so101-pickplace1 --output_dir {out} --steps {steps} --batch_size {batch_size} --use_lora --lora_rank {lora_rank} --lora_alpha {lora_alpha} --lora_dropout {lora_dropout} --lora_target_modules {lora_target_modules}"
+entry_args: "--target_arch smolvla --dataset datasets/kvgork/so101-pickplace1 --output_dir {out} --steps {steps} --batch_size {batch_size} --use_lora --lora_rank {lora_rank} --lora_alpha {lora_alpha} --lora_dropout {lora_dropout} --lora_target_modules {lora_target_modules} -- --policy.pretrained_path=outputs/overnight-smolvla-2026-05-15T210257-anchor/policy-smolvla/checkpoints/last/pretrained_model"
 env: train-policy
 python: .pixi/envs/train-policy/bin/python
 
@@ -43,7 +43,7 @@ allow_optimizer_change: true
 allow_data_pipeline_change: false
 allow_remainder_args: true
 allow_lora_mutation: true        # NEW — gates the tune_lora operator
-allow_rank_extension: true       # NEW — proposer may probe r=256/r=512 if curve still rising at r=128
+allow_rank_extension: false      # disabled — stick to {16,32,64,128} ladder
 rank_extension_cap: 512          # hard upper bound (>=r=512 approaches full-FT param count)
 rank_rising_threshold: 0.05      # pc_success delta vs prev rank step that counts as "still rising"
 vram_ceiling_gb: 10
