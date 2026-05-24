@@ -239,10 +239,112 @@ if kill -0 "$TRAIN_PID" 2>/dev/null && [ "$watchdog_done" = "0" ]; then
     fi
 fi
 
-# Past both watchdog windows — let the outer `timeout $SECONDS_PER_EXP` enforce ceiling.
+# Stage 3: background TB-scrape collapse watcher.
+# Polls every 5 min from now (T+300s) onward. Trips when BOTH:
+#   - last 3 Grads/actor samples all below GRADS_THRESHOLD (dead actor)
+#   - last 3 Rewards/rew_avg samples within REW_FLAT_RANGE (stuck flat)
+#   - latest policy_step >= MIN_STEP (don't kill before training has run long enough)
+# On trip: kills TRAIN_PID + touches sentinel; main shell flags rc=137.
+COLLAPSE_SENTINEL="$AR_DIR/.collapse-killed"
+COLLAPSE_INTERVAL="${COLLAPSE_INTERVAL:-300}"
+COLLAPSE_MIN_STEP="${COLLAPSE_MIN_STEP:-15000}"
+COLLAPSE_GRADS_THRESHOLD="${COLLAPSE_GRADS_THRESHOLD:-0.001}"
+COLLAPSE_REW_FLAT_RANGE="${COLLAPSE_REW_FLAT_RANGE:-0.02}"
+
+# Scraper script (writes one line "step|rew|grads" or "skip|<reason>" to stdout).
+TB_SCRAPE_PY="$AR_DIR/.tb_scrape.py"
+cat > "$TB_SCRAPE_PY" <<'PY'
+import glob, os, sys
+try:
+    from tensorboard.backend.event_processing import event_accumulator
+except Exception as e:
+    print(f"skip|tb_import:{e}"); sys.exit(0)
+runs = sorted(glob.glob("logs/runs/dreamer_v3/*/*/version_0"), key=os.path.getmtime, reverse=True)
+if not runs:
+    print("skip|no_run"); sys.exit(0)
+ev = list(glob.glob(f"{runs[0]}/events.out.tfevents.*"))
+if not ev:
+    print("skip|no_events"); sys.exit(0)
+ea = event_accumulator.EventAccumulator(runs[0], size_guidance={event_accumulator.SCALARS: 0})
+ea.Reload()
+tags = ea.Tags().get("scalars", [])
+def last(tag):
+    if tag in tags:
+        s = ea.Scalars(tag)
+        if s:
+            return s[-1]
+    return None
+rew = last("Rewards/rew_avg")
+grads = last("Grads/actor")
+if rew is None or grads is None:
+    print("skip|no_scalars"); sys.exit(0)
+print(f"{rew.step}|{rew.value}|{grads.value}")
+PY
+
+(
+    # Per-sample history kept as space-separated triples "step:rew:grads".
+    samples=()
+    while kill -0 "$TRAIN_PID" 2>/dev/null; do
+        # Sleep with race against TRAIN_PID — exit early if subprocess dies.
+        sleep "$COLLAPSE_INTERVAL" &
+        SP=$!
+        wait -n "$SP" "$TRAIN_PID" 2>/dev/null || true
+        kill -KILL "$SP" 2>/dev/null || true
+        if ! kill -0 "$TRAIN_PID" 2>/dev/null; then break; fi
+
+        LINE=$("$PY" "$TB_SCRAPE_PY" 2>/dev/null)
+        case "$LINE" in
+            skip\|*)
+                echo "[wm-isaac] COLLAPSE_WATCH: $LINE" >&2
+                continue
+                ;;
+        esac
+        STEP=$(echo "$LINE" | cut -d'|' -f1)
+        REW=$(echo "$LINE" | cut -d'|' -f2)
+        GRADS=$(echo "$LINE" | cut -d'|' -f3)
+        samples+=("$STEP:$REW:$GRADS")
+        # Trim history to last 3.
+        if [ "${#samples[@]}" -gt 3 ]; then
+            samples=("${samples[@]: -3}")
+        fi
+        echo "[wm-isaac] COLLAPSE_WATCH: step=$STEP rew=$REW grads=$GRADS (history n=${#samples[@]})" >&2
+
+        # Need 3 samples + min step before tripping.
+        [ "${#samples[@]}" -lt 3 ] && continue
+        STEP_OK=$("$PY" -c "exit(0 if int(float('$STEP')) >= $COLLAPSE_MIN_STEP else 1)" && echo 1 || echo 0)
+        [ "$STEP_OK" != "1" ] && continue
+
+        # Check rule via python (float math).
+        TRIP=$("$PY" - <<PY
+samples = """${samples[0]}
+${samples[1]}
+${samples[2]}"""
+grads = [float(s.split(":")[2]) for s in samples.strip().splitlines()]
+rews  = [float(s.split(":")[1]) for s in samples.strip().splitlines()]
+grads_all_dead = all(abs(g) < $COLLAPSE_GRADS_THRESHOLD for g in grads)
+rew_range = max(rews) - min(rews)
+rew_flat = rew_range < $COLLAPSE_REW_FLAT_RANGE
+print("trip" if (grads_all_dead and rew_flat) else "ok")
+PY
+)
+        if [ "$TRIP" = "trip" ]; then
+            echo "[wm-isaac] COLLAPSE_WATCH: TRIP — grads<$COLLAPSE_GRADS_THRESHOLD for 3 samples + rew range<$COLLAPSE_REW_FLAT_RANGE → killing PID=$TRAIN_PID" >&2
+            touch "$COLLAPSE_SENTINEL"
+            kill -TERM "$TRAIN_PID" 2>/dev/null || true
+            sleep 5
+            kill -KILL "$TRAIN_PID" 2>/dev/null || true
+            break
+        fi
+    done
+) &
+COLLAPSE_WATCHER_PID=$!
+
 wait "$TRAIN_PID" 2>/dev/null
 rc=$?
+kill -KILL "$COLLAPSE_WATCHER_PID" 2>/dev/null || true
+wait "$COLLAPSE_WATCHER_PID" 2>/dev/null || true
 [ "$watchdog_done" = "1" ] && rc=137  # mark as watchdog-killed
+[ -f "$COLLAPSE_SENTINEL" ] && rc=137 && echo "[wm-isaac] COLLAPSE_WATCH: trial killed on collapse rule"
 echo "[wm-isaac] done rc=$rc"
 echo "[wm-isaac] state: $AR_DIR"
 echo "[wm-isaac] ckpts: logs/runs/dreamer_v3/isaac_so101/"
