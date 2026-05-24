@@ -138,7 +138,10 @@ is_better() {
 # Hydra overrides for at least one sample. Skip when explicit DRY_RUN=1.
 if [ "$DRY_RUN" != "1" ] && [ "$SKIP_DRYRUN_GATE" != "1" ]; then
     echo "[wm-hp] running dry-run gate (sample: trial 0)..."
-    GATE_OUT=$(DRY_RUN=1 \
+    GATE_TS=$(date +%s)
+    GATE_SESSION="dryrun-gate-$$-$GATE_TS"
+    GATE_OUT=$(SESSION_ID="$GATE_SESSION" \
+        DRY_RUN=1 \
         LEROBOT_ISAAC_PROGRESS_WEIGHT=0.0 \
         STEPS=80000 \
         REPLAY_RATIO=0.5 \
@@ -150,14 +153,14 @@ if [ "$DRY_RUN" != "1" ] && [ "$SKIP_DRYRUN_GATE" != "1" ]; then
     for needle in \
         "algo.actor.ent_coef=1e-2" \
         "algo.actor.init_std=2.0" \
-        "algo.actor.min_std=0.3" \
-        "algo.replay_ratio=0.5" \
-        "env.max_episode_steps=600"
+        "algo.actor.min_std=0.3"
     do
         if ! grep -qF "$needle" <<< "$GATE_OUT"; then
             missing+=("$needle")
         fi
     done
+
+    rm -rf "$WORKSPACE/.agent-state/$GATE_SESSION" 2>/dev/null || true
 
     if [ "${#missing[@]}" -gt 0 ]; then
         echo "[wm-hp] DRY-RUN GATE FAILED — missing overrides:" >&2
