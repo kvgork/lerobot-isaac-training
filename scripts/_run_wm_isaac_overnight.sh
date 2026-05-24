@@ -149,8 +149,77 @@ if [ "$DRY_RUN" = "1" ]; then
     exit 0
 fi
 
-PYTHONUNBUFFERED=1 "${CMD[@]}" > "$AR_DIR/train.log" 2>&1
+# Orphan-kill trap. Trial 0 of wm-isaac-hp-v4 left a zombie python +
+# Isaac kit process alive after the wrapper exited; trials 1-3 each
+# died in 38s with SimulationContext-already-exists. Trap kills any
+# Isaac-Sim-related descendants on exit.
+cleanup_isaac_orphans() {
+    local sig="${1:-EXIT}"
+    echo "[wm-isaac] cleanup_isaac_orphans on $sig" >&2
+    # Soft first, then hard. Targets only Isaac-specific processes.
+    pkill -TERM -f "_wm_isaac_entry|lerobot_isaac_autoresearch.train_wrapper|lerobot_isaac_adapters.train" 2>/dev/null || true
+    sleep 2
+    pkill -KILL -f "_wm_isaac_entry|lerobot_isaac_autoresearch.train_wrapper|lerobot_isaac_adapters.train" 2>/dev/null || true
+    pkill -KILL -f "kit\\.app|carb\\.app" 2>/dev/null || true
+    sleep 1
+}
+trap 'cleanup_isaac_orphans EXIT' EXIT
+trap 'cleanup_isaac_orphans TERM; exit 143' TERM
+trap 'cleanup_isaac_orphans INT;  exit 130' INT
+
+# Run training subprocess in background so a watchdog can stream-monitor
+# train.log for early-fatal patterns (Traceback / KeyError / "crashed too
+# many times") and kill the subprocess as soon as failure is certain —
+# instead of waiting the full $SECONDS_PER_EXP timeout. Saves hours of
+# GPU on doomed trials.
+TRAIN_LOG="$AR_DIR/train.log"
+: > "$TRAIN_LOG"
+
+PYTHONUNBUFFERED=1 "${CMD[@]}" > "$TRAIN_LOG" 2>&1 &
+TRAIN_PID=$!
+echo "[wm-isaac] training PID=$TRAIN_PID (watchdog active)"
+
+# Watchdog: poll every 30s.
+# - early-fatal: Traceback OR RuntimeError OR KeyError OR "crashed too many" in log AND log has not progressed in 60s → kill.
+# - log-frozen: log mtime stale >300s AND no recent metric line → kill.
+WATCHDOG_INTERVAL=30
+FATAL_REGEX='Traceback|RuntimeError|KeyError|crashed too many'
+STALE_LIMIT=300
+
+watchdog_done=0
+while kill -0 "$TRAIN_PID" 2>/dev/null; do
+    sleep "$WATCHDOG_INTERVAL"
+    if ! kill -0 "$TRAIN_PID" 2>/dev/null; then break; fi
+    # Early-fatal detection
+    if grep -qE "$FATAL_REGEX" "$TRAIN_LOG" 2>/dev/null; then
+        # Give it 60s to die naturally before we intervene
+        sleep 60
+        if kill -0 "$TRAIN_PID" 2>/dev/null; then
+            echo "[wm-isaac] WATCHDOG: fatal pattern detected + subprocess still alive → killing PID=$TRAIN_PID" >&2
+            kill -TERM "$TRAIN_PID" 2>/dev/null || true
+            sleep 5
+            kill -KILL "$TRAIN_PID" 2>/dev/null || true
+            watchdog_done=1
+            break
+        fi
+    fi
+    # Log-frozen detection (sheeprl can hang silently after sim shutdown)
+    if [ -s "$TRAIN_LOG" ]; then
+        mtime_age=$(( $(date +%s) - $(stat -c%Y "$TRAIN_LOG") ))
+        if [ "$mtime_age" -gt "$STALE_LIMIT" ]; then
+            echo "[wm-isaac] WATCHDOG: train.log frozen ${mtime_age}s → killing PID=$TRAIN_PID" >&2
+            kill -TERM "$TRAIN_PID" 2>/dev/null || true
+            sleep 5
+            kill -KILL "$TRAIN_PID" 2>/dev/null || true
+            watchdog_done=1
+            break
+        fi
+    fi
+done
+
+wait "$TRAIN_PID" 2>/dev/null
 rc=$?
+[ "$watchdog_done" = "1" ] && rc=137  # mark as watchdog-killed
 echo "[wm-isaac] done rc=$rc"
 echo "[wm-isaac] state: $AR_DIR"
 echo "[wm-isaac] ckpts: logs/runs/dreamer_v3/isaac_so101/"
