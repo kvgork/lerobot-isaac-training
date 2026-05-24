@@ -114,3 +114,10 @@ infrastructure/missing-agent gaps land here.
 - **Gap:** `plans/2026-05-24-wm-isaac-hp-trials-1to9.md` trial 7 calls for a PPO baseline as a "DreamerV3-free reality check" (the key diagnostic for "is it the algo or the env?"). Adapter only supports `smolvla|act|diffusion|dreamerv3|le_world_model` — no `ppo` target.
 - **Workaround applied:** Sweep script logs a `DEFERRED` warning and `continue`s past trial 7. The other 7 trials cover the reward-shape + entropy + replay axes.
 - **Suggested fix:** Add `src/lerobot-isaac-adapters/src/lerobot_isaac_adapters/targets/wm_ppo.py` (subprocess wrapper for `sheeprl exp=ppo` with the IsaacSO101Env wrapper). Metric: `Rewards/rew_avg`. Dispatch from `train.py`. Estimated effort: 4-6 h.
+
+### 2026-05-24 — `_run_autoresearch_wm_isaac.sh` orphans children on SIGKILL
+- **Type:** infrastructure (process management)
+- **Discovered in:** `20260524-orchestrate-wm-isaac-trials-1to9` (sweep v2 → v3 transition)
+- **Gap:** Killing the top sweep bash (`PGID 47529`) with `kill -KILL` did NOT propagate to grand-children `_run_wm_isaac_overnight.sh` + `timeout 10800` + `python`. The `_run_wm_isaac_overnight.sh` was re-parented to systemd (PPID 1) and continued running, spawning trial 1's python that conflicted with the next sweep launch's GPU. Required manual `kill -KILL` of every detached descendant by PID.
+- **Workaround applied:** `kill -KILL <pid>` per descendant. Verified all v2 procs dead before launching sweep v3.
+- **Suggested fix:** In `scripts/_run_autoresearch_wm_isaac.sh`, set `set -m` to enable job control and start the per-trial overnight script with `setsid` so it gets its own PGID. Then `trap 'kill -- -$$' EXIT TERM INT` on the sweep script propagates death to the entire tree. Pre-flight worker advisory B3 (2026-05-24 review) already flagged the `set -uo pipefail` without `-e` as risky — this confirms the corollary.
