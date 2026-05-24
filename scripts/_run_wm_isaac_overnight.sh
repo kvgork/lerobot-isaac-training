@@ -179,44 +179,67 @@ PYTHONUNBUFFERED=1 "${CMD[@]}" > "$TRAIN_LOG" 2>&1 &
 TRAIN_PID=$!
 echo "[wm-isaac] training PID=$TRAIN_PID (watchdog active)"
 
-# Watchdog: poll every 30s.
-# - early-fatal: Traceback OR RuntimeError OR KeyError OR "crashed too many" in log AND log has not progressed in 60s → kill.
-# - log-frozen: log mtime stale >300s AND no recent metric line → kill.
-WATCHDOG_INTERVAL=30
+# Watchdog: ONLY two checks per trial, at T+60s and T+300s.
+# - fatal: Traceback OR RuntimeError OR KeyError OR "crashed too many" in train.log → kill.
+# - log-frozen: train.log mtime stale >120s at check time → kill (subprocess hung silently).
+# After T+300s the subprocess is assumed past boot/fail-fast window and runs unattended
+# under the outer `timeout $SECONDS_PER_EXP` cap.
 FATAL_REGEX='Traceback|RuntimeError|KeyError|crashed too many'
-STALE_LIMIT=300
+
+watchdog_check() {
+    local label="$1"; local stale_limit="$2"
+    if ! kill -0 "$TRAIN_PID" 2>/dev/null; then
+        echo "[wm-isaac] WATCHDOG[$label]: subprocess already exited" >&2
+        return 1
+    fi
+    if grep -qE "$FATAL_REGEX" "$TRAIN_LOG" 2>/dev/null; then
+        echo "[wm-isaac] WATCHDOG[$label]: fatal pattern in train.log → killing PID=$TRAIN_PID" >&2
+        kill -TERM "$TRAIN_PID" 2>/dev/null || true
+        sleep 5
+        kill -KILL "$TRAIN_PID" 2>/dev/null || true
+        watchdog_done=1
+        return 1
+    fi
+    if [ -s "$TRAIN_LOG" ]; then
+        local mtime_age=$(( $(date +%s) - $(stat -c%Y "$TRAIN_LOG") ))
+        if [ "$mtime_age" -gt "$stale_limit" ]; then
+            echo "[wm-isaac] WATCHDOG[$label]: train.log frozen ${mtime_age}s (>$stale_limit) → killing PID=$TRAIN_PID" >&2
+            kill -TERM "$TRAIN_PID" 2>/dev/null || true
+            sleep 5
+            kill -KILL "$TRAIN_PID" 2>/dev/null || true
+            watchdog_done=1
+            return 1
+        fi
+    fi
+    echo "[wm-isaac] WATCHDOG[$label]: OK" >&2
+    return 0
+}
 
 watchdog_done=0
-while kill -0 "$TRAIN_PID" 2>/dev/null; do
-    sleep "$WATCHDOG_INTERVAL"
-    if ! kill -0 "$TRAIN_PID" 2>/dev/null; then break; fi
-    # Early-fatal detection
-    if grep -qE "$FATAL_REGEX" "$TRAIN_LOG" 2>/dev/null; then
-        # Give it 60s to die naturally before we intervene
-        sleep 60
-        if kill -0 "$TRAIN_PID" 2>/dev/null; then
-            echo "[wm-isaac] WATCHDOG: fatal pattern detected + subprocess still alive → killing PID=$TRAIN_PID" >&2
-            kill -TERM "$TRAIN_PID" 2>/dev/null || true
-            sleep 5
-            kill -KILL "$TRAIN_PID" 2>/dev/null || true
-            watchdog_done=1
-            break
-        fi
-    fi
-    # Log-frozen detection (sheeprl can hang silently after sim shutdown)
-    if [ -s "$TRAIN_LOG" ]; then
-        mtime_age=$(( $(date +%s) - $(stat -c%Y "$TRAIN_LOG") ))
-        if [ "$mtime_age" -gt "$STALE_LIMIT" ]; then
-            echo "[wm-isaac] WATCHDOG: train.log frozen ${mtime_age}s → killing PID=$TRAIN_PID" >&2
-            kill -TERM "$TRAIN_PID" 2>/dev/null || true
-            sleep 5
-            kill -KILL "$TRAIN_PID" 2>/dev/null || true
-            watchdog_done=1
-            break
-        fi
-    fi
-done
+# T+60s check. Sleep + train_pid raced via `wait -n`; whichever ends first wakes us.
+sleep 60 &
+SLEEP_PID=$!
+wait -n "$SLEEP_PID" "$TRAIN_PID" 2>/dev/null || true
+if kill -0 "$TRAIN_PID" 2>/dev/null; then
+    # Train still alive → sleep elapsed → run check.
+    watchdog_check "T+60s" 60 || true
+else
+    kill -KILL "$SLEEP_PID" 2>/dev/null || true
+fi
 
+# T+300s check (only if subprocess + watchdog still relevant).
+if kill -0 "$TRAIN_PID" 2>/dev/null && [ "$watchdog_done" = "0" ]; then
+    sleep 240 &
+    SLEEP_PID=$!
+    wait -n "$SLEEP_PID" "$TRAIN_PID" 2>/dev/null || true
+    if kill -0 "$TRAIN_PID" 2>/dev/null; then
+        watchdog_check "T+300s" 120 || true
+    else
+        kill -KILL "$SLEEP_PID" 2>/dev/null || true
+    fi
+fi
+
+# Past both watchdog windows — let the outer `timeout $SECONDS_PER_EXP` enforce ceiling.
 wait "$TRAIN_PID" 2>/dev/null
 rc=$?
 [ "$watchdog_done" = "1" ] && rc=137  # mark as watchdog-killed
