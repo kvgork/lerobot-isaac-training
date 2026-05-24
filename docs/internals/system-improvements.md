@@ -48,7 +48,7 @@ infrastructure/missing-agent gaps land here.
 ### 2026-05-13 — `torchcodec` lacks FFmpeg shared libraries on host system
 - **Type:** infrastructure
 - **Discovered in:** `20260513-3phase-meta-audit-e2e`
-- **Gap:** Default LeRobot `dataset.video_backend` resolves to `torchcodec` when the package is importable, but `torchcodec` ships against FFmpeg 4–7 ABI and the system has FFmpeg 7 only via `/home/koen/.cache/rattler/cache/`. Result: `libavutil.so.59` not on `LD_LIBRARY_PATH`, training crashes before step 1.
+- **Gap:** Default LeRobot `dataset.video_backend` resolves to `torchcodec` when the package is importable, but `torchcodec` ships against FFmpeg 4–7 ABI and the system has FFmpeg 7 only via `${HOME}/.cache/rattler/cache/`. Result: `libavutil.so.59` not on `LD_LIBRARY_PATH`, training crashes before step 1.
 - **Workaround applied:** Pass `--dataset.video_backend=pyav` to `lerobot-train` — pyav is installed and works.
 - **Suggested fix:** Add `--dataset.video_backend=pyav` as a default in `packages/lerobot-isaac-adapters/src/lerobot_isaac_adapters/targets/policy_lerobot.py` (with a comment pointing at this entry). Alternative: add a pixi task `install-ffmpeg-libs` that symlinks/installs `libavutil.so.59` from the rattler cache into the env's `lib/`. Document in `CLAUDE.md` "Common Pitfalls".
 
@@ -62,7 +62,7 @@ infrastructure/missing-agent gaps land here.
 ### 2026-05-13 — `lerobot-isaac-dashboard` editable install points at non-existent path after spinout
 - **Type:** infrastructure (install / pixi env staleness)
 - **Discovered in:** `20260513-pipeline-smoke`
-- **Gap:** `.pixi/envs/dashboard/lib/python3.12/site-packages/_editable_impl_lerobot_isaac_dashboard.pth` still records `/home/koen/workspaces/lerobot-isaac-training/packages/lerobot-isaac-dashboard/src` — the path before the rename to `archive/packages/`. Result: `python -m lerobot_isaac_dashboard.report` raises `ModuleNotFoundError`; only the `templates/` subdir (which `package_data` copies eagerly) is importable. The current `pixi.toml` resolves `lerobot-isaac-dashboard` from `file:///home/koen/workspaces/spinouts/lerobot-isaac-dashboard.git`, but the env was built before this swap and was never re-installed.
+- **Gap:** `.pixi/envs/dashboard/lib/python3.12/site-packages/_editable_impl_lerobot_isaac_dashboard.pth` still records `${LEROBOT_ISAAC_WORKSPACE}/packages/lerobot-isaac-dashboard/src` — the path before the rename to `archive/packages/`. Result: `python -m lerobot_isaac_dashboard.report` raises `ModuleNotFoundError`; only the `templates/` subdir (which `package_data` copies eagerly) is importable. The current `pixi.toml` resolves `lerobot-isaac-dashboard` from `${LEROBOT_SPINOUTS_BASE}/lerobot-isaac-dashboard.git`, but the env was built before this swap and was never re-installed.
 - **Workaround applied:** Stage 7 ran the report module with `PYTHONPATH=archive/packages/lerobot-isaac-dashboard/src`. The 4.6 MB HTML report rendered successfully (one minor `events.parquet commits` column-shape warning during the auto-snapshot).
 - **Suggested fix:** Run `pixi install -e dashboard --frozen=false` (or `pixi clean && pixi install -e dashboard`) to rebuild the env against the current git+file:// URL spec. Add a CI smoke step that imports `lerobot_isaac_dashboard.report` from the dashboard env to catch this drift automatically. Also consider documenting "env rebuild required after spinout" in `docs/runbook/01-bootstrap.md`.
 
@@ -100,3 +100,17 @@ infrastructure/missing-agent gaps land here.
 - **Gap:** `lerobot_isaac_dashboard.compare --mode nway --snapshots A B C` raises `plotly.graph_objs._bar.Bar() got multiple values for keyword argument 'name'`. 2-way (`--mode 2way` default) is unaffected.
 - **Workaround applied:** Stage F + F2 use 2-way compare only.
 - **Suggested fix:** Audit how `compare.py` builds plotly Bar traces in N-way mode — likely passes `name=` both positionally and via kwargs when grouping by snapshot. Bare-repo `lerobot-isaac-dashboard`.
+
+### 2026-05-24 — `train-dreamer` pixi env has numpy/cv2 incompat
+- **Type:** infrastructure
+- **Discovered in:** `20260524-orchestrate-wm-isaac-trials-1to9`
+- **Gap:** `.pixi/envs/train-dreamer` ships numpy 2.4.4 but cv2 (4.10.x) was built against numpy 1.x → `import cv2` → `numpy.core.multiarray failed to import` → `import sheeprl` cascade-fails (sheeprl.utils.env imports cv2). `.pixi/envs/sim` is unaffected (numpy 1.26.4 + cv2 4.8.0).
+- **Workaround applied:** `scripts/_run_wm_isaac_overnight.sh` probes `sim` env first (works), only falls back to train-dreamer (would crash). Sweep launched in `sim` env.
+- **Suggested fix:** Pin numpy<2 in `pixi.toml` `[feature.dreamerv3]` deps OR rebuild cv2 against numpy 2.x. Until fixed, do NOT run any sheeprl path via `train-dreamer` directly.
+
+### 2026-05-24 — `lerobot_isaac_adapters.train` has no `--target_arch ppo`
+- **Type:** missing-feature
+- **Discovered in:** `20260524-orchestrate-wm-isaac-trials-1to9`
+- **Gap:** `plans/2026-05-24-wm-isaac-hp-trials-1to9.md` trial 7 calls for a PPO baseline as a "DreamerV3-free reality check" (the key diagnostic for "is it the algo or the env?"). Adapter only supports `smolvla|act|diffusion|dreamerv3|le_world_model` — no `ppo` target.
+- **Workaround applied:** Sweep script logs a `DEFERRED` warning and `continue`s past trial 7. The other 7 trials cover the reward-shape + entropy + replay axes.
+- **Suggested fix:** Add `src/lerobot-isaac-adapters/src/lerobot_isaac_adapters/targets/wm_ppo.py` (subprocess wrapper for `sheeprl exp=ppo` with the IsaacSO101Env wrapper). Metric: `Rewards/rew_avg`. Dispatch from `train.py`. Estimated effort: 4-6 h.
