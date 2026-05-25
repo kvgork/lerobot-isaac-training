@@ -128,3 +128,20 @@ infrastructure/missing-agent gaps land here.
 - **Gap:** Phase 1+2 code-review-orchestrator focused on Hydra plumbing + pkill scope + soft-import discipline but did NOT verify that `success_termination(env)` actually resolves the right scene-entity key for the active task. Sweep v3 hit `KeyError 'object'` because pick_and_place uses `source_object` (and PickEnvCfg uses `target_object` via scene.target_object) — neither matches the hardcoded `env.scene["object"]` in `terminations.py`.
 - **Workaround applied:** Added `object_name` + `robot_name` kwargs to `success_termination`, set sensible defaults (`source_object`), per-task override in pick.py. Commit `811c2e2`.
 - **Suggested fix:** Update `agents/orchestrators/code-review-orchestrator.md` checklist to include: "when a new Isaac Lab term function (reward, termination, observation) is added, grep all task subclasses' scene_cfg attributes for entity names and verify the function references them or accepts a parametrized `<entity>_name` kwarg with a verifiably-correct default." Pre-flight worker should also be updated to scan for hardcoded `env.scene["..."]` strings in newly-added term funcs.
+
+### 2026-05-25 — motor-write safety needs review-orchestrator + `np.clip(action)` first
+- **Type:** pipeline (code-review-orchestrator + implementation-executor patterns)
+- **Discovered in:** `20260524-orchestrate-wm-isaac-trials-1to9` (deploy phase)
+- **Gap:** First implementation of DreamerV3 motor-write adapter passed initial executor self-checks AND landed with 6 safety blockers, surfaced ONLY when the orchestration pipeline ran `code-review-orchestrator` post-hoc:
+  1. No `np.clip(action, -1, 1)` before scaling — pathological actor logits → unbounded per-step motion
+  2. `read_joint_limits()` returned cal-derived limits LOOSER than hardcoded safety floor (e.g. cal `[0, 4095]` → `±180°` overwriting `±90°` floor)
+  3. `elbow_flex -10°` table-avoid floor lost when cal returned symmetric range
+  4. `home_targets(0.0)` instant goto from arbitrary pose → high-velocity slam risk
+  5. `max_relative_target` not passed to SO101FollowerConfig → server-side safety clamp OFF
+  6. No NaN / range validation on `current_jp` → comm failure → garbage targets
+- **Workaround applied:** `bc46c0f` — applied all 6 fixes after review. All 142 tests pass.
+- **Suggested fix:** Update `agents/orchestrators/master-project-orchestrator.md` to require `code-review-orchestrator` AS A HARD GATE when the implementation touches:
+  - Real-hardware motor writes (any path that imports `lerobot.robots.*`)
+  - Physical-process control with safety clamps
+  - Persistent storage with unbounded writes (e.g. training loops, sweep loops)
+  Currently Step 7.5a is gated only on `RIGOR=agentic`, but the implementation-executor's self-review may miss safety bugs in narrow domains. Domain-specific review checklists (motor-write, training-loop, schema-migration) would improve consistency.
