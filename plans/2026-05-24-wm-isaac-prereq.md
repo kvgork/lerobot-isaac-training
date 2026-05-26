@@ -1,5 +1,11 @@
 # WM Isaac HP-Sweep Pre-Requisite Plan
 
+> **Status: IMPLEMENTED (2026-05-26).** `success_termination` landed at
+> `terminations.py:96`, `success_bonus` wired (weight=5.0), sweep script
+> refactored (commit `b76ced8`), early-kill collapse watcher landed
+> (commit `644a196`). Only missing item: Phase 3 smoke script
+> `scripts/_smoke_success_term.py` — not blocking the sweep.
+
 **Date:** 2026-05-24
 **Branch:** `feature/wm-isaac-env`
 **Parent:** `plans/2026-05-24-wm-isaac-hp-trials-1to9.md` (revised

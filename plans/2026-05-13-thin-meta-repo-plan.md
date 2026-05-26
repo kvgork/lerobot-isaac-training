@@ -1,5 +1,10 @@
 # Thin-Meta-Repo Spinout Plan — 2026-05-13
 
+> **Status: IMPLEMENTED (2026-05-26).** `packages/lerobot-isaac-meta/` is the only
+> live workspace member. Other 7 packages spun out (siblings via `src/` clones on
+> this host; `~/workspaces/spinouts/` referenced in plan is empty here — clones
+> serve the same role).
+
 **Author session:** orchestrator
 **Date:** 2026-05-13
 **GitHub user:** `kvgork`

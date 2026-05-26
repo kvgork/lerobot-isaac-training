@@ -164,14 +164,14 @@ more throughput.
 
 For Phase 1:
 
-- [ ] `scripts/_smoke_train.sh --arch smolvla --cache-frames --batch 4
-      --duration-s 300` reports `samples/s ≥ 20`.
-- [ ] `scripts/_smoke_train.sh --arch smolvla --batch 4 --duration-s 300`
+- [x] `scripts/_smoke_train.sh --arch smolvla --cache-frames --batch 4
+      --duration-s 300` reports `samples/s ≥ 20`. (smoke G: 40 samples/s)
+- [x] `scripts/_smoke_train.sh --arch smolvla --batch 4 --duration-s 300`
       (no cache) still reports ~5.8 samples/s — regression guard.
-- [ ] Loss curve at step 1000 matches the non-cached baseline within
+- [x] Loss curve at step 1000 matches the non-cached baseline within
       ±1 % (deterministic seed) — confirms semantic equivalence.
-- [ ] CLAUDE.md throughput note updated with the new measured floor.
-- [ ] `plans/2026-05-15-dataloader-gpu-decode-plan.md` marked
+- [x] CLAUDE.md throughput note updated with the new measured floor.
+- [x] `plans/2026-05-15-dataloader-gpu-decode-plan.md` marked
       `Status: phase 1 complete`.
 
 For Phase 2 (when triggered):

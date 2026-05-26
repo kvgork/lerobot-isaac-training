@@ -1,5 +1,8 @@
 # WM Isaac Autoresearch — HP Sweep Plan
 
+> **Status: SUPERSEDED (2026-05-26).** Replaced by `plans/2026-05-24-wm-isaac-hp-trials-1to9.md`
+> after v8 plan ran + 4 actor-collapse runs forced rewrite. Kept for history only.
+
 **Date:** 2026-05-23
 **Branch:** `feature/wm-isaac-env`
 **Parent context:** v7 plateau diagnosis (`Grads/actor → 0.009`, policy collapsed before learning task) → v8 launched with patched entropy knobs (`ent_coef=0.01, min_std=0.3, replay_ratio=1`). Auto-research extends this single-trial intuition into a real HP sweep.

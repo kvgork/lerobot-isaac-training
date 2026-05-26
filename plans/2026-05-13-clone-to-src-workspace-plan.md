@@ -1,5 +1,9 @@
 # Plan: Clone-to-`src/` Editable Workspace (Phase C)
 
+> **Status: IMPLEMENTED (2026-05-26).** 7 sibling clones live under `src/<pkg>/`,
+> editable workflow in `pixi -e editable`, gitignore filter active. Note: on this
+> host `~/workspaces/spinouts/` is empty — siblings exist only via `src/` clones.
+
 **Date:** 2026-05-13
 **Status:** Plan only. No destructive ops.
 **Predecessors:**
@@ -385,15 +389,15 @@ pixi run pytest packages/lerobot-isaac-meta/tests/ src/*/tests/
 
 After implementation:
 
-- [ ] `src/` exists and contains 6 git clones (run `ls -la src/`; each subdir has `.git/`)
-- [ ] `pip show lerobot-isaac-env` reports `Editable project location: .../src/lerobot-isaac-env`
-- [ ] Editing `src/lerobot-isaac-env/src/lerobot_isaac_env/__init__.py` and re-importing
+- [x] `src/` exists and contains 6 git clones (run `ls -la src/`; each subdir has `.git/`)
+- [x] `pip show lerobot-isaac-env` reports `Editable project location: .../src/lerobot-isaac-env`
+- [x] Editing `src/lerobot-isaac-env/src/lerobot_isaac_env/__init__.py` and re-importing
       inside `pixi shell` reflects the change without reinstall (hot reload)
-- [ ] `cd src/lerobot-isaac-env && git remote -v` shows the bare repo (or GitHub) URL
-- [ ] `cd src/lerobot-isaac-env && git status` works — each is its own repo
-- [ ] Monorepo `git status` does NOT list `src/lerobot-isaac-*` (ignored)
-- [ ] `pixi run test` passes against `packages/lerobot-isaac-meta/tests/ src/*/tests/`
-- [ ] `pixi run lint` and `pixi run fmt` cover `packages/` and `src/`
+- [x] `cd src/lerobot-isaac-env - [ ] `cd src/lerobot-isaac-env && git remote- [ ] `cd src/lerobot-isaac-env && git remote git remote -v` shows the bare repo (or GitHub) URL
+- [x] `cd src/lerobot-isaac-env - [ ] `cd src/lerobot-isaac-env && git status- [ ] `cd src/lerobot-isaac-env && git status git status` works — each is its own repo
+- [x] Monorepo `git status` does NOT list `src/lerobot-isaac-*` (ignored)
+- [x] `pixi run test` passes against `packages/lerobot-isaac-meta/tests/ src/*/tests/`
+- [x] `pixi run lint` and `pixi run fmt` cover `packages/` and `src/`
 
 ---
 

@@ -3,9 +3,10 @@
 **Date:** 2026-05-23
 **Branch:** `feature/wm-isaac-env` (across all 3 repos)
 **Parent:** `plans/2026-05-23-wm-isaac-env-plan.md`
-**Status:** Track C UNBLOCKED — Isaac Lab env runs end-to-end. Training
-verified active (3h12m baseline run reached step 37800/50000 before kill).
-Plateaued at reward=-2.37 because reward function uses wrong EE body.
+**Status:** **IMPLEMENTED (2026-05-26).** Track C UNBLOCKED — Isaac Lab env runs end-to-end.
+Training verified active (3h12m baseline run reached step 37800/50000 before kill).
+Plateaued at reward=-2.37 because reward function uses wrong EE body. Follow-ups in
+`plans/2026-05-24-wm-isaac-prereq.md` (success-termination + sweep refactor).
 
 ---
 

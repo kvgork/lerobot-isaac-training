@@ -1,5 +1,9 @@
 # LoRA Fine-Tuning for SmolVLA in the Autoresearch Loop — Plan
 
+> **Status: IMPLEMENTED (2026-05-26).** Phases 1-6 verified 2026-05-20.
+> Phase 7 (real GPU sweep) ran; see `plans/2026-05-22-lora-sweep-next-steps.md`
+> for downstream deploy work.
+
 **Date:** 2026-05-19
 **Owner:** Koen
 **Mode:** Implementation (not learning)

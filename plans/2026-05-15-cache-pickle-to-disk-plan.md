@@ -95,18 +95,18 @@ Total: ~120 LOC + 1 test file.
 
 ## Acceptance criteria
 
-- [ ] First wrapper instantiation with `cache_disk_dir` set warms up
+- [x] First wrapper instantiation with `cache_disk_dir` set warms up
       AND writes the `.pt` file.
-- [ ] Second instantiation with matching signature loads in <30 s and
+- [x] Second instantiation with matching signature loads in <30 s and
       returns the same rows (tensor-identical) as the first.
-- [ ] Signature mismatch (e.g. add a new image key) triggers a fresh
+- [x] Signature mismatch (e.g. add a new image key) triggers a fresh
       warmup, not a silent stale-cache hit.
-- [ ] Smoke `bash scripts/_smoke_train.sh --arch smolvla --cache-frames
+- [x] Smoke `bash scripts/_smoke_train.sh --arch smolvla --cache-frames
       --duration-s 600 --run-dir outputs/smoke-cache-disk-A` runs ONCE
       to populate the disk cache, then a second smoke at the same dir
       reports `[CachedDatasetWrapper] loaded cache from disk` in
       `train.log` and skips the preload progress lines.
-- [ ] AR trial-to-trial warmup time drops from ~15 min to <1 min.
+- [x] AR trial-to-trial warmup time drops from ~15 min to <1 min.
 
 ---
 

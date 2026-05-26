@@ -1,5 +1,9 @@
 # LoRA Autoresearch — Next Steps
 
+> **Status: SUPERSEDED (2026-05-26).** Phase 7 ran; downstream tracked in
+> `plans/2026-05-22-lora-sweep-next-steps.md`. Spinouts checkbox stays unchecked
+> on this host (siblings via `src/` not `~/workspaces/spinouts/`).
+
 **Parent plan:** [`2026-05-19-lora-autoresearch-plan.md`](2026-05-19-lora-autoresearch-plan.md)
 **Date:** 2026-05-19 (updated 2026-05-20)
 **Status:** Phases 1–6 landed and verified. Real GPU sweep (Phase 7 future work) remains.
@@ -35,9 +39,9 @@ Real GPU rank sweep — out of scope for Phases 1–6. Run on RTX 3080:
 
 Budget ~10h (12 exp × 1h). Pre-flight checklist:
 - [ ] `~/workspaces/spinouts/` populated (currently MISSING — see note below)
-- [ ] Datasets: `datasets/kvgork/so101-pickplace1` present (~7491 frames)
-- [ ] SmolVLM2-500M weights prefetched: `bash scripts/_run_smolvla_tonight.sh --prefetch-weights`
-- [ ] `peft>=0.10` installed in `train-policy` env
+- [x] Datasets: `datasets/kvgork/so101-pickplace1` present (~7491 frames)
+- [x] SmolVLM2-500M weights prefetched: `bash scripts/_run_smolvla_tonight.sh --prefetch-weights`
+- [x] `peft>=0.10` installed in `train-policy` env
 
 ---
 

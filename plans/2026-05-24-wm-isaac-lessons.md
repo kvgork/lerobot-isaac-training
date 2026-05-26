@@ -1,5 +1,8 @@
 # WM Isaac — Lessons Learned
 
+> **Status: REFERENCE (living doc).** Not an action plan — captures stable findings
+> for future sweeps. Updated as new failure modes are observed.
+
 **Date:** 2026-05-24
 **Branch:** `feature/wm-isaac-env`
 **Scope:** Stable artifact summarising what 2026-05-23 / 2026-05-24

@@ -1,5 +1,8 @@
 # Package Spinout Plan — 2026-05-12
 
+> **Status: SUPERSEDED (2026-05-26).** Replaced by `plans/2026-05-13-thin-meta-repo-plan.md`,
+> which reverses the "keep monorepo authoritative" decision in §0/Q2. Kept for history only.
+
 **Goal:** Stage every package under `packages/` as an independent, spin-out-ready repo
 *inside the monorepo only* (no remotes, no pushes). Generate `spinout/<pkg>` branches
 via `git subtree split`. Keep the monorepo authoritative; document bi-directional

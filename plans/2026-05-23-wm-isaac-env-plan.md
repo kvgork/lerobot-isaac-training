@@ -1,5 +1,8 @@
 # WM Isaac-Lab Env Track (C) — Plan
 
+> **Status: IMPLEMENTED (2026-05-26).** Env runs end-to-end on `feature/wm-isaac-env`;
+> reward signal tuned in follow-up plans (`2026-05-24-wm-isaac-prereq.md`).
+
 **Date:** 2026-05-23
 **Branch:** `feature/wm-isaac-env`
 **Parent context:** earlier WM autoresearch sweep (`wm-bash-20260522-211616`)

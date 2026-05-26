@@ -1,5 +1,8 @@
 # World-Model Autoresearch — Plan
 
+> **Status: SUPERSEDED (2026-05-26).** Replaced by `plans/2026-05-23-wm-isaac-env-plan.md`
+> (HDF5ReplayEnv path swapped for Isaac Lab). Kept for history only.
+
 **Date:** 2026-05-22
 **Goal:** Make the bash autoresearcher (the deterministic, no-LLM pattern
 established for LoRA in `scripts/_run_autoresearch_lora.sh`) also work for
