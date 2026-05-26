@@ -233,7 +233,7 @@ Isaac Lab requires a separate manual step (GPU + disk space).
 - [x] Phase 4a impl — Isaac DR replay + parquet writer + merge utilities wired (dry-run green)
 - [ ] Phase 4b impl — MimicGen bridge path (deferred per plan; gated by `LEROBOT_MIMICGEN_ENABLED=1`)
 - [ ] Real-data smoke — repeat dry-run smoke against actual SO-101 teleop dataset once collected
-- [ ] Camera observation wiring — `wrist_camera_rgb` / `overhead_camera_rgb` need `CameraCfg` in scene (Isaac Lab tutorial 04)
+- [x] Camera observation wiring — `d435_rgb` `CameraCfg` wired in `so101_env_cfg.py` matching real D435 wrist cam (DR100 Phase 1, commit `592b53d`). Runtime verification deferred until GPU/Isaac Lab available.
 - [ ] Insertion task — `tasks/insertion.py` Stage 5 stub (`NotImplementedError`)
 
 ---
