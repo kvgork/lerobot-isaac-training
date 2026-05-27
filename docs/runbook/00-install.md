@@ -1,141 +1,75 @@
-# Runbook 00: Install (Thin-Meta-Repo, Local Bare Repo Phase)
+# Runbook 00: Install (Thin-Meta-Repo, GitHub Siblings)
 
-**Audience:** Anyone setting up the workspace from scratch after the 2026-05-13 spinout.
+**Audience:** Anyone setting up the workspace from scratch.
 **Prerequisites:** git, pixi
-**Expected outcome:** `~/workspaces/spinouts/` exists with the 6 sibling bare repos; `pixi install` from the monorepo resolves all 7 packages (meta + 6 siblings).
-
-> **TODO (future session):** swap the `file://` URLs in this runbook + `pixi.toml`
-> + `packages/lerobot-isaac-meta/pyproject.toml` for `https://github.com/kvgork/<name>.git`
-> once the repos are published. See `09-publish-to-github.md`.
+**Expected outcome:** `src/` populated with the 6 sibling repos cloned from GitHub;
+`pixi install` from the monorepo resolves all 7 packages (meta + 6 siblings) via
+editable path deps.
 
 ---
 
 ## Architecture Recap
 
-After Phase B (2026-05-13) the workspace uses a **thin-meta-repo** layout:
+The workspace uses a **thin-meta-repo** layout:
 
 - **Live workspace member (1):** `packages/lerobot-isaac-meta/` — the umbrella CLI + workspace paths
-- **Spun-out sibling packages (6), bare repos at `~/workspaces/spinouts/`:**
-  - `lerobot-isaac-configs`
-  - `lerobot-isaac-dashboard`
-  - `lerobot-isaac-autoresearch`
-  - `lerobot-isaac-env`
-  - `lerobot-isaac-adapters`
-  - `lerobot-isaac-synthetic`
+- **Sibling packages (6) — public GitHub repos:**
+  - `https://github.com/kvgork/lerobot-isaac-configs`
+  - `https://github.com/kvgork/lerobot-isaac-dashboard`
+  - `https://github.com/kvgork/lerobot-isaac-autoresearch`
+  - `https://github.com/kvgork/lerobot-isaac-env`
+  - `https://github.com/kvgork/lerobot-isaac-adapters`
+  - `https://github.com/kvgork/lerobot-isaac-synthetic`
 - **Standalone hardware package (NOT a meta dep):**
-  - `~/workspaces/spinouts/robot_data_recorder/` — install separately via `pixi run sync-recorder`
-- **History-only mirrors:** `archive/packages/<name>/` (kept for git blame / archaeology; do NOT edit)
+  - `https://github.com/kvgork/robot-data-recorder` — install separately via `pixi run sync-recorder`
 
-> **URL note (2026-05-13):** the on-disk bare repos do NOT carry a `.git` suffix on
-> the directory name (they are just bare directories whose `config` declares
-> `bare = true`). `pixi.toml` and `meta/pyproject.toml` reference them without `.git`.
-> The recorder repo is currently an underscore-named working tree, not a bare repo.
-
-`pixi.toml` installs meta as an editable workspace member and the 6 siblings
-from `git+file://` URLs (default env), OR from local clones at `src/<name>/`
-(opt-in `editable` env — see "Editable dev mode" below).
+For local development, `bash scripts/setup.sh` clones all 6 siblings into `src/<name>/`
+and then runs `pixi install` (which resolves them as editable path deps from `src/`).
+For reproducible/CI installs without local clones, use `pixi install -e frozen` which
+pulls siblings directly from the GitHub URLs.
 
 ---
 
-## Step 1: Create the bare repos (one-time)
-
-If `~/workspaces/spinouts/` does not exist (or you are on a fresh machine), recreate the bare repos from the monorepo's `spinout/*` branches.
+## Step 1: Clone and run setup (standard first-time install)
 
 ```bash
-mkdir -p ~/workspaces/spinouts
+git clone https://github.com/kvgork/lerobot-isaac-training.git
+cd lerobot-isaac-training
 
-# The 6 spinout/* branches exist in the monorepo and are the canonical source.
-for name in lerobot-isaac-configs lerobot-isaac-dashboard lerobot-isaac-autoresearch \
-            lerobot-isaac-env lerobot-isaac-adapters lerobot-isaac-synthetic; do
-  git init --bare ~/workspaces/spinouts/$name
-  git push ~/workspaces/spinouts/$name spinout/$name:main
-done
+# Install pixi if absent
+curl -fsSL https://pixi.sh/install.sh | bash && source ~/.bashrc
 
-# Recorder uses its renamed branch (currently created as a working tree, not bare)
-git clone . ~/workspaces/spinouts/robot_data_recorder
-(cd ~/workspaces/spinouts/robot_data_recorder && git checkout spinout/lerobot-isaac-recorder)
+# Clone the 6 siblings from GitHub into src/ + install the default pixi env
+bash scripts/setup.sh
 ```
+
+`scripts/setup.sh` calls `scripts/sync/sync_siblings.sh`, which:
+- Tries an optional local mirror first (reads `LEROBOT_LOCAL_MIRROR` env var if set).
+- Falls back to `https://github.com/kvgork/<name>.git` for each sibling.
+- Creates `src/<name>/` as an independent git checkout.
+- Skips any clone that already exists (idempotent).
+- Runs `pixi install` at the end.
 
 Verify:
 ```bash
-for name in lerobot-isaac-configs lerobot-isaac-dashboard lerobot-isaac-autoresearch \
-            lerobot-isaac-env lerobot-isaac-adapters lerobot-isaac-synthetic; do
-  echo "=== $name ==="
-  git --git-dir=$HOME/workspaces/spinouts/$name log --oneline main | head -3
-done
+ls src/                   # expect 6 directories
+pixi run test             # expect ~659 passing, ~14 skipped
 ```
-
-You should see 3 recent commits per repo.
 
 ---
 
-## Step 2: Install from the monorepo (default mode — git+file://)
+## Step 2: Editable dev mode (already active after setup.sh)
 
+The `default` pixi env installs all 6 siblings as editable path deps from `src/`.
+No extra steps needed after `bash scripts/setup.sh`.
+
+Verify any sibling resolves from `src/`:
 ```bash
-cd ~/workspaces/lerobot-isaac-training
-pixi install                    # default env: meta editable + 6 git+file:// installs
-pixi run -e default test
-```
-
-All ~659 tests in `packages/lerobot-isaac-meta/tests/` + `archive/packages/*/tests/` should pass.
-(Recorder tests under `archive/packages/lerobot-isaac-recorder/` are excluded by `--ignore-glob`
-because `robot_data_recorder` is not a workspace dep — see Step 4 for opt-in recorder dev.)
-
-To verify the 6 siblings actually came from git+file:// URLs:
-```bash
-cat .pixi/envs/default/lib/python3.12/site-packages/lerobot_isaac_configs-0.1.0.dist-info/direct_url.json
-```
-Output should reference `file:///home/koen/workspaces/spinouts/lerobot-isaac-configs`.
-
----
-
-## Step 3: Editable dev mode (opt-in, no regression to default)
-
-**Use this mode when you want to edit a sibling package's source code and see changes
-reflected in the workspace without reinstalling.** Default `pixi install` continues
-to work unchanged; switching modes is just a matter of installing a different pixi env.
-
-### Step 3a: Sync the sibling clones
-
-```bash
-pixi run sync       # clones the 6 spinouts into src/<name>/  (idempotent)
-ls src/             # expect 6 directories
-```
-
-`pixi run sync` is a thin wrapper around `scripts/sync/sync_siblings.sh`. It:
-- Skips any clone that already exists (re-runnable safely).
-- Reads `LEROBOT_SPINOUTS_BASE` (default `file:///home/koen/workspaces/spinouts`) for the source.
-- Creates `src/<name>/` as an independent git checkout of each spinout repo.
-
-The `src/<pkg>/` directories are ignored by the workspace `.gitignore` (`/src/*/`) and
-are NOT tracked as submodules — they are independent repos. Develop on them, commit,
-and push directly to their bare-repo origins.
-
-### Step 3b: Install the `editable` pixi env
-
-```bash
-pixi install -e editable      # resolves the 6 siblings as path deps + editable=true
-pixi run -e editable test     # ~659 tests passing inside the editable env
-```
-
-The `editable` env uses the `editable-siblings` feature, which provides path-dep
-overrides for all 6 siblings. The default env's git+file:// installs are NOT activated
-inside `editable` (they live in a separate `git-siblings` feature), so there is no
-URL conflict.
-
-Verify any sibling actually resolves under `src/`:
-```bash
-pixi run -e editable python -c "import lerobot_isaac_configs; print(lerobot_isaac_configs.__file__)"
+pixi run python -c "import lerobot_isaac_configs; print(lerobot_isaac_configs.__file__)"
 # expected: .../src/lerobot-isaac-configs/src/lerobot_isaac_configs/__init__.py
 ```
 
-Verify editable install metadata:
-```bash
-cat .pixi/envs/editable/lib/python3.12/site-packages/lerobot_isaac_configs-0.1.0.dist-info/direct_url.json
-# expected: {"url":"file:///.../src/lerobot-isaac-configs","dir_info":{"editable":true}}
-```
-
-### Step 3c: Update sibling clones (pull from bare repos)
+### Updating sibling clones (pull from GitHub)
 
 ```bash
 pixi run sync-update    # git fetch && git pull --ff-only on each src/lerobot-isaac-*
@@ -143,22 +77,19 @@ pixi run sync-update    # git fetch && git pull --ff-only on each src/lerobot-is
 
 Diverged clones are reported but not rewritten — resolve manually inside `src/<pkg>/`.
 
-### Step 3d: Switching between modes
+### Switching to frozen mode (CI / repro — no `src/` clones needed)
 
-The two modes are independent pixi environments living side-by-side:
+```bash
+pixi install -e frozen      # resolves 6 siblings directly from git+https://github.com/kvgork/...
+pixi run -e frozen test
+```
 
-| Command | Activates env | Sibling source |
-|---------|---------------|----------------|
-| `pixi install`              | `default` | git+file:// from `~/workspaces/spinouts/` |
-| `pixi install -e editable`  | `editable` | local editable clones in `src/` |
-| `pixi shell -e editable`    | `editable` | (same as above) |
-
-No need to uninstall one before installing the other — pixi keeps each env's `.pixi/envs/<name>/`
-isolated.
+The two envs live side-by-side in `.pixi/envs/` — no need to uninstall one before using
+the other.
 
 ---
 
-## Step 4: Install heavyweight training deps (lerobot + sheeprl)
+## Step 3: Install heavyweight training deps (lerobot + sheeprl)
 
 `pixi install` resolves the workspace's pixi-managed deps but **does not**
 install the two big training libraries. They are pinned/structured in a way
@@ -200,42 +131,38 @@ Drop this flag once sheeprl publishes a 3.12-compatible release.
 
 `lerobot 0.5.x` does NOT ship `lerobot.scripts.train_world_model`. The
 `le_world_model` adapter target therefore cannot dispatch a real training
-run today — `--dry_run` works but actual training will exit with a
-`ModuleNotFoundError`. Tracked as a system-improvement gap. The
-DreamerV3 path (`--target_arch dreamerv3`) is unaffected.
+run today — `--dry_run` prints the resolved command and exits 0, but a real
+run fails with `ModuleNotFoundError: No module named 'lerobot.scripts.train_world_model'`.
+Tracked as a system-improvement gap. The DreamerV3 path (`--target_arch dreamerv3`)
+is unaffected.
 
 ---
 
-## Step 5: Opt-in recorder dev clone
+## Step 4: Opt-in recorder dev clone
 
 `robot-data-recorder` is intentionally NOT a workspace dep. It's a standalone hardware
 package. To pull a local clone for development:
 
 ```bash
-pixi run sync-recorder      # clones into src/robot-data-recorder (idempotent)
+pixi run sync-recorder      # clones https://github.com/kvgork/robot-data-recorder into src/robot-data-recorder
 # Manually install into whichever env you're using (no auto-add to pyproject):
 pixi run -e default pip install -e src/robot-data-recorder
 ```
 
 ---
 
-## Step 6: Install standalone (post-spinout, no monorepo)
+## Step 5: Install standalone (post-spinout, no monorepo)
 
-If you're on a machine that doesn't have the monorepo cloned, use `scripts/install.sh`:
+If you only need the meta package (e.g. on a deployment machine):
 
 ```bash
-# Assumes the bare repos already exist at ~/workspaces/spinouts/
-bash scripts/install.sh
-
-# Recorder is standalone — install separately if you need the recorder CLI:
-pip install git+file:///home/koen/workspaces/spinouts/robot_data_recorder@main
+pip install "packages/lerobot-isaac-meta[post-spinout]"
+# This pulls the 6 siblings from git+https://github.com/kvgork/<name>.git@main
 ```
 
-Or directly, without the helper script:
+Or install the recorder separately:
 ```bash
-# Meta itself currently lives in the monorepo (no bare repo). When meta is also
-# spun out, use this form:
-pip install "git+file:///home/koen/workspaces/spinouts/lerobot-isaac-meta@main[post-spinout]"
+pip install git+https://github.com/kvgork/robot-data-recorder.git@main
 ```
 
 ---
@@ -244,18 +171,19 @@ pip install "git+file:///home/koen/workspaces/spinouts/lerobot-isaac-meta@main[p
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `SPINOUTS_DIR` | `$HOME/workspaces/spinouts` | Used by `scripts/install.sh` to locate bare repos |
-| `LEROBOT_SPINOUTS_BASE` | `file:///home/koen/workspaces/spinouts` | Used by `pixi run sync*` tasks |
+| `LEROBOT_LOCAL_MIRROR` | (unset) | Optional local mirror path; `sync_siblings.sh` tries this before falling back to GitHub |
 | `LEROBOT_ISAAC_WORKSPACE` | auto-detected from `__file__` | Used by `lerobot_isaac_meta.workspace_paths` |
 
-For CI / container use, point `SPINOUTS_DIR` / `LEROBOT_SPINOUTS_BASE` at a cloned mirror.
+For CI / container use where GitHub access is available, no overrides are needed —
+`bash scripts/setup.sh` (or `pixi install -e frozen`) works out of the box.
 
 ---
 
 ## Troubleshooting
 
-### `pixi install -e editable` fails with "No such file or directory" on `src/<pkg>/`
-You skipped Step 3a. Run `pixi run sync` first to clone the spinouts into `src/`.
+### `pixi install` fails with "No such file or directory" on `src/<pkg>/`
+You ran `pixi install` before `bash scripts/setup.sh`. Run setup.sh first to clone
+the siblings into `src/`.
 
 ### `pixi install` fails with "conflicting URLs for package `lerobot-isaac-configs`"
 A sibling package appears in both `feature.git-siblings` and `feature.editable-siblings`
@@ -263,31 +191,26 @@ inside the same environment. The two features must be mutually exclusive — re-
 the `[environments]` table in `pixi.toml`.
 
 ### `pixi install` says "expected given path but none found"
-Symptom of stale lockfile referring to a pre-archive path. Fix:
+Symptom of stale lockfile. Fix:
 ```bash
 rm pixi.lock
 rm -rf .pixi/envs/default
-pixi install -e default
+bash scripts/setup.sh
 ```
 
-### `pip show <pkg>` reports an `Editable project location` pointing at the deleted `packages/<pkg>/`
-You have a stale user-level editable install from before the spinout. Clean with:
+### `pip show <pkg>` reports an `Editable project location` pointing at a missing path
+You have a stale user-level editable install. Clean with:
 ```bash
 pip uninstall -y lerobot-isaac-configs lerobot-isaac-dashboard \
                  lerobot-isaac-autoresearch lerobot-isaac-env \
                  lerobot-isaac-adapters lerobot-isaac-synthetic \
                  robot-data-recorder
 ```
-Then re-run `pixi install -e default` to get the canonical git-based installs.
-
-### `git push ~/workspaces/spinouts/<name>` fails with "remote rejected"
-First push to a bare repo of branch `spinout/X` as `main` requires the bare repo to be empty.
-If you already have content there, either delete and re-init, or push to a different ref name
-and rename inside the bare repo. Do NOT `--force` without explicit user OK.
+Then re-run `bash scripts/setup.sh` to get the canonical installs.
 
 ---
 
 ## Related runbooks
 
 - `01-bootstrap.md` — full first-time setup (pixi, Isaac Lab, USD assets)
-- `09-publish-to-github.md` — future: swap `file://` URLs for `https://github.com/kvgork/<name>.git`
+- `09-publish-to-github.md` — how the siblings were published to GitHub; mirror sync guide

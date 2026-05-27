@@ -7,8 +7,8 @@
 ## Overview
 
 The training entrypoint `lerobot-isaac-train` is implemented by the spun-out
-`lerobot-isaac-adapters` package (bare repo at `~/workspaces/spinouts/lerobot-isaac-adapters/`,
-installed via `git+file://` URL into every `train-*` pixi env). The source path
+`lerobot-isaac-adapters` package ([github.com/kvgork/lerobot-isaac-adapters](https://github.com/kvgork/lerobot-isaac-adapters),
+installed via editable path dep from `src/lerobot-isaac-adapters/` in the default env). The source path
 in this workspace (for the editable-dev workflow) is
 `src/lerobot-isaac-adapters/src/lerobot_isaac_adapters/train.py`.
 

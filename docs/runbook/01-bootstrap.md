@@ -34,10 +34,10 @@ Expected: Python 3.11+, PyTorch, h5py, pyarrow, pandas, wandb, hydra available.
 
 **Thin-meta-repo (post-spinout, 2026-05-13):** only `lerobot-isaac-meta` lives in
 `packages/`. The 7 siblings (env, adapters, autoresearch, synthetic, configs,
-dashboard, recorder) live in local bare repos at `~/workspaces/spinouts/<name>.git`
-and are installed automatically by `pixi install` via `git+file://` URLs.
+live in public GitHub repos at `https://github.com/kvgork/<name>`.
+They are installed as editable path deps from `src/<name>/` (cloned by `bash scripts/setup.sh`).
 
-Prerequisite: the bare repos must exist at `~/workspaces/spinouts/`. See
+Prerequisite: run `bash scripts/setup.sh` first to clone the siblings from GitHub. See
 `docs/runbook/00-install.md` if you need to (re-)create them.
 
 Verify after `pixi install`:
@@ -56,8 +56,8 @@ pixi run -e default python -c "import robot_data_recorder; print('recorder OK')"
 ```bash
 bash scripts/install.sh
 # or:
-pip install "git+file://$HOME/workspaces/spinouts/lerobot-isaac-meta.git@main[post-spinout]"
-pip install git+file://$HOME/workspaces/spinouts/robot-data-recorder.git@main   # standalone
+pip install "packages/lerobot-isaac-meta[post-spinout]"
+pip install git+https://github.com/kvgork/robot-data-recorder.git@main   # standalone
 ```
 
 ---

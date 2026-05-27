@@ -43,7 +43,7 @@ PIXI_ENV_DEFAULT_PY="$WORKSPACE_ROOT/.pixi/envs/default/bin/python"
 PIXI_ENV_DASHBOARD_PY="$WORKSPACE_ROOT/.pixi/envs/dashboard/bin/python"
 
 DATASET_ROOT="$WORKSPACE_ROOT/datasets/pusht"
-BRIDGE_OPS="/home/koen/tools/claude_code/skills/lerobot_world_model_bridge"
+BRIDGE_OPS="${CLAUDE_CODE_ROOT:-$HOME/tools/claude_code}/skills/lerobot_world_model_bridge"
 
 # Known-failing stages (until upstream fixes land). Stage names listed here
 # are reported as FAIL but the script continues and still exits 0 unless an
@@ -208,7 +208,7 @@ fi
 s=$(_now); log="$OUTPUT_DIR/stage6-autoresearch.log"
 {
     "$PIXI_ENV_DEFAULT_PY" -m pytest \
-        "$WORKSPACE_ROOT/archive/packages/lerobot-isaac-autoresearch/tests/" \
+        "$WORKSPACE_ROOT/src/lerobot-isaac-autoresearch/tests/" \
         -q --no-header 2>&1 || true
     "$PIXI_ENV_DEFAULT_PY" -m lerobot_isaac_autoresearch.train_wrapper \
         --target_arch smolvla \

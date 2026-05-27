@@ -120,15 +120,14 @@ frozen-sim    = ["dev", "lerobot", "isaaclab", "git-siblings"]
 scripts = ["scripts/setup_env.sh"]
 
 [tasks]
-# NOTE: archive/packages/lerobot-isaac-recorder/tests/ excluded — those tests import
-# `robot_data_recorder`, which is no longer a workspace dep (recorder is standalone /
-# opt-in via `pixi run sync-recorder` + manual pip install of src/robot-data-recorder/).
-test = "pytest packages/lerobot-isaac-meta/tests/ archive/packages/*/tests/ --ignore-glob='archive/packages/lerobot-isaac-recorder/*'"
-lint = "ruff check packages/ archive/packages/"
-fmt = "ruff format packages/ archive/packages/"
+# Meta owns the workspace-level tests. Each sibling package has its own CI in its
+# GitHub repo (github.com/kvgork/<name>); their tests run there, not here.
+test = "pytest packages/lerobot-isaac-meta/tests/"
+lint = "ruff check packages/"
+fmt = "ruff format packages/"
 setup-env = "bash scripts/setup_env.sh"
 batch = "lerobot-isaac-batch"
-train-and-compare = "lerobot-isaac-batch --config archive/packages/lerobot-isaac-configs/src/lerobot_isaac_configs/configs/batches/example.yaml"
+train-and-compare = "lerobot-isaac-batch --config src/lerobot-isaac-configs/src/lerobot_isaac_configs/configs/batches/example.yaml"
 install-isaac-lab = "bash scripts/install_isaac_lab.sh"
 install-train-deps = "bash scripts/install_train_deps.sh"
 pipeline = "bash scripts/run_full_pipeline.sh"
@@ -136,7 +135,7 @@ autoresearch = "bash scripts/run_autoresearch.sh"
 deploy = "robot-data-run"
 deploy-check = "robot-data-run-check"
 deploy-legacy = "lerobot-isaac-deploy"
-download-usd = "bash archive/packages/lerobot-isaac-env/assets/usd/download_so101_urdf.sh"
+download-usd = "bash src/lerobot-isaac-env/assets/usd/download_so101_urdf.sh"
 record-dry-run = "lerobot-isaac-record --repo-id=local/test --num-episodes=1 --dry-run"
 dashboard = "lerobot-isaac-dashboard"  # installed CLI entry point (was: streamlit run packages/lerobot-isaac-dashboard/...)
 report = "python -m lerobot_isaac_dashboard.report --workspace ."
@@ -150,8 +149,9 @@ compare = "python -m lerobot_isaac_dashboard.compare --workspace ."
 # - sync-update   : git fetch && git pull --ff-only on each src/lerobot-isaac-*
 # - sync-recorder : opt-in clone of robot_data_recorder into src/robot-data-recorder
 # - sync-runner   : opt-in clone of robot_data_runner sibling
-# LEROBOT_SPINOUTS_BASE overrides bare-repo location (default ~/workspaces/spinouts).
-# LEROBOT_SIBLINGS_GITHUB_BASE overrides GitHub fallback (default https://github.com/kvgork).
+# Siblings are cloned from GitHub (https://github.com/kvgork/<name>) by default.
+# LEROBOT_SIBLINGS_GITHUB_BASE overrides the GitHub base.
+# LEROBOT_SPINOUTS_BASE (optional) points at local bare repos for offline clones.
 setup = "bash scripts/setup.sh"
 sync = "bash scripts/sync/sync_siblings.sh"
 sync-update = "bash scripts/sync/sync_update.sh"

@@ -8,7 +8,7 @@
 # equivalent that produces the same on-disk artifact layout.
 set -uo pipefail
 
-WORKSPACE="${WORKSPACE:-/home/koen/workspaces/lerobot-isaac-training}"
+WORKSPACE="${WORKSPACE:-$(cd "$(dirname "$0")/.." && pwd)}"
 cd "$WORKSPACE"
 
 SESSION="${SESSION_ID:-20260513-pipeline-validation-so101}"

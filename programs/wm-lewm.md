@@ -14,7 +14,7 @@ Minimize `pred_loss` for the LeWM-style next-embedding predictor on the
 bridged SO-101 96×96 HDF5.
 
 ## Training Script
-path: archive/packages/lerobot-isaac-autoresearch/src/lerobot_isaac_autoresearch/train_wrapper.py
+path: src/lerobot-isaac-autoresearch/src/lerobot_isaac_autoresearch/train_wrapper.py
 entry_args: "--target_arch le_world_model --dataset outputs/pipeline-validation-so101/bridge/so101_lewm_full.hdf5 --output_dir {out} --steps {steps} --batch_size {batch_size} --lr {lr} --seed {seed}"
 env: train-lewm
 python: .pixi/envs/train-lewm/bin/python

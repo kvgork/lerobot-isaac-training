@@ -9,27 +9,27 @@ dependencies = [
 ]
 # NOTE: Sibling workspace packages are intentionally NOT in [project.dependencies].
 #
-# - In MONOREPO mode (this workspace, post-archive), siblings are installed from
-#   local bare repos via [pypi-dependencies] in the root pixi.toml (same git+file://
-#   URLs as the [post-spinout] extra below).
+# - In the monorepo/pixi workspace, siblings are installed as editable clones from
+#   src/<name>/ (default/editable envs) or directly from GitHub (frozen envs) — see
+#   the root pixi.toml [feature.editable-siblings] / [feature.git-siblings] tables.
 #
-# - POST-SPINOUT, install meta with the `post-spinout` extra to pull the 6 sibling
-#   repos from their canonical bare-repo / GitHub URLs:
+# - For a plain pip install outside pixi, use the `post-spinout` extra to pull the
+#   6 sibling repos from their public GitHub URLs:
 #     pip install "lerobot-isaac-meta[post-spinout]"
 #
 # - Recorder (robot-data-recorder) is a standalone hardware-tier package and is NOT
 #   pulled by any meta extras. Install it separately when needed.
 
 [project.optional-dependencies]
-# TODO: swap file:// URLs for https://github.com/kvgork/<name>.git when repos are published.
-# The on-disk bare repos do NOT carry a `.git` suffix on the directory name.
+# Pull the 6 sibling packages from their public GitHub repos:
+#     pip install "lerobot-isaac-meta[post-spinout]"
 post-spinout = [
-  "lerobot-isaac-configs @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-configs@main",
-  "lerobot-isaac-dashboard @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-dashboard@main",
-  "lerobot-isaac-autoresearch @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-autoresearch@main",
-  "lerobot-isaac-env @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-env@main",
-  "lerobot-isaac-adapters @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-adapters@main",
-  "lerobot-isaac-synthetic @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-synthetic@main",
+  "lerobot-isaac-configs @ git+https://github.com/kvgork/lerobot-isaac-configs.git@main",
+  "lerobot-isaac-dashboard @ git+https://github.com/kvgork/lerobot-isaac-dashboard.git@main",
+  "lerobot-isaac-autoresearch @ git+https://github.com/kvgork/lerobot-isaac-autoresearch.git@main",
+  "lerobot-isaac-env @ git+https://github.com/kvgork/lerobot-isaac-env.git@main",
+  "lerobot-isaac-adapters @ git+https://github.com/kvgork/lerobot-isaac-adapters.git@main",
+  "lerobot-isaac-synthetic @ git+https://github.com/kvgork/lerobot-isaac-synthetic.git@main",
 ]
 
 [project.scripts]
@@ -44,7 +44,7 @@ build-backend = "hatchling.build"
 packages = ["src/lerobot_isaac_meta"]
 
 [tool.hatch.metadata]
-# Required because the post-spinout extra uses direct git+file:// URLs.
+# Required because the post-spinout extra uses direct git+https:// URLs.
 allow-direct-references = true
 
 

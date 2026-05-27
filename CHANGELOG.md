@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   README — repository made publish-ready for GitHub.
 
 ### Changed
-- Replaced hard-coded `/home/koen/...` absolute paths throughout docs and code
+- Replaced hard-coded `$HOME/...` absolute paths throughout docs and code
   with environment-variable placeholders (`${CLAUDE_CODE_ROOT}`,
   `${LEROBOT_ISAAC_WORKSPACE}`, `${VAULT_ROOT}`). Resolved at runtime via
   `os.path.expandvars`.

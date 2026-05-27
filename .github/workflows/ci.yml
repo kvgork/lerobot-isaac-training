@@ -7,7 +7,9 @@ on:
     branches: [main]
 
 jobs:
-  # Per-package matrix jobs (6 packages, 2 Python versions each)
+  # Per-package matrix. Only lerobot-isaac-meta lives in this repo's packages/.
+  # The sibling packages are standalone public repos (github.com/kvgork/<name>)
+  # and run their own CI; they are not tested here.
   package-tests:
     name: "pkg/${{ matrix.package }} / py${{ matrix.python-version }}"
     runs-on: ubuntu-latest
@@ -15,12 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         package:
-          - lerobot-isaac-adapters
-          - lerobot-isaac-autoresearch
-          - lerobot-isaac-configs
-          - lerobot-isaac-env
           - lerobot-isaac-meta
-          - lerobot-isaac-synthetic
         python-version: ["3.10", "3.11"]
 
     steps:
@@ -68,16 +65,19 @@ jobs:
           pixi-version: latest
           cache: true
 
-      - name: Install workspace (default environment)
-        run: pixi install
+      # The 'frozen' env pulls the sibling packages straight from their public
+      # GitHub repos (git-siblings feature) — no local src/ clones needed, which
+      # is the right fit for a clean CI runner.
+      - name: Install workspace (frozen environment)
+        run: pixi install -e frozen
 
-      - name: Ruff lint (all packages)
+      - name: Ruff lint (meta package)
         run: |
-          pixi run -e default python -m ruff check packages/*/src/ packages/*/tests/ || true
+          pixi run -e frozen python -m ruff check packages/*/src/ packages/*/tests/ || true
 
       - name: Run workspace-level tests (excluding integration)
         run: |
-          pixi run -e default python -m pytest packages/*/tests/ \
+          pixi run -e frozen python -m pytest packages/*/tests/ \
             -m 'not integration' \
             --tb=short \
             -q

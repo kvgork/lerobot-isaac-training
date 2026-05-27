@@ -18,7 +18,7 @@ Maximize `pc_success` (open-loop action-MSE proxy) for the diffusion policy on
 the `kvgork/so101-pickplace1` dataset. Plateau-stop and report best config.
 
 ## Training Script
-path: archive/packages/lerobot-isaac-autoresearch/src/lerobot_isaac_autoresearch/train_wrapper.py
+path: src/lerobot-isaac-autoresearch/src/lerobot_isaac_autoresearch/train_wrapper.py
 entry_args: "--target_arch diffusion --dataset datasets/kvgork/so101-pickplace1 --output_dir {out} --steps {steps} --batch_size {batch_size} --lr {lr} --seed {seed}"
 env: train-policy
 python: .pixi/envs/train-policy/bin/python

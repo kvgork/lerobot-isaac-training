@@ -1812,7 +1812,7 @@ packages:
 - pypi: ./src/lerobot-isaac-deploy
   name: lerobot-isaac-deploy
   version: 0.1.0
-  sha256: 03d4c7a32d605aaa178e311f1e6cd491753a19ce6f2bfc63902065b9d3a7f21c
+  sha256: 3a1b87ae221b4dbdc61212e97520252025cc10493859d7854d1c4943fd8f20d2
   requires_dist:
   - numpy>=1.24
   - pyyaml>=6
@@ -1852,15 +1852,15 @@ packages:
 - pypi: ./packages/lerobot-isaac-meta
   name: lerobot-isaac-meta
   version: 0.1.0
-  sha256: 41f420083dfb1f52b2cdb8b1453254bda652f21036fd3b83ab876b2748851722
+  sha256: 78b13b9912a6cc0f488c3ccd85cc239de15638269848a7a480ee9cf430667264
   requires_dist:
   - pyyaml>=6.0
-  - lerobot-isaac-configs @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-configs@main ; extra == 'post-spinout'
-  - lerobot-isaac-dashboard @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-dashboard@main ; extra == 'post-spinout'
-  - lerobot-isaac-autoresearch @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-autoresearch@main ; extra == 'post-spinout'
-  - lerobot-isaac-env @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-env@main ; extra == 'post-spinout'
-  - lerobot-isaac-adapters @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-adapters@main ; extra == 'post-spinout'
-  - lerobot-isaac-synthetic @ git+file:///home/koen/workspaces/spinouts/lerobot-isaac-synthetic@main ; extra == 'post-spinout'
+  - lerobot-isaac-configs @ git+https://github.com/kvgork/lerobot-isaac-configs.git@main ; extra == 'post-spinout'
+  - lerobot-isaac-dashboard @ git+https://github.com/kvgork/lerobot-isaac-dashboard.git@main ; extra == 'post-spinout'
+  - lerobot-isaac-autoresearch @ git+https://github.com/kvgork/lerobot-isaac-autoresearch.git@main ; extra == 'post-spinout'
+  - lerobot-isaac-env @ git+https://github.com/kvgork/lerobot-isaac-env.git@main ; extra == 'post-spinout'
+  - lerobot-isaac-adapters @ git+https://github.com/kvgork/lerobot-isaac-adapters.git@main ; extra == 'post-spinout'
+  - lerobot-isaac-synthetic @ git+https://github.com/kvgork/lerobot-isaac-synthetic.git@main ; extra == 'post-spinout'
   requires_python: '>=3.10'
 - pypi: ./src/lerobot-isaac-synthetic
   name: lerobot-isaac-synthetic

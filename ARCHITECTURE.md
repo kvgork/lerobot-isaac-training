@@ -1,12 +1,9 @@
 # Architecture — LeRobot + Isaac Lab Training Workspace
 
 **Status as of 2026-05-13:** Post-spinout thin-meta-repo architecture (Phase B).
-Only `lerobot-isaac-meta` lives in `packages/`. The 7 sibling packages live in
-local bare repos at `~/workspaces/spinouts/<name>.git` and are installed via
-`git+file://` URLs. History-only copies remain in `archive/packages/<name>/`.
-**TODO:** swap `file://` URLs for `https://github.com/kvgork/<name>.git` once
-GitHub repos are published. See `docs/runbook/00-install.md` and
-`docs/runbook/09-publish-to-github.md`.
+Only `lerobot-isaac-meta` lives in `packages/`. The 7 sibling packages are public
+standalone GitHub repositories at `https://github.com/kvgork/<name>`.
+See `docs/runbook/00-install.md`.
 
 **Plan reference:** `${CLAUDE_CODE_ROOT}/plans/2026-05-06-lerobot-isaac-workspace-plan.md`
 
@@ -25,26 +22,29 @@ GitHub repos are published. See `docs/runbook/00-install.md` and
         | lerobot-isaac-meta  (live; packages/)
         |   CLI: lerobot-isaac, lerobot-isaac-batch
         +-----+----------------+-----------+
-              |  [post-spinout extra: git+file:// URLs]
+              |  [post-spinout extra: git+https://github.com/kvgork/...]
               v                v
   +-----------+--+      +------+-----+      +---------+
   | env          |      | adapters   |      | configs |
-  | (spinouts/)  |      | (spinouts/)|      |(spinouts/)
+  | (GitHub)     |      | (GitHub)   |      | (GitHub)|
   +--------------+      +------------+      +---------+
   | autoresearch |      | synthetic  |      |dashboard|
-  | (spinouts/)  |      | (spinouts/)|      |(spinouts/)
+  | (GitHub)     |      | (GitHub)   |      | (GitHub)|
   +--------------+      +------------+      +---------+
 
-  robot-data-recorder (spinouts/) — STANDALONE, NOT a meta dep.
-  Install separately: pip install git+file://.../robot-data-recorder.git@main
+  robot-data-recorder (GitHub) — STANDALONE, NOT a meta dep.
+  Install separately: pip install git+https://github.com/kvgork/robot-data-recorder.git@main
 ```
 
-In monorepo mode (this workspace), `pixi install` resolves all 7 from the
-bare repos at `~/workspaces/spinouts/` while keeping meta editable for hot-reload.
+In editable/dev mode (default after `bash scripts/setup.sh`), `pixi install` resolves
+all 7 siblings as path deps from `src/<name>/` (editable clones from GitHub).
 
-In post-spinout mode (no monorepo):
-- `pip install "lerobot-isaac-meta[post-spinout]"` — pulls meta + 6 siblings
-- Recorder is separate: `pip install git+file://.../robot-data-recorder.git@main`
+In frozen/repro mode (`pixi install -e frozen`), siblings are pulled directly from
+`git+https://github.com/kvgork/<name>.git@main`.
+
+Standalone (no monorepo):
+- `pip install "packages/lerobot-isaac-meta[post-spinout]"` — pulls meta + 6 siblings from GitHub
+- Recorder is separate: `pip install git+https://github.com/kvgork/robot-data-recorder.git@main`
 
 ---
 
@@ -59,7 +59,6 @@ This workspace is an eight-package Python monorepo that connects the SO-101 robo
 ```
 +--------------------------------------------------------------------------+
 |          LeRobot + Isaac Lab Training Workspace                          |
-|          ~/workspaces/lerobot-isaac-training/                           |
 |                                                                          |
 |  +----------------------------------------------------------------------+|
 |  |  lerobot-isaac-meta  (umbrella — depends on all siblings)            ||
@@ -459,7 +458,8 @@ The root `pixi.toml` defines environments as combinations of features. Each `pac
 
 | Environment | Features | Use Case | Heavy Deps |
 |-------------|---------|---------|-----------|
-| `default` | `dev` | Unit tests, lint, format | none |
+| `default` | `dev` + `editable-siblings` | Unit tests, lint, format — siblings from `src/` | none |
+| `frozen` | `dev` + `git-siblings` | Reproducible install — siblings from GitHub | none |
 | `train-policy` | `dev` + `lerobot` | Train ACT / SmolVLA / Diffusion | LeRobot |
 | `train-dreamer` | `dev` + `lerobot` + `dreamerv3` | Train DreamerV3 world model | LeRobot + sheeprl |
 | `train-lewm` | `dev` + `lerobot` + `leworldmodel` | Train HF LeWorldModel | LeRobot + transformers |
@@ -488,10 +488,10 @@ Each package has:
 ```bash
 # Option A: git subtree split (preserves history for the package subtree)
 git subtree split -P packages/lerobot-isaac-env -b spinout-env
-git push git@github.com:yourorg/lerobot-isaac-env.git spinout-env:main
+git push git@github.com:kvgork/lerobot-isaac-env.git spinout-env:main
 
 # Option B: git filter-repo (cleaner — rewrites all commits to remove other packages)
-git clone ~/workspaces/lerobot-isaac-training /tmp/lerobot-isaac-env-repo
+git clone <this-repo> /tmp/lerobot-isaac-env-repo
 cd /tmp/lerobot-isaac-env-repo
 pip install git-filter-repo
 git filter-repo --path packages/lerobot-isaac-env/ --path-rename packages/lerobot-isaac-env/:
@@ -507,9 +507,9 @@ git filter-repo --path packages/lerobot-isaac-env/ --path-rename packages/lerobo
 2. Sibling deps (`lerobot-isaac-configs`) become PyPI dependencies.
 3. Update `pixi.toml` in extracted repo: activate it (remove dormant comment).
 4. Create new remote repo and push.
-5. In the monorepo, replace path dep with PyPI dep:
+5. In the monorepo, replace path dep with GitHub URL dep:
    ```toml
-   lerobot-isaac-env = ">=0.1.0"  # was: {path = "../lerobot-isaac-env"}
+   lerobot-isaac-env = {git = "https://github.com/kvgork/lerobot-isaac-env.git", rev = "main"}
    ```
 
 ---

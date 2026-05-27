@@ -223,7 +223,7 @@ else
     BRIDGE_DIR="$RUN_DIR/bridge"
     mkdir -p "$BRIDGE_DIR"
     HDF5_OUT="$BRIDGE_DIR/dreamerv3_data.hdf5"
-    PYTHONPATH="${CLAUDE_CODE_ROOT:-/home/koen/tools/claude_code}:${PYTHONPATH:-}" \
+    PYTHONPATH="${CLAUDE_CODE_ROOT:-$HOME/tools/claude_code}:${PYTHONPATH:-}" \
         "$WORKSPACE/.pixi/envs/default/bin/python" - <<PY > "$RUN_DIR/logs/bridge.log" 2>&1
 from skills.lerobot_world_model_bridge.operations import lerobot_to_worldmodel
 r = lerobot_to_worldmodel(

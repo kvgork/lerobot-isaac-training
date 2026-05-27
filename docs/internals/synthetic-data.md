@@ -1,7 +1,7 @@
 # Synthetic Data — Internals
 
 **Cross-references:** [pipeline-overview.md](../pipeline-overview.md) | [ARCHITECTURE.md](../../ARCHITECTURE.md) | [data-pipeline.md](./data-pipeline.md) | [isaac-lab-integration.md](./isaac-lab-integration.md)
-**Package:** `lerobot-isaac-synthetic` (bare repo: `~/workspaces/spinouts/lerobot-isaac-synthetic/`; editable source: `src/lerobot-isaac-synthetic/`; installed via `git+file://`).
+**Package:** `lerobot-isaac-synthetic` ([github.com/kvgork/lerobot-isaac-synthetic](https://github.com/kvgork/lerobot-isaac-synthetic); editable source: `src/lerobot-isaac-synthetic/`).
 
 > **Real end-to-end synthetic data generation works** as of 2026-05-14 on the
 > Isaac Sim 6.0 + Isaac Lab 0.54 + lerobot 0.5 stack. See

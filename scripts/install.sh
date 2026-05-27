@@ -1,42 +1,26 @@
 #!/usr/bin/env bash
-# Install lerobot-isaac-meta + 6 dep repos from local bare repos.
+# Install lerobot-isaac-meta + its 6 sibling packages from public GitHub repos.
 #
-# TODO: swap file:// URLs for https://github.com/kvgork/<name>.git when repos are published.
+# This is the plain-pip install path (no pixi). It installs meta with the
+# `post-spinout` extra, which pulls the 6 siblings from github.com/kvgork/<name>.
 #
 # Usage:
-#   bash scripts/install.sh                  # uses ~/workspaces/spinouts/
-#   SPINOUTS_DIR=/path/to/dir bash scripts/install.sh
+#   bash scripts/install.sh            # install into the active environment
 #
-# Override with SPINOUTS_DIR for CI / containers / non-default layouts.
+# Inside the monorepo you do NOT need this — `bash scripts/setup.sh` (or
+# `pixi install`) gives editable installs of all packages from src/.
 #
-# Note: this script targets POST-SPINOUT install of meta. Inside the monorepo
-# you do NOT need to run this — `pixi install` already gives editable workspace
-# installs of all 8 packages.
+# Recorder (robot-data-recorder) is a standalone hardware-tier package and is
+# NOT pulled here. Install it separately when needed.
 
 set -euo pipefail
 
-SPINOUTS_DIR="${SPINOUTS_DIR:-$HOME/workspaces/spinouts}"
+META_DIR="$(cd "$(dirname "$0")/.." && pwd)/packages/lerobot-isaac-meta"
 
-if [[ ! -d "$SPINOUTS_DIR" ]]; then
-  echo "ERROR: SPINOUTS_DIR does not exist: $SPINOUTS_DIR" >&2
-  echo "Either create the bare repos there (see docs/runbook/00-install.md)" >&2
-  echo "or set SPINOUTS_DIR to a directory containing the .git bare repos." >&2
-  exit 1
-fi
-
-echo "Installing lerobot-isaac-meta with [post-spinout] extra from $SPINOUTS_DIR..."
+echo "Installing lerobot-isaac-meta[post-spinout] (siblings pulled from GitHub)..."
 echo ""
 
-# Try the git+file:// install path first (canonical post-spinout install).
-# Fallback to local editable meta if the bare repo for meta isn't published yet
-# (meta currently lives in the monorepo only).
-if [[ -d "$SPINOUTS_DIR/lerobot-isaac-meta.git" ]]; then
-  pip install "git+file://$SPINOUTS_DIR/lerobot-isaac-meta.git@main[post-spinout]"
-else
-  echo "Note: lerobot-isaac-meta.git not found in $SPINOUTS_DIR — falling back to local source."
-  pip install -e "$(dirname "$0")/../packages/lerobot-isaac-meta[post-spinout]"
-fi
+pip install "${META_DIR}[post-spinout]"
 
 echo ""
-echo "Done. Recorder is standalone — install separately if needed:"
-echo "  pip install git+file://$SPINOUTS_DIR/robot-data-recorder.git@main"
+echo "Done. Siblings resolved from https://github.com/kvgork/<name>."

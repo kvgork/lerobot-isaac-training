@@ -13,7 +13,7 @@ stack: lerobot 0.5+, RTX 3080 10 GB, SO-101
 Maximize `pc_success` for ACT on `kvgork/so101-pickplace1`. Goal ≥0.75.
 
 ## Training Script
-path: archive/packages/lerobot-isaac-autoresearch/src/lerobot_isaac_autoresearch/train_wrapper.py
+path: src/lerobot-isaac-autoresearch/src/lerobot_isaac_autoresearch/train_wrapper.py
 entry_args: "--target_arch act --dataset datasets/kvgork/so101-pickplace1 --output_dir {out} --steps {steps} --batch_size {batch_size} --lr {lr} --seed {seed}"
 env: train-policy
 python: .pixi/envs/train-policy/bin/python

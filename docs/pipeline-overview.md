@@ -76,15 +76,15 @@ order. The autoresearch loop is run separately via `/autoresearch` against a
 
 ## 1. Package Map (live + spun-out)
 
-| Package | Bare repo (canonical) | Installed via | Responsibility |
+| Package | GitHub repo (canonical) | Installed via | Responsibility |
 |---------|----------------------|---------------|----------------|
 | `lerobot-isaac-meta`            | `packages/lerobot-isaac-meta/` (live)                   | editable workspace member | Umbrella CLI + workspace path resolver. |
-| `lerobot-isaac-env`             | `~/workspaces/spinouts/lerobot-isaac-env/`              | `git+file://`             | Isaac Lab env (`Isaac-SO101-Pick-v0`, `…-PickPlace-v0`). |
-| `lerobot-isaac-adapters`        | `~/workspaces/spinouts/lerobot-isaac-adapters/`         | `git+file://`             | Single training entrypoint + 5 backends + sheeprl `custom_hdf5` plugin + LeWM mini-trainer. |
-| `lerobot-isaac-synthetic`       | `~/workspaces/spinouts/lerobot-isaac-synthetic/`        | `git+file://`             | Isaac DR replay → LeRobotDataset, merge utilities, MimicGen stub. |
-| `lerobot-isaac-autoresearch`    | `~/workspaces/spinouts/lerobot-isaac-autoresearch/`     | `git+file://`             | `train_wrapper.py` shim + `programs/*.md` configs. |
-| `lerobot-isaac-configs`         | `~/workspaces/spinouts/lerobot-isaac-configs/`          | `git+file://`             | YAML configs (policy, wm, batch). |
-| `lerobot-isaac-dashboard`       | `~/workspaces/spinouts/lerobot-isaac-dashboard/`        | `git+file://`             | Streamlit live UI + static HTML report + snapshots + compare. |
+| `lerobot-isaac-env`             | [github.com/kvgork/lerobot-isaac-env](https://github.com/kvgork/lerobot-isaac-env)                   | editable from `src/`      | Isaac Lab env (`Isaac-SO101-Pick-v0`, `…-PickPlace-v0`). |
+| `lerobot-isaac-adapters`        | [github.com/kvgork/lerobot-isaac-adapters](https://github.com/kvgork/lerobot-isaac-adapters)         | editable from `src/`      | Single training entrypoint + 5 backends + sheeprl `custom_hdf5` plugin + LeWM mini-trainer. |
+| `lerobot-isaac-synthetic`       | [github.com/kvgork/lerobot-isaac-synthetic](https://github.com/kvgork/lerobot-isaac-synthetic)       | editable from `src/`      | Isaac DR replay → LeRobotDataset, merge utilities, MimicGen stub. |
+| `lerobot-isaac-autoresearch`    | [github.com/kvgork/lerobot-isaac-autoresearch](https://github.com/kvgork/lerobot-isaac-autoresearch) | editable from `src/`      | `train_wrapper.py` shim + `programs/*.md` configs. |
+| `lerobot-isaac-configs`         | [github.com/kvgork/lerobot-isaac-configs](https://github.com/kvgork/lerobot-isaac-configs)           | editable from `src/`      | YAML configs (policy, wm, batch). |
+| `lerobot-isaac-dashboard`       | [github.com/kvgork/lerobot-isaac-dashboard](https://github.com/kvgork/lerobot-isaac-dashboard)       | editable from `src/`      | Streamlit live UI + static HTML report + snapshots + compare. |
 
 Plus four external repos that the pipeline soft-imports at runtime:
 - **lerobot 0.5+** (HuggingFace) — datasets + `lerobot-train` CLI + policy classes.
@@ -102,13 +102,13 @@ The four claude_code skills used by the pipeline (`lerobot_world_model_bridge`,
 
 | Env | Features | Heavy deps that need `install_train_deps.sh` |
 |-----|----------|----------------------------------------------|
-| `default`       | dev + git-siblings                                | — |
-| `editable`      | dev + editable-siblings (path deps from `src/`)   | — |
-| `train-policy`  | dev + lerobot + git-siblings                      | `pip install lerobot[smolvla]` |
-| `train-dreamer` | dev + lerobot + dreamerv3 + git-siblings          | `pip install --ignore-requires-python git+...sheeprl` |
-| `train-lewm`    | dev + lerobot + leworldmodel + git-siblings       | `pip install lerobot` |
-| `sim`           | dev + lerobot + isaaclab + git-siblings           | `bash scripts/install_isaac_lab.sh` (Isaac Sim 6.0 + Isaac Lab editable) |
-| `dashboard`     | dev + dashboard + git-siblings                    | — |
+| `default`       | dev + editable-siblings (path deps from `src/`)   | — |
+| `frozen`        | dev + git-siblings (GitHub https URLs)            | — |
+| `train-policy`  | dev + lerobot + editable-siblings                 | `pip install lerobot[smolvla]` |
+| `train-dreamer` | dev + lerobot + dreamerv3 + editable-siblings     | `pip install --ignore-requires-python git+...sheeprl` |
+| `train-lewm`    | dev + lerobot + leworldmodel + editable-siblings  | `pip install lerobot` |
+| `sim`           | dev + lerobot + isaaclab + editable-siblings      | `bash scripts/install_isaac_lab.sh` (Isaac Sim 6.0 + Isaac Lab editable) |
+| `dashboard`     | dev + dashboard + editable-siblings               | — |
 | `full`          | every feature                                     | all of the above |
 
 `feature.lerobot`, `feature.dreamerv3`, `feature.leworldmodel` are deliberately
@@ -443,7 +443,7 @@ Observation / action conversion glue is in the same module
 | ML proposer (domain-aware) | `${CLAUDE_CODE_ROOT}/agents/workers/autoresearch-ml-proposer-worker.md` — patched to load `domain_knowledge:` ref card when present. |
 | ML executor | `${CLAUDE_CODE_ROOT}/agents/workers/autoresearch-ml-executor-worker.md` |
 | Skill | `${CLAUDE_CODE_ROOT}/skills/autoresearch/` |
-| Workspace shim | `archive/packages/lerobot-isaac-autoresearch/src/lerobot_isaac_autoresearch/train_wrapper.py` (also installed via `git+file://`) |
+| Workspace shim | `src/lerobot-isaac-autoresearch/src/lerobot_isaac_autoresearch/train_wrapper.py` (editable clone from [github.com/kvgork/lerobot-isaac-autoresearch](https://github.com/kvgork/lerobot-isaac-autoresearch)) |
 | **Domain pack (this stack)** | [`programs/_domain_knowledge.md`](../programs/_domain_knowledge.md) — VRAM ceilings, lerobot 0.5+ flag shape, sheeprl Hydra paths, OOM recovery, operator priority |
 | **Per-arch programs** | [`programs/`](../programs/) — diffusion, smolvla, act, dreamerv3, lewm + short smoke variant |
 | Wrapper | [`scripts/run_autoresearch.sh`](../scripts/run_autoresearch.sh) — name → path resolver, env-var injection, deterministic bash fallback |
@@ -513,8 +513,7 @@ even a 2-min smoke run produces a checkpoint eval can load.
 
 This pipeline went through a heavy integration debug pass on 2026-05-13/14.
 The commits below are the canonical references for **why** the code looks
-the way it does. All commits are in the relevant bare repo at
-`~/workspaces/spinouts/<pkg>/`.
+The commits below are in the relevant sibling repo on GitHub
 
 | Symptom | Fix | Commit |
 |---------|-----|--------|

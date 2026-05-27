@@ -48,8 +48,14 @@ packages/*/.git/
 
 # Local-only orchestration scratch
 .local/
+scratch/
 *.bak
 *.orig
+
+# Removed monorepo history copies of spun-out packages — siblings now live in their
+# own public GitHub repos (github.com/kvgork/<name>). Any local leftovers under
+# archive/ are git-ignored build/env artifacts and must not be re-added.
+/archive/
 
 # Editable-siblings dev clones (Phase B opt-in workflow).
 # Each entry under src/<pkg>/ is an independent git clone of a spinout bare repo;

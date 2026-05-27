@@ -22,13 +22,13 @@ _step() {
 }
 
 # --- 1. subtree split ---------------------------------------------------------
-# Locate the package: live workspace member (packages/) vs archived (archive/packages/).
+# Locate the package as a live workspace member under packages/.
+# (Sibling packages are now standalone public repos at github.com/kvgork/<name>;
+#  this smoke test applies to packages/ members such as lerobot-isaac-meta.)
 if [ -d "$WORKSPACE_ROOT/packages/$PKG" ]; then
     PKG_PREFIX="packages/$PKG"
-elif [ -d "$WORKSPACE_ROOT/archive/packages/$PKG" ]; then
-    PKG_PREFIX="archive/packages/$PKG"
 else
-    echo "FAIL: package $PKG not found in packages/ or archive/packages/" >&2
+    echo "FAIL: package $PKG not found in packages/" >&2
     exit 1
 fi
 _step "subtree split: $PKG_PREFIX"

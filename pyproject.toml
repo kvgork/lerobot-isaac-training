@@ -1,9 +1,9 @@
 # Workspace umbrella — uv workspace definition (thin-meta-repo mode)
 # See Section 11.4 of the build plan + ADR-0007 (thin-meta-repo).
-# After spinout, only `lerobot-isaac-meta` is a workspace member in `packages/`.
-# The other 7 packages live in archive/packages/ (kept for git history) and are
-# installed from local bare repos (~/workspaces/spinouts/<name>.git) via
-# meta's [post-spinout] extra. This file is NOT installable itself.
+# Only `lerobot-isaac-meta` is a workspace member in `packages/`. The sibling
+# packages are published as standalone public repos at github.com/kvgork/<name>
+# and are installed either as editable clones in src/ (default/editable envs) or
+# directly from GitHub (frozen envs). This file is NOT installable itself.
 
 [project]
 name = "lerobot-isaac-workspace"
@@ -12,16 +12,15 @@ description = "Thin meta-repo for LeRobot + Isaac Lab + LeWorldModel training on
 requires-python = ">=3.10"
 
 [tool.uv.workspace]
-# Only meta is a live workspace member post-spinout. Spun-out packages live in
-# archive/packages/ for history-only reference; they are excluded from the workspace
-# so their pyproject.toml files do not affect resolution.
+# Only meta is a live workspace member. Sibling packages live in their own public
+# GitHub repos (github.com/kvgork/<name>) and, for local dev, as editable clones
+# under src/<name>/ (git-ignored). They are not uv workspace members.
 members = ["packages/lerobot-isaac-meta"]
 
 [tool.uv.sources]
 lerobot-isaac-meta = { workspace = true }
 
 [tool.pytest.ini_options]
-# Run meta tests + archived package tests for now; archive/ tests will be moved out
-# to the spun-out repos once they have their own CI.
-testpaths = ["packages/lerobot-isaac-meta/tests", "archive/packages/*/tests"]
+# Meta owns workspace-level tests. Sibling tests run in their own GitHub-repo CI.
+testpaths = ["packages/lerobot-isaac-meta/tests"]
 addopts = "--import-mode=importlib"

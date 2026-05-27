@@ -14,7 +14,7 @@ for the SO-101 diffusion policy on the kvgork/so101-pickplace1 dataset.
 Tight per-iter budget so the loop completes in ~30 min total.
 
 ## Training Script
-path: archive/packages/lerobot-isaac-autoresearch/src/lerobot_isaac_autoresearch/train_wrapper.py
+path: src/lerobot-isaac-autoresearch/src/lerobot_isaac_autoresearch/train_wrapper.py
 entry_args: "--target_arch diffusion --dataset datasets/kvgork/so101-pickplace1 --output_dir {out} --steps {steps}"
 
 ## Metric

@@ -14,7 +14,7 @@
 # This script is invoked by the `pixi run sync-recorder` task.
 set -e
 mkdir -p src
-BASE="${LEROBOT_SPINOUTS_BASE:-file:///home/koen/workspaces/spinouts}"
+BASE="${LEROBOT_SPINOUTS_BASE:-file://${HOME}/workspaces/spinouts}"
 if [ -d "src/robot-data-recorder" ]; then
   echo "[sync-recorder] exists, skipping"
 else

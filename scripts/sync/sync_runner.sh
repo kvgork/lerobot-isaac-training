@@ -11,7 +11,7 @@
 # Invoked by `pixi run sync-runner`.
 set -e
 mkdir -p src
-BASE="${LEROBOT_SPINOUTS_BASE:-file:///home/koen/workspaces/spinouts}"
+BASE="${LEROBOT_SPINOUTS_BASE:-file://${HOME}/workspaces/spinouts}"
 if [ -d "src/robot-data-runner" ]; then
   echo "[sync-runner] exists, skipping"
 else

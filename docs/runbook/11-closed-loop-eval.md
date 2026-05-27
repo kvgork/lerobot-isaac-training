@@ -221,7 +221,7 @@ Always. Software safety is never sufficient.
 
 - Plan: [`plans/2026-05-15-closed-loop-eval.md`](../../plans/2026-05-15-closed-loop-eval.md)
 - Sibling runbook: [`docs/runbook/10-deploy-to-hardware.md`](10-deploy-to-hardware.md)
-- Standalone package: `~/workspaces/spinouts/robot_data_runner/`
+- Standalone package: `src/robot-data-runner/` ([github.com/kvgork/robot-data-runner](https://github.com/kvgork/robot-data-runner))
 - Task specs: `src/robot_data_runner/task_specs.py`
 - Episode runner: `src/robot_data_runner/episode_runner.py`
 - CLI: `src/robot_data_runner/cli_eval.py`

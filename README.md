@@ -21,23 +21,19 @@ domain-randomization synthetic-data pipeline, and an autoresearch hyperparameter
 
 **Thin-meta-repo architecture** (post-spinout, 2026-05-13): only
 `lerobot-isaac-meta` lives in `packages/` as a live workspace member. The other
-7 packages are spun out to local bare repos at `~/workspaces/spinouts/<name>.git`
-and installed via `git+file://` URLs. History-only copies remain in
-`archive/packages/<name>/`. See `docs/runbook/00-install.md`.
+7 packages are public standalone GitHub repositories at `github.com/kvgork/<name>`.
+See `docs/runbook/00-install.md`.
 
 | Package | Source of truth | Role |
 |---------|-----------------|------|
 | [`lerobot-isaac-meta`](packages/lerobot-isaac-meta/) | live workspace | Umbrella CLI + workspace path resolver |
-| `lerobot-isaac-env` | `~/workspaces/spinouts/lerobot-isaac-env.git` | Isaac Lab `ManagerBasedRLEnv` for SO-101 (obs / actions / rewards / DR) |
-| `lerobot-isaac-adapters` | `~/workspaces/spinouts/lerobot-isaac-adapters.git` | Single `lerobot-isaac-train` entrypoint; dispatches by `--target_arch` |
-| `lerobot-isaac-autoresearch` | `~/workspaces/spinouts/lerobot-isaac-autoresearch.git` | `program.md` configs + wrapper for the autoresearch HP-search loop |
-| `lerobot-isaac-synthetic` | `~/workspaces/spinouts/lerobot-isaac-synthetic.git` | DR-replay synthetic-data pipeline + MimicGen bridge stub |
-| `lerobot-isaac-configs` | `~/workspaces/spinouts/lerobot-isaac-configs.git` | Shared YAML configs per `target_arch` |
-| `robot-data-recorder` | `~/workspaces/spinouts/robot-data-recorder.git` | RealSense D435 + SO-101 teleop dual-write recorder (standalone — not a meta dep) |
-| `lerobot-isaac-dashboard` | `~/workspaces/spinouts/lerobot-isaac-dashboard.git` | Streamlit + Plotly metrics dashboard with snapshot + N-way compare |
-
-> **TODO:** swap `file://` URLs for `https://github.com/kvgork/<name>.git` once
-> GitHub repos are published. See `docs/runbook/09-publish-to-github.md`.
+| `lerobot-isaac-env` | [github.com/kvgork/lerobot-isaac-env](https://github.com/kvgork/lerobot-isaac-env) | Isaac Lab `ManagerBasedRLEnv` for SO-101 (obs / actions / rewards / DR) |
+| `lerobot-isaac-adapters` | [github.com/kvgork/lerobot-isaac-adapters](https://github.com/kvgork/lerobot-isaac-adapters) | Single `lerobot-isaac-train` entrypoint; dispatches by `--target_arch` |
+| `lerobot-isaac-autoresearch` | [github.com/kvgork/lerobot-isaac-autoresearch](https://github.com/kvgork/lerobot-isaac-autoresearch) | `program.md` configs + wrapper for the autoresearch HP-search loop |
+| `lerobot-isaac-synthetic` | [github.com/kvgork/lerobot-isaac-synthetic](https://github.com/kvgork/lerobot-isaac-synthetic) | DR-replay synthetic-data pipeline + MimicGen bridge stub |
+| `lerobot-isaac-configs` | [github.com/kvgork/lerobot-isaac-configs](https://github.com/kvgork/lerobot-isaac-configs) | Shared YAML configs per `target_arch` |
+| `robot-data-recorder` | [github.com/kvgork/robot-data-recorder](https://github.com/kvgork/robot-data-recorder) | RealSense D435 + SO-101 teleop dual-write recorder (standalone — not a meta dep) |
+| `lerobot-isaac-dashboard` | [github.com/kvgork/lerobot-isaac-dashboard](https://github.com/kvgork/lerobot-isaac-dashboard) | Streamlit + Plotly metrics dashboard with snapshot + N-way compare |
 
 Three training backends, one CLI:
 
@@ -58,42 +54,45 @@ git clone https://github.com/kvgork/lerobot-isaac-training.git
 cd lerobot-isaac-training
 ```
 
-### 2. Install dependencies via pixi
+### 2. Install dependencies
 
-The 6 sibling spun-out packages must exist as bare repos at `~/workspaces/spinouts/<name>/`
-(no `.git` suffix) before `pixi install` can resolve them. If you haven't yet created them,
-see `docs/runbook/00-install.md`.
+The recommended path runs `scripts/setup.sh`, which clones the 6 sibling repos
+from GitHub into `src/<name>/` (using an optional local mirror if present, then
+falling back to `https://github.com/kvgork/<name>.git`), then runs `pixi install`
+with the `default` env (editable path deps from `src/`).
 
 ```bash
-curl -fsSL https://pixi.sh/install.sh | bash    # one-time
-pixi install                                    # default env: meta editable + 6 git+file:// installs
+curl -fsSL https://pixi.sh/install.sh | bash    # one-time pixi install
+bash scripts/setup.sh                           # clone siblings + pixi install
 ```
 
-#### Editable dev mode (opt-in)
+#### Frozen / reproducible install (no `src/` clones needed)
+
+For CI or environments where you want siblings pulled directly from GitHub without
+a local editable checkout:
+
+```bash
+pixi install -e frozen          # siblings installed from git+https://github.com/kvgork/...
+```
+
+#### Editable dev mode (default after `setup.sh`)
 
 Want to edit a sibling package and see changes reflected without reinstalling?
-Use the opt-in `editable` env, which installs the 6 siblings as editable path deps
-from local clones under `src/`:
+The `default` env installs the 6 siblings as editable path deps from `src/`:
 
 ```bash
-pixi run sync               # clone the 6 spinouts into src/<name>/  (idempotent)
-pixi install -e editable    # resolve siblings as editable path deps
-pixi run -e editable test   # tests run against the editable clones
+bash scripts/setup.sh           # clone siblings + pixi install (idempotent)
+pixi run -e default test        # tests run against the editable clones
 
-# Later: pull updates into the local clones
-pixi run sync-update        # git fetch && git pull --ff-only on each src/lerobot-isaac-*
+# Later: pull updates from GitHub into the local clones
+pixi run sync-update            # git fetch && git pull --ff-only on each src/lerobot-isaac-*
 ```
-
-Default `pixi install` is unaffected — the two envs live side-by-side. Recorder dev is
-also opt-in: `pixi run sync-recorder` clones it, then install manually with
-`pixi run -e default pip install -e src/robot-data-recorder`.
 
 #### Standalone install (no monorepo, no pixi)
 
 ```bash
-bash scripts/install.sh
-# or directly:
-pip install "git+file:///path/to/lerobot-isaac-meta@main[post-spinout]"
+pip install "packages/lerobot-isaac-meta[post-spinout]"
+# pulls the 6 siblings from git+https://github.com/kvgork/<name>.git@main
 ```
 
 The default `pixi install` activates `scripts/setup_env.sh`, which exports
@@ -104,8 +103,9 @@ Other environments (see `pixi.toml`):
 
 | env | purpose |
 |------|---------|
-| `default` | dev tooling, lint, unit tests (siblings via git+file://) |
-| `editable` | sibling dev with edit-and-reload (siblings via path dep from `src/`) |
+| `default` | dev tooling, lint, unit tests (siblings via editable path deps from `src/`) |
+| `frozen` | reproducible install (siblings via `git+https://github.com/kvgork/...`) |
+| `editable` | alias for default — retained for backwards compat |
 | `train-policy` | LeRobot policy training (SmolVLA / ACT / Diffusion) |
 | `train-dreamer` | DreamerV3 world-model training |
 | `train-lewm` | HF LeWorldModel training |

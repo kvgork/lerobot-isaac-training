@@ -15,7 +15,7 @@ Minimize `recon_loss` for DreamerV3 on the bridged SO-101 HDF5
 (`outputs/.../bridge/so101_dreamerv3_full.hdf5`, 64×64 images, window 16).
 
 ## Training Script
-path: archive/packages/lerobot-isaac-autoresearch/src/lerobot_isaac_autoresearch/train_wrapper.py
+path: src/lerobot-isaac-autoresearch/src/lerobot_isaac_autoresearch/train_wrapper.py
 entry_args: "--target_arch dreamerv3 --dataset outputs/pipeline-validation-so101/bridge/so101_dreamerv3_full.hdf5 --output_dir {out} --steps {steps} --batch_size {batch_size} --lr {lr} --seed {seed}"
 env: train-dreamer
 python: .pixi/envs/train-dreamer/bin/python
