@@ -179,11 +179,42 @@ PYTHONUNBUFFERED=1 "${CMD[@]}" > "$TRAIN_LOG" 2>&1 &
 TRAIN_PID=$!
 echo "[wm-isaac] training PID=$TRAIN_PID (watchdog active)"
 
-# Watchdog: ONLY two checks per trial, at T+60s and T+300s.
-# - fatal: Traceback OR RuntimeError OR KeyError OR "crashed too many" in train.log → kill.
-# - log-frozen: train.log mtime stale >120s at check time → kill (subprocess hung silently).
-# After T+300s the subprocess is assumed past boot/fail-fast window and runs unattended
-# under the outer `timeout $SECONDS_PER_EXP` cap.
+# TB-scrape helper (writes "step|rew|grads" or "skip|<reason>"). Defined early
+# so the report-only watchdog checks can surface TB progress too.
+TB_SCRAPE_PY="$AR_DIR/.tb_scrape.py"
+cat > "$TB_SCRAPE_PY" <<'PY'
+import glob, os, sys
+try:
+    from tensorboard.backend.event_processing import event_accumulator
+except Exception as e:
+    print(f"skip|tb_import:{e}"); sys.exit(0)
+runs = sorted(glob.glob("logs/runs/dreamer_v3/*/*/version_0"), key=os.path.getmtime, reverse=True)
+if not runs:
+    print("skip|no_run"); sys.exit(0)
+ev = list(glob.glob(f"{runs[0]}/events.out.tfevents.*"))
+if not ev:
+    print("skip|no_events"); sys.exit(0)
+ea = event_accumulator.EventAccumulator(runs[0], size_guidance={event_accumulator.SCALARS: 0})
+ea.Reload()
+tags = ea.Tags().get("scalars", [])
+def last(tag):
+    if tag in tags:
+        s = ea.Scalars(tag)
+        if s:
+            return s[-1]
+    return None
+rew = last("Rewards/rew_avg")
+grads = last("Grads/actor")
+if rew is None or grads is None:
+    print("skip|no_scalars"); sys.exit(0)
+print(f"{rew.step}|{rew.value}|{grads.value}")
+PY
+
+# Watchdog: REPORT-ONLY two checks per trial, at T+60s and T+300s.
+# - fatal: Traceback OR RuntimeError OR KeyError OR "crashed too many" → kill (genuine crash).
+# - frozen log / no output: REPORT ONLY, never kill. Silence ≠ hung (model build +
+#   learning_starts collection are quiet). See memory watchdog-report-only.
+# After T+300s the subprocess runs unattended under the outer `timeout` cap.
 FATAL_REGEX='Traceback|RuntimeError|KeyError|crashed too many'
 
 watchdog_check() {
@@ -200,18 +231,23 @@ watchdog_check() {
         watchdog_done=1
         return 1
     fi
+    # REPORT-ONLY: a frozen train.log is NOT a kill signal. Silence ≠ hung —
+    # sheeprl is quiet during model build + the learning_starts collection
+    # phase, and the old T+300s "frozen → kill" branch false-positive-killed
+    # slow-but-progressing trials at a fixed ~312s. Report the age + the TB
+    # step/metric progress instead; let the collapse watcher / operator decide.
+    # (memory: watchdog-report-only; plan: 2026-05-31-fix-wm-isaac-stall §Track 2)
     if [ -s "$TRAIN_LOG" ]; then
         local mtime_age=$(( $(date +%s) - $(stat -c%Y "$TRAIN_LOG") ))
         if [ "$mtime_age" -gt "$stale_limit" ]; then
-            echo "[wm-isaac] WATCHDOG[$label]: train.log frozen ${mtime_age}s (>$stale_limit) → killing PID=$TRAIN_PID" >&2
-            kill -TERM "$TRAIN_PID" 2>/dev/null || true
-            sleep 5
-            kill -KILL "$TRAIN_PID" 2>/dev/null || true
-            watchdog_done=1
-            return 1
+            echo "[wm-isaac] WATCHDOG[$label]: train.log quiet ${mtime_age}s (>$stale_limit) — REPORT-ONLY, not killing" >&2
         fi
     fi
-    echo "[wm-isaac] WATCHDOG[$label]: OK" >&2
+    # Report TB progress (best-effort; tags absent until the first grad update).
+    local tb_line
+    tb_line="$("$PY" "$TB_SCRAPE_PY" 2>/dev/null)"
+    [ -n "$tb_line" ] && echo "[wm-isaac] WATCHDOG[$label]: tb=$tb_line" >&2
+    echo "[wm-isaac] WATCHDOG[$label]: alive (report-only)" >&2
     return 0
 }
 
@@ -250,36 +286,9 @@ COLLAPSE_INTERVAL="${COLLAPSE_INTERVAL:-300}"
 COLLAPSE_MIN_STEP="${COLLAPSE_MIN_STEP:-15000}"
 COLLAPSE_GRADS_THRESHOLD="${COLLAPSE_GRADS_THRESHOLD:-0.001}"
 COLLAPSE_REW_FLAT_RANGE="${COLLAPSE_REW_FLAT_RANGE:-0.02}"
-
-# Scraper script (writes one line "step|rew|grads" or "skip|<reason>" to stdout).
-TB_SCRAPE_PY="$AR_DIR/.tb_scrape.py"
-cat > "$TB_SCRAPE_PY" <<'PY'
-import glob, os, sys
-try:
-    from tensorboard.backend.event_processing import event_accumulator
-except Exception as e:
-    print(f"skip|tb_import:{e}"); sys.exit(0)
-runs = sorted(glob.glob("logs/runs/dreamer_v3/*/*/version_0"), key=os.path.getmtime, reverse=True)
-if not runs:
-    print("skip|no_run"); sys.exit(0)
-ev = list(glob.glob(f"{runs[0]}/events.out.tfevents.*"))
-if not ev:
-    print("skip|no_events"); sys.exit(0)
-ea = event_accumulator.EventAccumulator(runs[0], size_guidance={event_accumulator.SCALARS: 0})
-ea.Reload()
-tags = ea.Tags().get("scalars", [])
-def last(tag):
-    if tag in tags:
-        s = ea.Scalars(tag)
-        if s:
-            return s[-1]
-    return None
-rew = last("Rewards/rew_avg")
-grads = last("Grads/actor")
-if rew is None or grads is None:
-    print("skip|no_scalars"); sys.exit(0)
-print(f"{rew.step}|{rew.value}|{grads.value}")
-PY
+# Collapse watcher kill is OPT-IN. Default = report-only (memory: watchdog-report-only).
+# Set COLLAPSE_KILL=1 to re-enable killing genuinely-collapsed (dead-actor + flat-reward) trials.
+COLLAPSE_KILL="${COLLAPSE_KILL:-0}"
 
 (
     # Per-sample history kept as space-separated triples "step:rew:grads".
@@ -328,12 +337,17 @@ print("trip" if (grads_all_dead and rew_flat) else "ok")
 PY
 )
         if [ "$TRIP" = "trip" ]; then
-            echo "[wm-isaac] COLLAPSE_WATCH: TRIP — grads<$COLLAPSE_GRADS_THRESHOLD for 3 samples + rew range<$COLLAPSE_REW_FLAT_RANGE → killing PID=$TRAIN_PID" >&2
-            touch "$COLLAPSE_SENTINEL"
-            kill -TERM "$TRAIN_PID" 2>/dev/null || true
-            sleep 5
-            kill -KILL "$TRAIN_PID" 2>/dev/null || true
-            break
+            if [ "$COLLAPSE_KILL" = "1" ]; then
+                echo "[wm-isaac] COLLAPSE_WATCH: TRIP — grads<$COLLAPSE_GRADS_THRESHOLD for 3 samples + rew range<$COLLAPSE_REW_FLAT_RANGE → killing PID=$TRAIN_PID (COLLAPSE_KILL=1)" >&2
+                touch "$COLLAPSE_SENTINEL"
+                kill -TERM "$TRAIN_PID" 2>/dev/null || true
+                sleep 5
+                kill -KILL "$TRAIN_PID" 2>/dev/null || true
+                break
+            else
+                echo "[wm-isaac] COLLAPSE_WATCH: TRIP DETECTED — grads<$COLLAPSE_GRADS_THRESHOLD for 3 samples + rew range<$COLLAPSE_REW_FLAT_RANGE — REPORT-ONLY (set COLLAPSE_KILL=1 to auto-kill)" >&2
+                # Keep watching; do not kill. Operator / autoresearch loop decides.
+            fi
         fi
     done
 ) &
