@@ -1,0 +1,38 @@
+# W&B Alerts (Bundle E Scaffold)
+# Status: scaffold — not yet wired to real runs.
+#
+# These map to W&B's "Alerts" API. Convert via wandb.alert() in code or
+# configure via the W&B web UI Alerts tab.
+
+alerts:
+  - name: TrainingLossDiverged
+    condition: "train/loss > 100 for 5 steps"
+    severity: critical
+    runbook: "https://wiki/internal/training-divergence"
+    actions: [slack, email]
+
+  - name: PcSuccessDrop
+    condition: "eval/pc_success < 0.40 after step 5000"
+    severity: high
+    runbook: "https://wiki/internal/sr-drop"
+    actions: [slack]
+
+  - name: GpuMemoryNearLimit
+    condition: "system/gpu.0.memoryAllocated > 9.5 GB for 60s"
+    severity: warn
+    runbook: "https://wiki/internal/oom"
+    actions: [log]
+    note: "RTX 3080 10 GB; allow some headroom for grad ckpt + activations"
+
+  - name: TrainingStalled
+    condition: "no metric logged for 600s"
+    severity: warn
+    runbook: "https://wiki/internal/training-stall"
+    actions: [slack]
+
+  - name: EvalRegression
+    condition: "eval/pc_success(t) < eval/pc_success(t-1) - 0.10"
+    severity: warn
+    runbook: "https://wiki/internal/eval-regression"
+    actions: [slack]
+    note: "10 percentage point regression vs prior eval"
