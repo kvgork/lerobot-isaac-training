@@ -33,7 +33,10 @@ set -uo pipefail
 WORKSPACE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$WORKSPACE_ROOT"
 
-LEROBOT_EXTRAS="${LEROBOT_EXTRAS:-smolvla}"
+# smolvla → policy backbone; feetech → SO-101 servo SDK (scservo_sdk) needed by
+# the hardware deploy path (lerobot-isaac-deploy session). Without `feetech`,
+# robot setup fails with `No module named 'scservo_sdk'` at the dry-run loop.
+LEROBOT_EXTRAS="${LEROBOT_EXTRAS:-smolvla,feetech}"
 SHEEPRL_GIT_URL="${SHEEPRL_GIT_URL:-git+https://github.com/Eclectic-Sheep/sheeprl.git}"
 
 DO_POLICY=true
