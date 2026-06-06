@@ -1,0 +1,59 @@
+[project]
+name = "lerobot-isaac-meta"
+version = "0.1.0"
+description = "Umbrella package for LeRobot + Isaac Lab training workspace (SO-101)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "pyyaml>=6.0",
+]
+# NOTE: Sibling workspace packages are intentionally NOT in [project.dependencies].
+#
+# - In MONOREPO mode (this workspace, post-archive), siblings are installed from
+#   local bare repos via [pypi-dependencies] in the root pixi.toml (same git+file://
+#   URLs as the [post-spinout] extra below).
+#
+# - POST-SPINOUT, install meta with the `post-spinout` extra to pull the 6 sibling
+#   repos from their canonical bare-repo / GitHub URLs:
+#     pip install "lerobot-isaac-meta[post-spinout]"
+#
+# - Recorder (robot-data-recorder) is a standalone hardware-tier package and is NOT
+#   pulled by any meta extras. Install it separately when needed.
+
+[project.optional-dependencies]
+# IMPORTANT: pip does NOT expand env vars inside PEP 508 specifiers. The URLs
+# below are placeholders rendered by `bash scripts/setup_env.sh --render` from
+# pyproject.toml.template, using your local LEROBOT_SPINOUTS_BASE
+# (default file://$HOME/workspaces/spinouts).
+# TODO: swap to https://github.com/<your-org>/<name>.git when repos are published.
+# The on-disk bare repos do NOT carry a `.git` suffix on the directory name.
+post-spinout = [
+  "lerobot-isaac-configs @ git+${LEROBOT_SPINOUTS_BASE}/lerobot-isaac-configs@main",
+  "lerobot-isaac-dashboard @ git+${LEROBOT_SPINOUTS_BASE}/lerobot-isaac-dashboard@main",
+  "lerobot-isaac-autoresearch @ git+${LEROBOT_SPINOUTS_BASE}/lerobot-isaac-autoresearch@main",
+  "lerobot-isaac-env @ git+${LEROBOT_SPINOUTS_BASE}/lerobot-isaac-env@main",
+  "lerobot-isaac-adapters @ git+${LEROBOT_SPINOUTS_BASE}/lerobot-isaac-adapters@main",
+  "lerobot-isaac-synthetic @ git+${LEROBOT_SPINOUTS_BASE}/lerobot-isaac-synthetic@main",
+]
+
+[project.scripts]
+lerobot-isaac = "lerobot_isaac_meta.cli:main"
+lerobot-isaac-batch = "lerobot_isaac_meta.batch:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lerobot_isaac_meta"]
+
+[tool.hatch.metadata]
+# Required because the post-spinout extra uses direct git+file:// URLs.
+allow-direct-references = true
+
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+markers = [
+    "requires_workspace_root: marks tests that require the monorepo workspace layout (sibling packages, workspace pyproject.toml). Auto-skipped when run from a standalone spun-out tree.",
+]
