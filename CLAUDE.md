@@ -219,7 +219,7 @@ Isaac Lab requires a separate manual step (GPU + disk space).
 - [x] Phase 3 impl — Autoresearch e2e dry-run green (`train_wrapper → train → metric` chain enforced by test)
 - [x] Phase 4a impl — Isaac DR replay + parquet writer + merge utilities wired (dry-run green)
 - [ ] Phase 4b impl — MimicGen bridge path (deferred per plan; gated by `LEROBOT_MIMICGEN_ENABLED=1`)
-- [ ] Real-data smoke — repeat dry-run smoke against actual SO-101 teleop dataset once collected
+- [x] Real-data smoke — `so101-pickplace-new` (50 ep / 18804 fr, dual). SmolVLA real train 430 steps @ 2.21 step/s, peak VRAM 4.6 GB (2026-06-07); WM bridge real frames → 64×64 HDF5 OK; `--successes_only` 48/50 (fails: ep 0, 34) via backfilled sidecar.
 - [x] Camera observation wiring — `d435_rgb` `CameraCfg` wired in `so101_env_cfg.py` matching real D435 wrist cam (DR100 Phase 1, commit `592b53d`). Runtime verification deferred until GPU/Isaac Lab available.
 - [ ] Insertion task — `tasks/insertion.py` Stage 5 stub (`NotImplementedError`)
 
@@ -367,6 +367,20 @@ Isaac Lab requires a separate manual step (GPU + disk space).
     training watchdog budget for actual training.
   - VRAM: batch 4 fits on RTX 3080 10GB with the default
     expert-only-trained config. Drop to batch 2 if OOM.
+- **`record` env needs a one-time `lerobot[feetech]` install.**
+  `scripts/install_train_deps.sh` only targets train-policy/dreamer/lewm, NOT
+  `record`. Run `pixi run -e record python -m pip install "lerobot[feetech]"`
+  once (`feetech` = SO-101 servo SDK). Pre-flight: `pixi run -e record
+  robot-data-check [--connect]`. `--connect` saves calibration under the ids the
+  recorder uses (`so101_follower`/`so101_leader`); copy any `hwcheck_*` calib to
+  those ids to reuse it.
+- **Recorder parquet OMITS `reward`/`done` (numpy≥2 + lerobot 0.5.1).** A
+  shape-`(1,)` feature maps to a scalar `datasets.Value` but `add_frame`
+  validates it as a `(1,)` ndarray → save crashes on `float(np.array([x]))`
+  (numpy<2 silently coerced). reward/done live in the HDF5; per-episode success
+  is in the `meta/episode_labels.json` sidecar. BC drops failures via
+  `lerobot-isaac-train --successes_only` (reads sidecar → `--dataset.episodes`).
+  Record failures too — they help the world model (HDF5 keeps reward/done).
 
 ---
 

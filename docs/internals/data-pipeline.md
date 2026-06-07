@@ -51,8 +51,8 @@ videos/ is absent.
 | `observation.images.wrist` | `(T, H, W, 3)` | uint8 | wrist camera RGB |
 | `observation.images.overhead` | `(T, H, W, 3)` | uint8 | overhead camera RGB |
 | `action` | `(T, 6)` | float32 | joint position targets (radians) |
-| `next.reward` | `(T,)` | float32 | sparse success reward (0.0 or 1.0) |
-| `next.done` | `(T,)` | bool | episode termination flag |
+| ~~`next.reward`~~ | — | — | **NOT a parquet feature** — see Reward/Done note below |
+| ~~`next.done`~~ | — | — | **NOT a parquet feature** — see Reward/Done note below |
 | `episode_index` | scalar | int64 | unique index in dataset |
 | `frame_index` | `(T,)` | int64 | frame counter within episode |
 | `timestamp` | `(T,)` | float64 | seconds from episode start |
@@ -61,6 +61,23 @@ videos/ is absent.
 
 **Convention:** `H=W=480` for real data; `H=W=64` for DreamerV3 HDF5 conversion; `H=W=96` for LeWM.
 The Parquet stores real resolution; world-model targets resize at conversion time.
+
+**Reward / Done are NOT parquet features (numpy≥2 constraint).** lerobot 0.5.1 maps a
+shape-`(1,)` feature to a scalar `datasets.Value`, but `add_frame` validates it as a
+shape-`(1,)` ndarray; under numpy≥2 the save path runs `float(np.array([x]))` and raises
+`only 0-dimensional arrays can be converted to Python scalars` (numpy<2 silently coerced,
+hiding the bug). So `robot-data-recorder` and the synthetic DR writer both **omit** these
+columns. Reward/done are preserved instead in:
+- the **HDF5** output (`reward`, `done` — the world-model training source in dual mode), and
+- a per-episode success **sidecar** `meta/episode_labels.json` inside the parquet dataset
+  (`{episode_index, success, terminal_reward, reward_sum, num_steps}`), written by the
+  recorder. BC training filters failures via
+  `successful_episode_indices(root)` → `LeRobotDataset(..., episodes=[...])`, exposed on the
+  adapter as `lerobot-isaac-train --successes_only`.
+
+The world-model bridge reads `next.reward`/`next.done` from parquet only *if present*
+(graceful `None` otherwise) — to carry reward into a WM HDF5, use the recorder's direct
+dual-write HDF5, not a parquet→HDF5 bridge pass.
 
 ---
 

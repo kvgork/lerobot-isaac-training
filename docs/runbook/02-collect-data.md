@@ -7,6 +7,73 @@
 
 ---
 
+## Recommended path: `robot-data-recorder` (D435 + SO-101 dual-write)
+
+The standalone `robot-data-recorder` package dual-writes each episode to a
+LeRobot Parquet dataset (policy/BC training) **and** a LeWM HDF5 file
+(world-model training) in one session. It is the recommended recorder for this
+workspace. (The `lerobot`-native flow in Steps 1–6 below still works as an
+alternative.)
+
+### Step 0: Pre-flight hardware check (run FIRST)
+
+The recorder lives in the `record` pixi env, which needs `lerobot[feetech]`
+installed once (the `install_train_deps.sh` script does **not** target this env):
+
+```bash
+cd ~/workspaces/lerobot-isaac-training
+pixi run -e record python -m pip install "lerobot[feetech]"   # one-time
+```
+
+Then verify env vars, serial ports, dialout membership, and the RealSense device:
+
+```bash
+pixi run -e record robot-data-check            # static checks, no hardware connect
+pixi run -e record robot-data-check --connect  # also calibrates + connects SO-101 (interactive)
+```
+
+Exit 0 = ready. `--connect` runs the SO-101 calibration prompt ("move each joint
+through its range, press ENTER") and saves calibration under the ids the recorder
+uses (`so101_follower` / `so101_leader`). Hardware ports come from
+`LERO_FOLLOWER_PORT` / `LERO_LEADER_PORT` / `LERO_CAM_SERIAL` (set via
+`pixi run setup-env`).
+
+### Step 0b: Record
+
+```bash
+pixi run -e record robot-data-record \
+  --repo-id=local/so101_pick_v1 \
+  --num-episodes=50 \
+  --format=dual \
+  --task="pick and place cube"
+```
+
+Press ENTER at the calibration prompts to reuse the saved calibration. Per-episode
+operator keys (terminal-gated):
+
+| Phase | Key | Effect |
+|-------|-----|--------|
+| Before episode | `SPACE`/`ENTER`/`s` | begin recording |
+| During episode | `SPACE`/`ENTER`/`s` | end + save **SUCCESS** (terminal reward 1.0) |
+| During episode | `f` | end + save **FAILURE** (reward 0.0) |
+| Any | `q` | abort session |
+
+### Success / failure labelling
+
+`reward`/`done` are **not** parquet features (lerobot 0.5.1 + numpy≥2 crash on
+shape-`(1,)` scalar features). They are preserved in the HDF5 output, and a
+per-episode success sidecar `meta/episode_labels.json` is written inside the
+parquet dataset. Implications:
+
+- **Record failures too** — they improve world-model training (broader state
+  coverage; HDF5 keeps reward/done).
+- **BC training skips failures** via `lerobot-isaac-train --successes_only`
+  (reads the sidecar → `--dataset.episodes`). See Runbook 03 §Step 3b.
+
+---
+
+## Alternative: `lerobot`-native control_robot flow
+
 ## Step 1: Create Dataset Directory
 
 ```bash

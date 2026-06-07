@@ -535,6 +535,7 @@ The commits below are in the relevant sibling repo on GitHub
 | Isaac Lab asset_root None | Set `/persistent/isaac/asset_root/cloud` carb setting | synthetic `954e970` |
 | `add_frame()` got unexpected kwarg `task` | Put `task` in frame dict | synthetic `baadc47` |
 | `next.done` type mismatch | `np.array([bool(done)], dtype=bool)` | synthetic `ab51636` |
+| `float(np.array([x]))` crash on save (numpy≥2 + shape-(1,) scalar feature) | Drop `next.reward`/`next.done` from parquet; keep in HDF5 + `meta/episode_labels.json` success sidecar; BC filters via `--successes_only` | recorder + adapters |
 | Parquet file truncated (no footer) | Call `dataset.finalize()` after save_episode loop | synthetic `49179f1` |
 | `meta/episodes.parquet` not written by lerobot 0.5 | Synthesise from data parquet `episode_index` | synthetic `7b3d17a` |
 | Dashboard `render_kpi_row(ctx)` TypeError | Build top-level KPI item list, pass container + items | dashboard `d50ef57` |

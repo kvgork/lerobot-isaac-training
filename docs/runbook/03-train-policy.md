@@ -62,13 +62,35 @@ lerobot-isaac-train \
   --output_dir outputs/smolvla_run1
 ```
 
-This calls `targets/policy_lerobot.py` which internally invokes:
+This calls `targets/policy_lerobot.py` which internally invokes `lerobot-train`
+(lerobot 0.5+) with `--dataset.repo_id` / `--dataset.root` / `--batch_size` /
+`--steps` / `--optimizer.lr` / `--policy.push_to_hub=false`.
+
+### Step 3b: Train on successful demonstrations only (`--successes_only`)
+
+If your dataset was recorded with `robot-data-recorder` **including failure
+episodes** (operator pressed `f`), BC training should skip the failures —
+imitating a failed trajectory teaches the wrong actions. Reward/done are not
+parquet features, so success is read from the recorder's
+`meta/episode_labels.json` sidecar and forwarded to `lerobot-train` as
+`--dataset.episodes`:
+
 ```bash
-python -m lerobot.scripts.train \
-  --config-path ... \
-  dataset_repo_id=local/so101_pick_v1_filtered \
-  training.output_dir=outputs/smolvla_run1
+lerobot-isaac-train \
+  --target_arch smolvla \
+  --dataset datasets/so101_pick_v1 \
+  --successes_only \
+  --output_dir outputs/smolvla_run1
 ```
+
+- Policy archs only; requires a **single local** `--dataset` (the sidecar lives
+  on disk next to the parquet).
+- No-op with a printed warning if the dataset is unlabelled, has zero
+  successes, or is an HF repo / multi-local set.
+- Composes with the SAL/TED quality filter (`lerobot_dataset_quality`): success
+  filtering drops *failed* demos, quality filtering drops *low-smoothness* demos.
+- Failures are still valuable for **world-model** training — they stay in the
+  HDF5 output and broaden state-space coverage. Only the BC/parquet path filters them.
 
 ---
 
