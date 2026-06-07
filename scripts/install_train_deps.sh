@@ -115,6 +115,20 @@ if [ "$DO_DREAMER" = true ]; then
         }
         success "train-dreamer : sheeprl installed"
     fi
+    # sheeprl pins opencv-python==4.8.0.* (built against numpy 1.x). This env runs
+    # numpy>=2, so that wheel ABI-breaks at import ("numpy.core.multiarray failed
+    # to import") and sheeprl won't load. Force a numpy-2-compatible opencv build.
+    # The pip "sheeprl requires opencv==4.8.0.*" warning is expected and benign —
+    # sheeprl runs fine on opencv>=4.10 at runtime.
+    cv_ver=$("$py" -c "import cv2,sys;sys.stdout.write(cv2.__version__)" 2>/dev/null || echo "broken")
+    case "$cv_ver" in
+        4.8.*|3.*|broken)
+            info "train-dreamer : upgrading opencv ($cv_ver) -> numpy>=2-compatible (>=4.10)..."
+            "$py" -m pip install -U "opencv-python>=4.10" >/dev/null 2>&1 \
+                && success "train-dreamer : opencv upgraded" \
+                || warn "  opencv upgrade failed; sheeprl may fail to import under numpy>=2" ;;
+        *) success "train-dreamer : opencv $cv_ver OK (numpy>=2 compatible)" ;;
+    esac
 fi
 
 # --- 3. train-lewm : lerobot (for HF LeWorldModel + train_world_model) -------
