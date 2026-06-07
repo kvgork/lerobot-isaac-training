@@ -106,3 +106,34 @@ Treat the offline `custom_hdf5` path as a pipeline smoke, not the training plan.
 
 Open dependency to decide: invest in **staged reward shaping** before the full online run
 (recommended) vs run with the existing distance reward first.
+
+---
+
+## Online smoke result (2026-06-07) + the num_envs bug
+
+Online Isaac DreamerV3 smoke (`env=isaac_so101`):
+- **`num_envs=2` CRASHES** — `dreamer_v3.py:608 is_first IndexError (size 1)` +
+  `Invalid action shape expected 6 received 3`. `IsaacSO101Env` is a **single-env wrapper**:
+  it collapses Isaac's batch to env-0 (`_scalar`) and declares single-env spaces, but sheeprl
+  is told `num_envs` and expects that many env-slots → mismatch.
+- **`num_envs=1` runs clean (20-min cap, rc=124):** reward improving
+  `-86.5 → -81.5 → -66.5` (actor learning to approach object), GPU **8.7 GB / 51% util**,
+  0 errors. ✅ This is the working baseline.
+
+**Fix 1 (done):** `_run_wm_isaac_overnight.sh` default `NUM_ENVS` 2 → 1 (the broken default
+would crash any overnight run). Memory: `wm-isaac-num-envs-bug`.
+
+**Fix 2 (follow-up — true vectorization, throughput win):** to use Isaac's native N-parallel
+sim, make `IsaacSO101Env` a real vectorized env instead of collapsing to env-0:
+1. `isaac_env.py` — stop collapsing: `reset()/step()` return **batched** `(num_envs, …)` obs
+   dict, reward, terminated, truncated; remove the `_scalar()` reduction; per-env arrays.
+2. Declare `single_observation_space`/`single_action_space` + batched `observation_space`
+   (subclass `gymnasium.vector.VectorEnv`, or expose an `autoreset` batched API).
+3. sheeprl side — bypass its `SyncVectorEnv` wrapping so it consumes the **already-vectorized**
+   env (it currently builds a vector wrapper of `num_envs` copies; Isaac can't be multi-
+   instanced — `SimulationContext` is a singleton). Needs a sheeprl env-build hook or a
+   thin "pre-vectorized" adapter.
+4. Verify on GPU (each boot ~1–2 min) at num_envs=4/8; watch VRAM + is_first/done shapes.
+
+Not a correctness blocker — DreamerV3 trains fine at num_envs=1 (sample-efficient); Fix 2 is a
+wall-clock/data-throughput optimization. Estimated: medium refactor + several GPU iterations.

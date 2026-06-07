@@ -54,7 +54,14 @@ BATCH_SIZE="${BATCH_SIZE:-16}"          # 2026-05-23 perf v6: ↑ from 4
 LR="${LR:-1e-4}"
 IMAGE_SIZE="${IMAGE_SIZE:-64}"
 MAX_EPISODE_STEPS="${MAX_EPISODE_STEPS:-300}"
-NUM_ENVS="${NUM_ENVS:-2}"               # 2026-05-23 perf v6: ↑ from 1
+NUM_ENVS="${NUM_ENVS:-1}"               # MUST be 1: IsaacSO101Env wrapper collapses
+                                        # Isaac's batch to env-0 + declares single-env
+                                        # spaces, so sheeprl (told num_envs) gets 1-env
+                                        # batches → num_envs>1 crashes dreamer_v3.py:608
+                                        # (is_first IndexError, size 1). Verified at 1
+                                        # 2026-06-07. Raising needs true vectorization in
+                                        # isaac_env.py — see
+                                        # plans/2026-06-07-good-world-model-plan.md.
 DISCRETE_SIZE="${DISCRETE_SIZE:-32}"
 STOCHASTIC_SIZE="${STOCHASTIC_SIZE:-32}"
 REPLAY_RATIO="${REPLAY_RATIO:-2}"       # 2026-05-23 perf v6: ↑ from 1
