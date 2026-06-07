@@ -1,0 +1,108 @@
+# Plan: Getting a *good* world model for SO-101 pick-place (2026-06-07)
+
+## TL;DR
+Your recorded data is **fine** — not wasted. The offline `custom_hdf5` DreamerV3 path
+is a thin proof-of-concept, not a real WM setup. For a good world model **you do need
+failures + exploration**, and the cleanest source is the **online Isaac sim you already
+have** (`env=isaac_so101`), which generates them itself and provides proprio + a reward.
+Recommendation: **switch to online DreamerV3 in Isaac sim**; keep the offline path only
+as a dynamics-only smoke / optional warm-start.
+
+---
+
+## What we verified today
+
+| Item | State |
+|------|-------|
+| Recorder data (parquet + HDF5) | ✅ Correct: state (T,12), action (T,6), frames, reward, done. No re-record. |
+| Bridge meta `state_dim/action_dim=1` | ✅ **Fixed** — was counting keys not feature width; now reads array last-axis (12 / 6). Skill tests 15/15. |
+| Offline `custom_hdf5` env (`hdf5_env.py`) | ⚠️ Thin POC — see below. |
+| Sim reward | ✅ Exists: `rewards.success_reward` (Gaussian EE→object distance, [0,1]); online `isaac_env.py` returns it. Staged shaping (grasp/lift/place) is a TODO, not a blocker. |
+
+### Why the offline `custom_hdf5` run was never going to give a good WM
+`hdf5_env.py` (`_load_h5` + `_get_obs`):
+1. **Loads only `frames` + `actions`** — the 12-dim proprio `states` array is **never read**.
+2. The `"state"` obs key is filled with the **action**, not joint state (so Dreamer's
+   mlp-keys saw the action, no proprioception).
+3. **Only the first 16 timesteps per episode** are used → ~800 of 18804 frames.
+4. `step()` ignores the action, **reward = 0** always → the actor-critic gets no signal;
+   only the world model's reconstruction trains (the obs_loss 2767→46 we saw).
+5. Data is **success-only** (50 expert demos) → narrow "success manifold"; the WM never
+   sees the consequences of wrong/exploratory actions.
+
+Net: that path yields a pixels-only reconstruction model on a sliver of narrow data — good
+for proving the pipeline, useless as a controllable WM.
+
+---
+
+## Do I need failures? — Yes (and more)
+
+A world model used for **control/imagination** must cover more than expert successes.
+Dreamer imagines off-distribution actions; if the WM never observed exploratory/failed
+transitions, its predictions there are garbage and the imagined policy is worthless.
+Required coverage for a good WM:
+- **Failures + recoveries** (not just successes).
+- **Exploratory / off-policy actions** (random, perturbed).
+- **Varied initial states** (object pose, arm config) — domain randomization.
+
+Expert teleop demos give almost none of this. The two ways to get it: online RL
+exploration (Path A) or deliberately recording/ generating diverse data (Path B helpers).
+
+---
+
+## Path A — ONLINE DreamerV3 in Isaac sim  ✅ recommended (sim already set up)
+
+`env=isaac_so101` (`sheeprl_plugin/isaac_env.py` + `lerobot_isaac_env`):
+- **Obs:** rgb `(3,H,W)` + real proprio `state` (joint_pos[6], +object_pose[7] optional).
+- **Reward:** `success_reward` distance kernel (add staged grasp/lift/place shaping for
+  better credit assignment).
+- **Dynamics + exploration:** Dreamer acts → fails/succeeds → learns WM **and** policy by
+  imagination. This is what DreamerV3 is designed for; coverage is generated for free.
+- GPU-verified path (CLAUDE.md WM-Isaac 2026-05-31; camera `d435_rgb` wired).
+
+Deliverable: a usable world model **and** a pick-place policy.
+
+### Path A steps
+1. [x] Fix bridge meta (done).
+2. Boot/accept checks on GPU: `lerobot-isaac env smoke --cameras=d435` + A.1/A.3 from
+   `plans/2026-05-30-gpu-hw-execution-checklist.md`.
+3. (Optional but high-value) Add **staged shaping** to `SO101RewardsCfg` / `rewards.py`
+   (reach → align → grasp → lift → place) — biggest lever for manipulation RL.
+4. Short online Dreamer smoke: `env=isaac_so101`, `num_envs=4`, image 64,
+   `learning_starts ≥ num_envs×seq_len (≥256)`, ~few-k steps → confirm reward signal +
+   WM loss + policy return trending up.
+5. Full online run under the report-only watchdog; track `Loss/observation_loss` +
+   episode return / success rate.
+6. (Optional) Warm-start: offline-pretrain the WM on the recorded demos, then continue online.
+
+### Path A constraints (RTX 3080)
+- `num_envs` 4–8, image 64 (CLAUDE.md OOM ladder). VRAM is not the limit for Dreamer.
+- `learning_starts ≥ num_envs × per_rank_sequence_length` (=256 for 4×64) — see
+  memory `dreamerv3-learning-starts-rule`. Prod default 1024 safe.
+- Isaac teardown: `IsaacSO101Env.close()` no-op + entry `os._exit` (already handled;
+  memory `wm-isaac-stall-resolved`).
+
+---
+
+## Path B — improve the OFFLINE WM from recorded data (dynamics-only)
+
+Only if you want a *passive* dynamics / video-prediction model (NOT a policy). Even fixed,
+it stays narrow (success-only) and reward-free. Required `hdf5_env.py` fixes:
+1. Load `states` from the HDF5 and expose **real 12-dim proprio** as `"state"` (stop using
+   the action).
+2. Window across **all** frames per episode, not the first 16.
+3. Record **failures** (recorder `f` key — now supported) for coverage; optionally add DR /
+   synthetic data via `lerobot-isaac-synthetic`.
+4. Accept: no reward → no policy; WM is reconstruction-only.
+
+Best use of Path B: produce a warm-start WM to seed Path A.
+
+---
+
+## Recommendation
+Go **Path A**. You have the sim; it supplies proprio, reward, and — crucially — its own
+failures/exploration, which expert demos can't. Use the teleop demos only to seed/pretrain.
+Treat the offline `custom_hdf5` path as a pipeline smoke, not the training plan.
+
+Open dependency to decide: invest in **staged reward shaping** before the full online run
+(recommended) vs run with the existing distance reward first.
