@@ -137,3 +137,52 @@ sim, make `IsaacSO101Env` a real vectorized env instead of collapsing to env-0:
 
 Not a correctness blocker — DreamerV3 trains fine at num_envs=1 (sample-efficient); Fix 2 is a
 wall-clock/data-throughput optimization. Estimated: medium refactor + several GPU iterations.
+
+### Fix 2 — full implementation spec (2026-06-08 deep-dive)
+
+Root cause (exact): `sheeprl/algos/dreamer_v3/dreamer_v3.py:384-398`:
+```python
+vectorized_env = gym.vector.SyncVectorEnv if cfg.env.sync_env else gym.vector.AsyncVectorEnv
+envs = vectorized_env([make_env(..., rank*num_envs+i, ...) for i in range(cfg.env.num_envs)])
+```
+- Builds `num_envs` SEPARATE `IsaacSO101Env` instances → each `_boot()` wants the Isaac
+  `SimulationContext` **singleton** → 2nd instance fails / collapses to 1 → sheeprl's per-env
+  buffers (sized `num_envs`, lines 478/543/634) mismatch the 1-env returns → `is_first`
+  IndexError.
+- `SyncVectorEnv` also steps sub-envs **sequentially** (`env0.step`, `env1.step`, …) — there is
+  no way to map that onto ONE batched Isaac `env.step((N,6))`. So SyncVectorEnv must be
+  **replaced**, not satisfied.
+
+Required changes:
+1. **New `IsaacSO101VectorEnv(gymnasium.vector.VectorEnv)`** (new file
+   `sheeprl_plugin/isaac_vector_env.py`). Boots ONE Isaac `ManagerBasedRLEnv` with
+   `num_envs=N` (reuse the existing `_boot` / `_translate_obs` logic from `isaac_env.py` —
+   factor the shared parts out). API:
+   - `num_envs=N`, `single_observation_space` (rgb (3,H,W)+state), `single_action_space` (6,),
+     batched `observation_space`/`action_space`.
+   - `reset()` → `(obs_dict batched (N,…), info)`; `step(actions (N,6))` →
+     `(obs (N,…), reward (N,), terminated (N,), truncated (N,), info)`.
+   - **Autoreset**: Isaac `ManagerBasedRLEnv` auto-resets terminated sub-envs internally; expose
+     gymnasium autoreset semantics (return the reset obs + flag) so sheeprl's `dones_idxes`
+     handling (dreamer_v3.py:640+) works.
+   - Preserve the **singleton + `close()` no-op + os._exit** discipline from `isaac_env.py`
+     (memory `wm-isaac-stall-resolved`) — the eval/test phase (dreamer_v3.py:765-767) rebuilds
+     an env and reuses the backing singleton.
+2. **Construction intercept** in `scripts/_wm_isaac_entry.py` (it already monkeypatches
+   `gymnasium.vector` before importing sheeprl): patch `gymnasium.vector.SyncVectorEnv` so that
+   when the env_fns build the Isaac env AND `num_envs>1`, it returns a single
+   `IsaacSO101VectorEnv(num_envs=N)` instead of N copies. (dreamer_v3 references
+   `gym.vector.SyncVectorEnv` at call time, so the patch takes.)
+3. Keep `num_envs=1` on the **untouched** single-env path (zero regression). The vector path
+   activates only at `num_envs>1`.
+
+Verification protocol (GPU, ~3–6 boot cycles):
+- `NUM_ENVS=2` smoke → confirm: no `is_first` IndexError; obs/action/reward shapes
+  `(2,…)`; reward flows for both envs; a grad step completes; the train→`close()`→`test()`
+  lifecycle survives (no `'scene'` attr crash, no atexit hang).
+- Then `NUM_ENVS=4`; watch VRAM (Isaac N-parallel scales VRAM ~linearly — may need image 64 /
+  batch tuning) + step-rate gain vs num_envs=1.
+
+Risk: medium-high. Touches the same Isaac-singleton/sheeprl-lifecycle surface that produced the
+2026-05-31 stall bug. **Do NOT commit unverified** — land only after the lifecycle survives on
+GPU. Until then, `num_envs=1` (Fix 1) is the safe production path.
