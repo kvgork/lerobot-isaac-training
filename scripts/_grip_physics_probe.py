@@ -66,13 +66,17 @@ def main() -> int:
     env.reset()
 
     def step_hold(gripper_val, arm_lift=0.0, n=1):
-        """Hold gripper at gripper_val; optionally bias shoulder/elbow up."""
+        """Hold gripper at gripper_val; optionally bias shoulder/elbow to RAISE the EE.
+
+        Sign convention (verified 2026-06-10): shoulder_lift=-1 raises the EE
+        (the previous +1/-1 drove it DOWN). We hold full negative shoulder +
+        positive elbow to lift.
+        """
         a = torch.zeros((1, action_dim), device=device)
         a[0, -1] = gripper_val  # gripper (last dim)
         if arm_lift != 0.0:
-            # shoulder_lift (idx 1) + elbow_flex (idx 2) bias to raise the EE
-            a[0, 1] = arm_lift
-            a[0, 2] = -arm_lift
+            a[0, 1] = -arm_lift  # shoulder_lift: negative raises EE
+            a[0, 2] = arm_lift   # elbow_flex
         for _ in range(n):
             env.step(a)
 
@@ -112,10 +116,20 @@ def main() -> int:
     obj_after_lift = obj_xyz()
     ee_after_lift = ee_xyz()
 
-    d_ee_z = ee_after_lift[2] - ee_after_close[2]
-    d_obj_z = obj_after_lift[2] - obj_after_close[2]
-    # gripped if the object rose with the EE (track ratio); slipped if it stayed.
-    gripped = d_obj_z > 0.02 and (d_ee_z <= 1e-3 or d_obj_z / max(d_ee_z, 1e-6) > 0.5)
+    import math
+    d_ee = [ee_after_lift[i] - ee_after_close[i] for i in range(3)]
+    d_obj = [obj_after_lift[i] - obj_after_close[i] for i in range(3)]
+    ee_disp = math.sqrt(sum(c * c for c in d_ee))
+    obj_disp = math.sqrt(sum(c * c for c in d_obj))
+    track_err = math.sqrt(sum((d_obj[i] - d_ee[i]) ** 2 for i in range(3)))
+    # GRIPPED = the object moved WITH the gripper (displacement tracks the EE),
+    # direction-agnostic. SLIPPED = EE moved but object stayed put.
+    gripped = ee_disp > 0.02 and track_err < 0.4 * ee_disp
+    verdict = (
+        "GRIPPED (object tracks gripper)" if gripped
+        else ("SLIPPED (EE moved, object stayed)" if ee_disp > 0.02
+              else "INCONCLUSIVE (EE barely moved — fix lift action)")
+    )
 
     result = {
         "obj_start": obj_start,
@@ -123,9 +137,10 @@ def main() -> int:
         "obj_after_lift": obj_after_lift,
         "ee_after_close": ee_after_close,
         "ee_after_lift": ee_after_lift,
-        "delta_ee_z_during_lift": d_ee_z,
-        "delta_obj_z_during_lift": d_obj_z,
-        "VERDICT": "GRIPPED+LIFTED" if gripped else "SLIPPED (closing does not hold the cube)",
+        "ee_displacement": ee_disp,
+        "obj_displacement": obj_disp,
+        "track_err_obj_vs_ee": track_err,
+        "VERDICT": verdict,
     }
     print(json.dumps(result, indent=2), flush=True)
     out = Path(args.out)

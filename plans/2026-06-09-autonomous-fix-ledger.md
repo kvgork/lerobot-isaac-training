@@ -22,3 +22,16 @@ Format: `[time] SYMPTOM → ROOT CAUSE → FIX (commit/file)`.
   attempt Fix 2 (step 3, risky throughput infra) AFTER — so Fix 2's risk can't eat the science
   run's overnight window. #3b checkpoint saved: logs/runs/dreamer_v3/isaac_so101/
   2026-06-09_17-52-56_.../version_0/checkpoint/ckpt_10000_0.ckpt.
+- [23:5x] DIAGNOSIS forming: place-chase ALSO plateaus ~−12.4 (6.6k→13.8k flat) despite
+  place_success active → blocker is physical grasp, not reward incentive. Wrote
+  `scripts/_grip_physics_probe.py` (CPU-ready) to test if a closed jaw holds+lifts the cube.
+  Fix ladder if it SLIPS: jaw friction ↑ → gripper effort_limit ↑ → cube mass/size ↓ →
+  contact-based grasp. Will run probe when GPU frees (place-chase done ~05:30 or cut at ~20k).
+- [00:0x] Cut place-chase at 13.8k (plateau confirmed 2nd run, place_success didn't break it).
+  Freed GPU, running grip-physics probe to confirm the physical-grasp hypothesis. Verdict next.
+- [00:0x] FIX (my own probe bug): grip probe v1 said "SLIPPED" but the data showed the object
+  tracking the EE almost exactly (obj Δ ≈ ee Δ in x AND z) → it WAS gripped. Two bugs: (a) the
+  lift action drove the EE DOWN (shoulder_lift sign wrong), (b) verdict required upward motion.
+  Fixed: shoulder_lift=-1 raises EE; verdict now = "object displacement tracks EE" (direction-
+  agnostic). Re-running. IMPLICATION: grip-physics likely FINE → the −12.4 plateau is the RL
+  agent not discovering lift/carry, NOT a physics failure. Changes the fix direction.
