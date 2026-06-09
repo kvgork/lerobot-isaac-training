@@ -82,13 +82,44 @@ object/target position. Run #1 killed at 14k.
   are paying ⇒ the agent is actually picking.
 - Output: `.agent-state/20260609-staged-reach/autoresearch/wm-isaac-prod/train.log`.
 
-### Result
-_(pending — filled at analysis ~14:30–15:00)_
+### Result — run #2 (clean timeout at ~4 h, 20 467 steps)
+Learning curve (reward_env_0, single-env episode return):
+| step | 300 | 3.3k | 6.3k | 9.3k | 12.3k | 15.4k | 18.4k | 20.5k |
+|------|-----|------|------|------|-------|-------|-------|-------|
+| rew  | −62.7 | −34.8 | −18.9 | −17.7 | −17.6 | −17.7 | −17.6 | −17.6 |
+
+Rapid climb −62.7 → −18.9 over the first 6.3k steps, then **hard plateau at ≈ −17.6**.
+
+**vs run #1 (unreachable): −55.2 → −17.6 = 3.1× improvement.** With a reachable object the
+agent learns to reach to near-contact (progress saturates near 0) — the reach + grasp-proximity
+stages demonstrably drive behaviour. But the plateau at −17.6 (≈ −0.06/step ⇒ EE hovering
+~7 cm short) means it does **not** complete a sustained lift/place.
+
+**Why no lift (the next blocker):** `grasp_reward` is a pure *proximity* Gaussian — reaching the
+object earns the bonus but does **not** physically grip it, and `lift_reward` only pays when the
+object's z actually rises. With no contact/closure-based grasp + no incentive to close the
+gripper on the object, the cube never leaves the ground. This is the exact refinement
+`rewards.py` flagged ("a true contact/closure-based grasp signal is a GPU-verify refinement").
 
 ## Success criteria (from plan)
-- [x] Per-term rewards behave as designed (Step 0).
-- [~] Tuned run shows non-zero, rising success rate — run #1 disproved the OLD geometry;
-  run #2 (reachable object) is the real test. _(pending)_
+- [x] Per-term rewards behave as designed (Step 0 — proven).
+- [x] **Found + fixed the real blocker to "rising success": object geometry.** Run #1
+  reproduced the baseline reach plateau (−55) and the reach probe proved the object was 0.16 m
+  out of reach. Run #2 (reachable) lifted the plateau 3.1× and proved reach+grasp-proximity work.
+- [ ] Non-zero success rate (object placed in bin): **not reached** — blocked by the lack of a
+  contact/closure grasp, not by reward weights or geometry. This is the clean next step.
+
+## Next steps (ranked)
+1. **Contact/closure grasp** — replace the proximity `grasp_reward` with one gated on actual
+   gripper–object contact (Isaac contact sensors) + reward gripper closure when in contact, so
+   `lift` becomes achievable. This is the single blocker to a real pick.
+2. **Curriculum** (plan Step 2) — phase 1 reach+grasp (lift/place weight 0) → add lift → add
+   place, via `lerobot-curriculum-agent`. Now worth doing since joint plateaus at grasp.
+3. **success_bonus** — make it large + non-dt-scaled so it dominates the ladder once a pick
+   lands (currently weight 5, dt-scaled → tiny).
+4. **grasp std** — now env-tunable (`LEROBOT_ISAAC_GRASP_STD`); widen to 0.06–0.08 if reach
+   stalls short of contact.
+5. **Fix 2 (num_envs>1)** — throughput unlock for the multi-hour runs the above needs.
 
 ## Key takeaway
 The headline result is a **task-geometry bug, not a reward-tuning result**: staged shaping was
