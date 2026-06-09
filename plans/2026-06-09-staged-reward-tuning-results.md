@@ -109,6 +109,24 @@ gripper on the object, the cube never leaves the ground. This is the exact refin
 - [ ] Non-zero success rate (object placed in bin): **not reached** — blocked by the lack of a
   contact/closure grasp, not by reward weights or geometry. This is the clean next step.
 
+## Run #3 — closure grasp (next-step #1 implemented)
+Added `grasp_closure_reward = proximity_gate × gripper_closedness` (rewards.py) — rewards
+closing the jaw while near the object, to break run #2's "hover near object, jaw open" local
+optimum. Wired into the staged block (opt-in `LEROBOT_ISAAC_CLOSURE_WEIGHT>0`). Gripper = joint 5,
+limits [−0.17, 1.75]; `closed_high=True` (SO-101 angle increases to close). `lift_reward` stays
+the true arbiter, so a wrong closure sign is unhelpful, never farmable.
+
+Run `20260609-staged-closure`: ladder grasp 3 / **closure 4** / lift 8 / place 8, reachable
+object (0.22), num_envs=1, 25k steps / 6 h cap. Boot confirmed **7 terms incl `grasp_closure`
+@4.0**. First step −62.7. Success signal: reward breaking ABOVE run #2's −18 plateau.
+
+Commits: rewards+wiring `3a0c0ab`, gripper probe `6f5beb3` (lerobot-isaac-env). Gripper
+geometry proxy in the probe was inconclusive (jaw link frame at hinge) — direction taken from
+SO-101 convention + made env-tunable.
+
+### Result
+_(pending — run #3 launched ~16:42, async)_
+
 ## Next steps (ranked)
 1. **Contact/closure grasp** — replace the proximity `grasp_reward` with one gated on actual
    gripper–object contact (Isaac contact sensors) + reward gripper closure when in contact, so
