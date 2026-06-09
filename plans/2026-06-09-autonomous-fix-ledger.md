@@ -15,4 +15,10 @@ Format: `[time] SYMPTOM → ROOT CAUSE → FIX (commit/file)`.
   lerobot-isaac-env). Not a break — a design gap fixed. 80 tests green.
 - [19:5x] WATCH: run #3b GPU at 9.1 GB / 10 GB (desktop session :1 + replay buffer growth).
   Near OOM ceiling. Monitor greps for CUDA OOM; if it crashes → reduce batch_size or buffer.
-  Branch trending A (reward climbing −18→−14.6).
+  Branch trending A (reward climbing −18→−14.6). (No OOM occurred; ran fine to 13k.)
+- [21:15] DECISION (not a break — risk-driven reorder): run #3b plateaued A-weak at −12.4
+  (6.6k→13.2k flat). Cut it early to free GPU. **Reordered steps 2 before 3**: launch the
+  place-chase run (step 2, the actual success-criterion science, num_envs=1) NOW overnight,
+  attempt Fix 2 (step 3, risky throughput infra) AFTER — so Fix 2's risk can't eat the science
+  run's overnight window. #3b checkpoint saved: logs/runs/dreamer_v3/isaac_so101/
+  2026-06-09_17-52-56_.../version_0/checkpoint/ckpt_10000_0.ckpt.
