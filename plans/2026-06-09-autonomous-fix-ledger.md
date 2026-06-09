@@ -35,3 +35,11 @@ Format: `[time] SYMPTOM → ROOT CAUSE → FIX (commit/file)`.
   Fixed: shoulder_lift=-1 raises EE; verdict now = "object displacement tracks EE" (direction-
   agnostic). Re-running. IMPLICATION: grip-physics likely FINE → the −12.4 plateau is the RL
   agent not discovering lift/carry, NOT a physics failure. Changes the fix direction.
+- [00:0x] FIX (real, code): added `lift_shaping_reward` (grip × ee_height) — the missing
+  gradient for raising the gripped object (lift_reward keys on object-z → no motion gradient).
+  Opt-in LEROBOT_ISAAC_LIFT_SHAPING_WEIGHT. Commit f0500cd. 80 tests green. Relaunched overnight
+  as `20260610-lift-chase` with lift_shaping=4 + full ladder.
+- [00:0x] FIX (tooling): launch commands kept aborting "exit 1/144" — the Bash harness runs with
+  `set -e`, so a no-match `pkill` (rc 1) or a pkill that hit the shell (rc 143→144) aborted the
+  whole multi-line launch before the nohup. Fix: prefix launch scripts with `set +e` and guard
+  `pkill ... || true`. Launch succeeded once guarded (lift-chase PID 188727).
