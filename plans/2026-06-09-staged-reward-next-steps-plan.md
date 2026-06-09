@@ -104,3 +104,6 @@ compound: **Fix 2 first** (if it lands, the place-chase run goes N× faster).
 - 19:5x — STEP 1 done (place_success, 892f5d5). Steps 2/3 GPU-bound → queued behind #3b per
   sequence above. Run #3b climbing (Branch A trend). Not blind-implementing Fix 2 (stall-risk
   surface, needs GPU iteration). Monitor drives next action on #3b DONE.
+- 19:54 — **BRANCH A CONFIRMED.** Run #3b reward −12.4 @6.6k, sustained climb above run #2's
+  −17.6 hard plateau (−18.3→−17.2→−15.4→−14.6→−12.4). Closure-grasp reward (commit 3a0c0ab)
+  broke the plateau → agent gripping+lifting. The closure-grasp hypothesis (next-step #1) works.
