@@ -111,6 +111,48 @@ def _patch_gym_vector_final_info() -> None:
         cls._lerobot_final_info_patched = True
 
 
+def _patch_gym_vector_isaac() -> None:
+    """Fix 2: true num_envs>1 vectorization for the Isaac env.
+
+    sheeprl's dreamer_v3 builds ``gym.vector.SyncVectorEnv([make_env... for i in
+    range(num_envs)])`` — N separate IsaacSO101Env wrappers all fighting over the
+    Isaac SimulationContext singleton → crash at num_envs>1. Intercept the vector
+    constructors: when given >1 env_fns whose env unwraps to IsaacSO101Env, build
+    ONE ``IsaacSO101VectorEnv`` over the (already N-parallel) backing env instead.
+    num_envs=1 (len==1) falls through to the original constructor untouched.
+    """
+    try:
+        import gymnasium.vector as gv
+        from lerobot_isaac_adapters.sheeprl_plugin.isaac_env import IsaacSO101Env
+        from lerobot_isaac_adapters.sheeprl_plugin.isaac_vector_env import IsaacSO101VectorEnv
+    except Exception as exc:  # noqa: BLE001
+        print(f"[wm-isaac-entry] vector patch skipped: {exc}", flush=True)
+        return
+
+    for cls_name in ("SyncVectorEnv", "AsyncVectorEnv"):
+        orig = getattr(gv, cls_name, None)
+        if orig is None or getattr(orig, "_lerobot_isaac_vec_patched", False):
+            continue
+
+        def _factory(env_fns, *args, _orig=orig, **kwargs):
+            fns = list(env_fns)
+            if len(fns) > 1:
+                first = fns[0]()
+                base = getattr(first, "unwrapped", first)
+                if isinstance(base, IsaacSO101Env):
+                    print(f"[wm-isaac-entry] Fix2: {len(fns)} isaac env_fns → "
+                          f"IsaacSO101VectorEnv(num_envs={len(fns)})", flush=True)
+                    return IsaacSO101VectorEnv(existing_env=base, num_envs=len(fns))
+                try:
+                    first.close()
+                except Exception:  # noqa: BLE001
+                    pass
+            return _orig(env_fns, *args, **kwargs)
+
+        _factory._lerobot_isaac_vec_patched = True
+        setattr(gv, cls_name, _factory)
+
+
 def main() -> None:
     # 1. Boot SimulationApp FIRST — claims libgobject + omni.kit.app.
     from isaaclab.app import AppLauncher
@@ -132,6 +174,7 @@ def main() -> None:
     #     which builds the env + vector wrappers at run() time).
     _patch_gym_transform_observation()
     _patch_gym_vector_final_info()
+    _patch_gym_vector_isaac()  # Fix 2: num_envs>1 → one batched IsaacSO101VectorEnv
 
     # 3. Call sheeprl's hydra-decorated `run()` with the remaining argv.
     #    sys.argv[0] is expected to be the program name; rewrite to mimic
