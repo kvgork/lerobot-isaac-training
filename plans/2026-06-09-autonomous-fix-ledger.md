@@ -93,6 +93,14 @@ Format: `[time] SYMPTOM → ROOT CAUSE → FIX (commit/file)`.
   uninitialised (NaN/huge), a scene-replication issue (check replicate_physics + per-env clone).
   Next-GPU fix: (a) ensure env_1 replicates+resets; (b) make target-based reward terms env-local
   (subtract env.scene.env_origins) so place/carry/place_success are per-env correct. Then num_envs=4.
+- [00:05] Fix2 env>0 ROOT CAUSE (num_envs=2 diag `scripts/_vec_diag.py`, `outputs`): at RESET both
+  envs sane (robot |max|=4.4, env_1 properly offset). After 20 ZERO-action steps the ROBOT
+  diverges to |max|=**1.7e12** (object stays 1.47). ⇒ NOT reward-frame, NOT uninitialised — the
+  **SO-101 articulation physics EXPLODES at num_envs>1** (PhysX/replication instability). Deep
+  Isaac bug (replicate_physics / solver iters / prim isolation / actuator), needs dedicated
+  physics debugging — beyond a quick fix. Vectorization wrapper itself WORKS (no is_first crash).
+  **VERDICT: Fix 2 plumbing done; throughput blocked by articulation instability. num_envs=1 stays
+  the production path.** Carry→place (the actual goal) does NOT depend on Fix 2.
 - [10:00] **die16 BREAKTHROUGH:** with the 16 mm die, reward −7.8 at 5.1k — first run EVER to
   break past the −10.6 ceiling all prior runs hit. Confirms root cause = object size: a graspable
   object lets the existing shaping (closure+lift_shaping+place) actually grasp+lift. Climbing
