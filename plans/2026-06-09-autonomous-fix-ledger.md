@@ -75,6 +75,17 @@ Format: `[time] SYMPTOM → ROOT CAUSE → FIX (commit/file)`.
   which DO reach the table. The robot's owner confirmed the arm reaches its table fine. Corrected
   memory + wiki + lessons note. Lesson: validate a probe against ground truth — a link frame is
   not the contact point. (Horizontal reach 0.346 m IS a real limit; the vertical "limit" was bogus.)
+- [20:00] **Fix 2 (num_envs>1) — partial: structurally works, env>0 state bug.** Built
+  `IsaacSO101VectorEnv` (boots ONE N-parallel Isaac, batched obs/reward, episode+final_info
+  stats) + a gym.vector patch in `_wm_isaac_entry.py` (intercepts SyncVectorEnv when len>1 +
+  isaac → one vector env, avoids the N-instance singleton crash). NUM_ENVS=2 smoke: my patch
+  FIRED, booted, stepped, **NO is_first crash** (the old bug is GONE). BUT `reward_env_1=-6.6e14`
+  (garbage) vs env_0 −61 → env_1's object/robot world pos ~1e12 = env_1 physics uninitialised
+  (Isaac scene-replication issue at num_envs=2, NOT a reward-frame offset — those are bounded).
+  Needs Isaac scene/env-origin debugging (env_1 not built/reset). Per Fix 2 plan fallback, FELL
+  BACK to num_envs=1 to keep runs moving. Fix 2 committed gated (4dae806); num_envs=1 untouched.
+  **Bounded remaining work:** debug why env_1 doesn't initialise (scene replicate / reset_idx /
+  env_origins) at num_envs>1; verify reward_env_1 sane; then num_envs=4.
 - [10:00] **die16 BREAKTHROUGH:** with the 16 mm die, reward −7.8 at 5.1k — first run EVER to
   break past the −10.6 ceiling all prior runs hit. Confirms root cause = object size: a graspable
   object lets the existing shaping (closure+lift_shaping+place) actually grasp+lift. Climbing
