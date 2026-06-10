@@ -75,3 +75,7 @@ Format: `[time] SYMPTOM → ROOT CAUSE → FIX (commit/file)`.
   which DO reach the table. The robot's owner confirmed the arm reaches its table fine. Corrected
   memory + wiki + lessons note. Lesson: validate a probe against ground truth — a link frame is
   not the contact point. (Horizontal reach 0.346 m IS a real limit; the vertical "limit" was bogus.)
+- [10:00] **die16 BREAKTHROUGH:** with the 16 mm die, reward −7.8 at 5.1k — first run EVER to
+  break past the −10.6 ceiling all prior runs hit. Confirms root cause = object size: a graspable
+  object lets the existing shaping (closure+lift_shaping+place) actually grasp+lift. Climbing
+  toward 0 / place_success. Run continues.
