@@ -176,6 +176,31 @@ Diminishing returns from blind reward-stacking — **next move needs eyes on the
 
 Best checkpoint so far: `.../2026-06-10_02-47-31_.../version_0/checkpoint/ckpt_10000_0.ckpt`.
 
+## ROOT CAUSE + die16 result (2026-06-10) — the actual unblock
+After reward shaping plateaued at −10.6, the real bug was found: **the object was a ~4 mm cube**
+(Isaac DexCube scaled 0.05) — the intended object is a **16 mm die**. A 4 mm speck is ungraspable
+regardless of reward; six runs of shaping chased an unsolvable task. Fixed:
+`LEROBOT_ISAAC_OBJECT_SCALE=0.267` → 16 mm die (verified rest z=0.008).
+
+**die16 run** (16 mm die + full shaping ladder): reward −61 → **−7.5 by 3.9k**, broke the −10.6
+ceiling every prior run hit, then plateaued ~−7.5 through 18.4k. ⇒ the proper die unlocked
+**grasp+lift**; **carry+place** still doesn't complete (reward not near 0) — but the task is now
+*legitimately solvable*, so that's a real RL problem (not geometry). Best checkpoint:
+`logs/runs/dreamer_v3/isaac_so101/2026-06-10_09-05-11_.../version_0/checkpoint/ckpt_10000_0.ckpt`.
+
+Correction logged: an interim "vertical reach bug (gripper floor 0.062)" conclusion was WRONG — a
+probe artifact (measured robot link-frame z, not the geometric fingertips). The arm reaches its
+table fine; only object size was wrong. Lesson added to the wiki: validate diagnostic tools
+against ground truth.
+
+**Full plateau progression:** −55 (object unreachable, horizontal) → −17.6 (reachable, jaw open)
+→ −12.4 (grasp_closure) → −10.6 (lift_shaping) → **−7.5 (16 mm die: real grasp+lift)**.
+
+### Next (now on a solvable task)
+carry+place: carry shaping / scripted-sim-demo warm-start / curriculum (`2026-06-10-data-collection-
+and-plateau-break-plan.md`), then Fix 2 (num_envs>1) for throughput. Real-hardware recording per
+the same plan improves the deployable VLA policy + world model.
+
 ## Key takeaway
 The headline result is a **task-geometry bug, not a reward-tuning result**: staged shaping was
 sound all along, but every prior pick attempt targeted an object 0.16 m outside the SO-101
