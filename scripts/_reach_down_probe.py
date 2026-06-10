@@ -31,6 +31,12 @@ def main() -> int:
     robot = env.scene["robot"]
     obj = env.scene["source_object"]
     ee_ids, _ = robot.find_bodies("gripper_link"); ee_idx = int(ee_ids[0])
+    # The fingertip (moving jaw) extends BELOW gripper_link (the wrist) — that's
+    # what actually grasps. Measure it, not just the wrist.
+    try:
+        jaw_ids, _ = robot.find_bodies("moving_jaw_so101_v1_link"); jaw_idx = int(jaw_ids[0])
+    except Exception:
+        jaw_idx = ee_idx
     names = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper"]
     idx = {n: int(robot.find_joints(n)[0][0]) for n in names}
     action_dim = env.action_space.shape[-1]
@@ -51,21 +57,27 @@ def main() -> int:
         for _ in range(args.settle):
             env.step(a)
         ee = robot.data.body_pos_w[0, ee_idx, :].detach().cpu().tolist()
-        r = (ee[0] ** 2 + ee[1] ** 2) ** 0.5
-        rec = {"a": [sh, el, wr], "ee": [round(c, 3) for c in ee], "r": round(r, 3)}
+        jaw = robot.data.body_pos_w[0, jaw_idx, :].detach().cpu().tolist()
+        r = (jaw[0] ** 2 + jaw[1] ** 2) ** 0.5
+        rec = {"a": [sh, el, wr], "ee": [round(c, 3) for c in ee],
+               "jaw": [round(c, 3) for c in jaw], "r": round(r, 3)}
         samples.append(rec)
-        if best is None or ee[2] < best["ee"][2]:
+        if best is None or jaw[2] < best["jaw"][2]:
             best = rec
 
+    obj_top = obj_rest[2] * 2.0  # rest center ≈ half-edge → top ≈ 2×
+    gap = round(best["jaw"][2] - obj_rest[2], 4)
     result = {
         "object_rest_z": round(obj_rest[2], 4),
+        "object_est_edge_m": round(obj_top, 4),
         "object_xy": [round(obj_rest[0], 3), round(obj_rest[1], 3)],
-        "min_ee_z_achieved": best["ee"][2],
-        "min_ee_z_config": best,
-        "vertical_gap_ee_to_object": round(best["ee"][2] - obj_rest[2], 4),
-        "VERDICT": ("OBJECT REACHABLE (ee can get near object z)"
-                    if (best["ee"][2] - obj_rest[2]) < 0.04
-                    else "OBJECT TOO LOW — gripper min z >> object rest z (vertical geometry bug)"),
+        "min_jaw_z_achieved": best["jaw"][2],
+        "min_gripper_link_z": round(min(s["ee"][2] for s in samples), 4),
+        "min_jaw_z_config": best,
+        "vertical_gap_jaw_to_object_center": gap,
+        "VERDICT": ("JAW REACHES OBJECT (graspable height)"
+                    if gap < 0.03
+                    else "jaw min z above object — check object height / sweep"),
     }
     print(json.dumps(result, indent=2), flush=True)
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)

@@ -1,14 +1,14 @@
 # Data collection + plateau-break plan (2026-06-10)
 
-> **UPDATE 2026-06-10 08:45 — ROOT CAUSE FOUND, supersedes the plateau-break ranking below.**
-> The sim plateau is NOT exploration — it's a **second geometry bug**: the source_object is the
-> DexCube scaled 0.05 → a ~4 mm cube resting on the floor (z=0.0015), and the gripper bottoms out
-> at z=0.062, so it can't reach down to grasp (`scripts/_reach_down_probe.py`,
-> `outputs/reach-down.json`). Reward shaping + scripted demos were chasing an impossible task.
-> **Do this FIRST:** make a graspable-sized cube (~2.5–3 cm, fits the small jaw) sit on a static
-> pedestal (~5–7 cm) so its grasp point is in the 0.06–0.12 reach band; verify reach+grip; THEN
-> the existing shaping (closure+lift_shaping+place) should produce real picks. The scripted-demo /
-> curriculum / Fix 2 items below remain valid AFTER geometry is graspable.
+> **UPDATE 2026-06-10 09:00 — ROOT CAUSE FOUND (object too small), supersedes the ranking below.**
+> The sim plateau is NOT exploration — the source_object was the DexCube scaled 0.05 → a ~4 mm
+> cube (rest z=0.0015), ungraspable. The intended object is a **16 mm die**. FIXED:
+> `LEROBOT_ISAAC_OBJECT_SCALE=0.267` (verified rest z=0.008). Reward shaping was chasing a 4 mm
+> speck. Re-running RL as `die16` with the existing shaping (closure+lift_shaping+place).
+> **CORRECTION:** an earlier note here claimed a "vertical reach bug / gripper can't reach the
+> table" — that was a probe artifact (measured link-frame z, not fingertips); the arm reaches the
+> table fine. Only the object size was wrong. Scripted-demo / curriculum / Fix 2 remain valid AFTER
+> confirming the 16 mm die lets the existing shaping pick.
 
 Context: sim DreamerV3 pick-place plateaus ~−10.6 (reach+grip+lift partial, no carry) after
 reward shaping hit diminishing returns (see `2026-06-09-staged-reward-tuning-results.md`,

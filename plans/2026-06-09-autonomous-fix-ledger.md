@@ -63,14 +63,15 @@ Format: `[time] SYMPTOM → ROOT CAUSE → FIX (commit/file)`.
   put kills in a separate Bash call from any command that echoes those patterns.
 - [08:30] lift-chase-v4 (place_std=0.15 wide carry): plateaued −10.6 again (same as v2). Wide
   carry gradient did NOT help → hand-shaping exhausted. Cut, moved to scripted-demo plateau-break.
-- [08:45] **ROOT CAUSE #2 (the real one) — `scripts/_reach_down_probe.py`:** source_object is the
-  Isaac DexCube scaled (0.05,0.05,0.05) → a ~4 mm cube resting at z=0.0015 (floor). Gripper min
-  reachable z = 0.062. **6 cm vertical gap — the gripper physically can't reach down to grasp the
-  floor object.** The pick was impossible all along; closure/lift_shaping fired on proximity while
-  the jaw hovered ~6 cm above an ungraspable cube. The grip probe only "worked" because it
-  teleported the object up to the EE. This (not exploration/shaping) is why every run plateaued.
-  Analogous to the horizontal-reach bug. **FIX (next, GPU-iterated):** graspable-sized cube
-  (~2.5–3 cm, fits the small SO-101 jaw) on a static pedestal (~5–7 cm) so its grasp point sits in
-  the 0.06–0.12 reach band; verify jaw can straddle+grip via reach-down + grip probe; THEN re-run
-  RL (shaping already in place). Scripted-demo controller (IK indexing still buggy — EE didn't
-  converge to waypoints) is moot until geometry is graspable.
+- [08:45] **ROOT CAUSE #2 — object too SMALL:** source_object = Isaac DexCube scaled
+  (0.05,0.05,0.05) → a ~4 mm cube (rest z=0.0015). Intended object is a **16 mm die**. A 4 mm
+  speck is ungraspable regardless of reward → why every run plateaued (closure/lift_shaping fired
+  on proximity, jaw never held the speck). **FIX:** `LEROBOT_ISAAC_OBJECT_SCALE` default 0.267 →
+  16 mm die (DexCube native edge ≈ 0.06 m; verified rest z=0.008). Commit on feature/wm-isaac-env.
+  Re-running RL as `die16` with the existing shaping.
+- [09:00] **CORRECTION (my error) — there is NO vertical-reach bug.** I first concluded the
+  gripper "can't reach the floor (min z 0.062, 6 cm gap)". WRONG: `_reach_down_probe` measured
+  robot LINK-FRAME origins (gripper_link/moving_jaw ≈0.06–0.07), NOT the geometric fingertips,
+  which DO reach the table. The robot's owner confirmed the arm reaches its table fine. Corrected
+  memory + wiki + lessons note. Lesson: validate a probe against ground truth — a link frame is
+  not the contact point. (Horizontal reach 0.346 m IS a real limit; the vertical "limit" was bogus.)
