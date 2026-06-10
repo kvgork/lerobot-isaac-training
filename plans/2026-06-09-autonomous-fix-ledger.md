@@ -86,6 +86,13 @@ Format: `[time] SYMPTOM → ROOT CAUSE → FIX (commit/file)`.
   BACK to num_envs=1 to keep runs moving. Fix 2 committed gated (4dae806); num_envs=1 untouched.
   **Bounded remaining work:** debug why env_1 doesn't initialise (scene replicate / reset_idx /
   env_origins) at num_envs>1; verify reward_env_1 sane; then num_envs=4.
+- [22:00] Fix2 env>0 bug — CPU narrowing (no GPU): `so101_env_cfg.py:639` hardcodes
+  `SO101SceneCfg(num_envs=1, env_spacing=2.5)`; make_env overrides scene.num_envs=N after, so
+  env_1 exists at +2.5 m offset. Rewards use WORLD coords (root_pos_w/body_pos_w) + fixed world
+  target_pos — offset terms are bounded (exp∈[0,1]), so the −6.6e14 means env_1 physics state is
+  uninitialised (NaN/huge), a scene-replication issue (check replicate_physics + per-env clone).
+  Next-GPU fix: (a) ensure env_1 replicates+resets; (b) make target-based reward terms env-local
+  (subtract env.scene.env_origins) so place/carry/place_success are per-env correct. Then num_envs=4.
 - [10:00] **die16 BREAKTHROUGH:** with the 16 mm die, reward −7.8 at 5.1k — first run EVER to
   break past the −10.6 ceiling all prior runs hit. Confirms root cause = object size: a graspable
   object lets the existing shaping (closure+lift_shaping+place) actually grasp+lift. Climbing
