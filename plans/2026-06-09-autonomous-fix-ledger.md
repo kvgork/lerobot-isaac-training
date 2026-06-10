@@ -51,3 +51,13 @@ Format: `[time] SYMPTOM → ROOT CAUSE → FIX (commit/file)`.
 - [02:5x] TUNE: lift_shaping@4 didn't break the −12.4 plateau (hovered −11.8..−12.4 to 13.8k).
   Relaunched lift-chase-v2 with lift_shaping=14 (per-step lift gradient ~0.4 vs grip ~0.13) so
   raising the gripped object clearly dominates. Target: reward climbing past −12.
+- [03–06:00] lift-chase-v2 (lift_shaping=14): broke −12.4 → climbed to ~−10.6, plateaued
+  (10.5k→16.8k). Grips + lifts partially, doesn't carry. Cut at 16.8k; ckpt_10000 saved.
+- [06:10] Diagnosis: `place_reward` std=0.05 only pays within 5 cm of bin — too local to guide a
+  carry from the 0.16 m pickup. Made std env-tunable (commit on feature/wm-isaac-env). Relaunched
+  lift-chase-v4 with PLACE_STD=0.15 (wide carry gradient) — the lift→carry→place fix. PID 263591.
+- [06:10] Research TODO written to vault inbox (lift_shaping / reward-shaping / curriculum /
+  demo-bootstrapping / DreamerV3 knobs) per user request.
+- [reminder] Self-kill pkill bit AGAIN (exit 144) — pkill -f patterns "lerobot_isaac_adapters.train"
+  etc. match my own command line. Kills still landed (ran before self-kill) but STOP doing this:
+  put kills in a separate Bash call from any command that echoes those patterns.
