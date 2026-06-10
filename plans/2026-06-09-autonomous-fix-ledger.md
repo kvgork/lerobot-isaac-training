@@ -43,3 +43,11 @@ Format: `[time] SYMPTOM → ROOT CAUSE → FIX (commit/file)`.
   `set -e`, so a no-match `pkill` (rc 1) or a pkill that hit the shell (rc 143→144) aborted the
   whole multi-line launch before the nohup. Fix: prefix launch scripts with `set +e` and guard
   `pkill ... || true`. Launch succeeded once guarded (lift-chase PID 188727).
+- [02:5x] ROOT-CAUSE of the launch aborts (the real one): `pkill -f "_run_wm_isaac_overnight"`
+  matched MY OWN shell — the launch command's text contains that string (the nohup arg), so
+  pkill -f killed the parent script before it could nohup+write pid files. Fix: NEVER pkill -f a
+  pattern that appears in the current command; kill by explicit PID, or put kills in a SEPARATE
+  Bash call from the launch. Launched clean (no self-matching pkill) → lift-chase-v2 PID 214542.
+- [02:5x] TUNE: lift_shaping@4 didn't break the −12.4 plateau (hovered −11.8..−12.4 to 13.8k).
+  Relaunched lift-chase-v2 with lift_shaping=14 (per-step lift gradient ~0.4 vs grip ~0.13) so
+  raising the gripped object clearly dominates. Target: reward climbing past −12.
