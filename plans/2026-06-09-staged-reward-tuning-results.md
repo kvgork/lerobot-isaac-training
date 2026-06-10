@@ -139,6 +139,43 @@ _(pending — run #3 launched ~16:42, async)_
    stalls short of contact.
 5. **Fix 2 (num_envs>1)** — throughput unlock for the multi-hour runs the above needs.
 
+## Overnight session 2 (2026-06-09 eve → 06-10 morning) — closure + lift shaping
+
+Autonomous run-and-fix on the ranked next-steps. Full reward-shaping progression, each fix
+moving the single-env plateau:
+
+| run | added | per-episode reward plateau | meaning |
+|-----|-------|----------------------------|---------|
+| baseline | progress+success | −84 → −55 (unreachable obj) | reach only |
+| #2 reachable | (geometry fix) | **−17.6** | reach to ~7 cm, jaw open, no grip |
+| #3b / place-chase | `grasp_closure` (4) | **−12.4** | reach + close on object (grip), stays low |
+| lift-chase-v2 | `lift_shaping` (14) | **−10.6** (still slowly rising) | grips + lifts partially |
+
+Two new reward terms shipped (both opt-in, dt-aware, env-tunable):
+- `place_success_reward` — dt-INVARIANT terminal bin bonus (cancels Isaac's ×dt). Commit 892f5d5.
+- `lift_shaping_reward` — `grip × ee_height`, the gradient for RAISING the gripped object that
+  `lift_reward` (object-z keyed) doesn't provide. Commit f0500cd. Weight 4 too weak (no break);
+  weight 14 broke −12.4 → −10.6.
+
+**Grip-physics ruled out** (`scripts/_grip_physics_probe.py`): a closed SO-101 gripper holds the
+cube and moves it in lockstep with the EE (track error 0.1 mm). So the plateau is RL
+exploration of the lift/carry motion, NOT a physics/contact failure.
+
+### Remaining gap + recommended next step
+The agent now **reaches → grips → lifts partially** but does not complete **lift-clear → carry →
+place**. Reward stalls ≈ −10.6; `place_success` never fires (object never reaches the bin).
+Diminishing returns from blind reward-stacking — **next move needs eyes on the behavior**:
+1. Render a rollout video of the lift-chase-v2 checkpoint (config.yaml saved at
+   `logs/runs/dreamer_v3/isaac_so101/2026-06-10_02-47-31_.../version_0/`) — sheeprl eval +
+   `env.capture_video=True` (needs hydra wiring on `sheeprl.cli:eval_algorithm`; do live).
+2. Based on it: likely `carry_shaping` (lifted × approach-to-target gradient, analogous to how
+   each sub-skill needed its own bootstrap) OR a true phased curriculum (lock reach+grip+lift,
+   then ramp place) — and raise `lift_shaping` height target so the agent clears the table before
+   carrying.
+3. Step 3 **Fix 2 (num_envs>1)** still pending — throughput for the longer runs the above needs.
+
+Best checkpoint so far: `.../2026-06-10_02-47-31_.../version_0/checkpoint/ckpt_10000_0.ckpt`.
+
 ## Key takeaway
 The headline result is a **task-geometry bug, not a reward-tuning result**: staged shaping was
 sound all along, but every prior pick attempt targeted an object 0.16 m outside the SO-101
