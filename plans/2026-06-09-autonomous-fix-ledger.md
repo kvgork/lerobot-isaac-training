@@ -132,3 +132,8 @@ Format: `[time] SYMPTOM → ROOT CAUSE → FIX (commit/file)`.
   uniform). So stage 3/4 DR doesn't work without a wiring fix. DR also premature (would harden a
   grasp+lift policy that can't yet place). Reverted to stage 2 (working). LEROBOT_ISAAC_STAGE env
   var added (commit) but stage>2 needs the DR event wiring fixed first.
+- [17:00 +1d] Research-backed knobs run (replay_ratio=4 + horizon=30 + seq_len=128) → CUDA OOM on
+  the 10GB RTX 3080 (batch 16 AND batch-8 retry both OOM'd at ~900 steps). horizon=30 + seq_len=128
+  blow VRAM (imagination rollouts × horizon × longer sequences). Backing off to the memory-neutral
+  knob: replay_ratio=4 ALONE (4x WM grad steps/env step, ~no extra peak mem — research's "most
+  impactful single change"), default horizon=15/seq=64. horizon/seq increases need a bigger GPU.

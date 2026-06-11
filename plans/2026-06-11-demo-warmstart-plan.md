@@ -5,6 +5,21 @@
 limit, not data quantity (confirmed across die16, carry, carry2/3, carry-ne4). The only remaining
 lever is **demonstrations**: show the agent the full reach→grasp→lift→carry→place, then warm-start.
 
+## Research-backed execution order (2026-06-11, research-agent → project-context/research/dreamerv3-demo-bootstrap-curriculum.md)
+The plateau = no gradient/imagination for horizontal transport. Ordered cheapest→biggest:
+1. **DreamerV3 knobs (RUNNING — `20260611-knobs`):** replay_ratio=4, horizon 15→30, seq_len 128.
+   Diagnosis: imagination horizon (15) < carry stroke → WM can't credit transport. Cheap, high-EV.
+2. **Carry shaping** (≈ have it; research uses plain `lifted × 1/(1+dist)`, no grip gate — loosen
+   mine if knobs don't break it).
+3. **Demo-buffer injection (DreamerFD recipe, ~100 lines, HIGHEST payoff):** dual buffer, 50% demo
+   sampling, BC loss decaying 1→0, "virtual clutch" (suppress BC when latent KL high). sheeprl has
+   NO native demo hook — add a LeRobot-parquet→`rb.add` loader + demo buffer + BC term. **Use SIM
+   demos** (real so101-pickplace frames mismatch sim obs) → the scripted-IK controller (Stage 1
+   below) or sim teleop. ~5–30 demos suffice (Demo3/AWAC).
+4. **RFCL reverse curriculum:** reset env near goal (object-in-bin via Isaac `write_root_state_to_sim`),
+   train backward. Needs object-state logging + state-reset wrapper. Most principled if #3 stalls.
+Refs: DreamerFD 2303.03675, MoDem-V2 2309.14236, Demo3 2503.01837, RFCL 2405.03379.
+
 ## Stage 1 — working scripted pick+place (sim demo source)
 Status: IK **position** control works (gripper_link tracks Cartesian waypoints); adaptive
 jacobian indexing handles fixed-base (commit). Object/target/gripper conventions all known.
