@@ -101,6 +101,26 @@ Format: `[time] SYMPTOM → ROOT CAUSE → FIX (commit/file)`.
   physics debugging — beyond a quick fix. Vectorization wrapper itself WORKS (no is_first crash).
   **VERDICT: Fix 2 plumbing done; throughput blocked by articulation instability. num_envs=1 stays
   the production path.** Carry→place (the actual goal) does NOT depend on Fix 2.
+- [00:10] **Scripted-demo IK: floating-base jacobian fix → position control WORKS.** Diagnostic
+  (`/tmp/_jac_diag`): SO-101 is_fixed_base=FALSE, jacobian (1,8,6,12) = 6 root + 6 joint DOFs. The
+  controller used ee_idx-1 row + arm_ids cols (the ROOT cols) → garbage IK. Fixed: row=ee_idx,
+  joint cols = arm_ids+6 (`scripts/_scripted_pickplace.py`). Now the gripper_link TRACKS Cartesian
+  waypoints (above-obj, descend, move-to-bin) cleanly.
+- [00:10] **Remaining scripted-grasp blocker: orientation.** command_type="position" controls only
+  gripper_link POSITION, not wrist orientation → gripper isn't pointing DOWN → gripper_link bottoms
+  at z≈0.10 at (0.22,0.05), fingertips ~0.06, can't reach the die at z=0.008. (The arm CAN reach
+  the table — owner-confirmed — but needs the gripper oriented downward.) **Next: pose IK
+  (command_type="pose") with a downward-pointing target quaternion** + tune; then the scripted
+  controller grasps → generate demos → BC-pretrain/seed DreamerV3 (the carry→place unlock).
+- [00:10] **Floating-base is ALSO the likely Fix2 lead:** an unanchored (floating) SO-101
+  destabilises at num_envs>1 → the 1.7e12 explosion. Making the articulation fixed-base (anchor the
+  root) may fix BOTH the multi-env explosion AND simplify IK. Worth trying first for Fix 2.
+- [06:00 +1d] **FIX 2 COMPLETE — fixed-base was the key.** `fix_root_link=True` (env-gated
+  LEROBOT_ISAAC_FIX_BASE). vec_diag num_envs=2: robot stable (|max|=1.25 after 20 steps, was
+  1.7e12). num_envs=2 training smoke: BOTH rewards sane (env_0 −60.6, env_1 −61.1, was −6.6e14),
+  patch fires, steps progress, no crash. vectorization (4dae806) + fix_root_link = working
+  num_envs>1. Throughput unlock LANDED. Relaunching carry at num_envs=4 (watch VRAM; fall back to
+  2 on OOM). num_envs=1 unaffected.
 - [10:00] **die16 BREAKTHROUGH:** with the 16 mm die, reward −7.8 at 5.1k — first run EVER to
   break past the −10.6 ceiling all prior runs hit. Confirms root cause = object size: a graspable
   object lets the existing shaping (closure+lift_shaping+place) actually grasp+lift. Climbing
