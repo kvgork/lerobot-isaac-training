@@ -30,6 +30,10 @@ DreamerV3 (sheeprl) does NOT trivially accept external demos. Options:
 3. **Residual / demo-guided RL** — init from demos, fine-tune with the existing shaped reward.
 Recommendation: try (1) for the WM track; (2) is the quickest path to *a* working policy.
 
+**USER DECISION (2026-06-11): warm-start order = 1 → 3 → 2.** Seed sheeprl's DreamerV3 replay
+buffer first; if that doesn't work, demo-guided/residual RL; finally BC separate policy. Stages 1
+(scripted pick+place) + 2 (demo gen) are prerequisites, done first.
+
 ## Stage 4 — verify
 Closed-loop eval (`scripts/_sim_eval.py`) → pc_success on the full pick-and-place.
 
