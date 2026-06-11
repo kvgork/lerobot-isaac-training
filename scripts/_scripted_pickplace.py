@@ -67,8 +67,14 @@ def main() -> int:
     arm_ids = list(arm_ids)
     grip_ids, _ = robot.find_joints("gripper")
     grip_idx = int(grip_ids[0])
-    # jacobian row index: for a fixed base, body jacobian index = body_idx - 1
-    ee_jacobi_idx = ee_idx - 1
+    # Jacobian indexing depends on base type:
+    #   fixed-base  (is_fixed_base=True):  shape (N, num_bodies-1, 6, num_dof),
+    #       EE row = ee_idx-1, joint cols = arm_ids (no offset).
+    #   floating-base: shape (N, num_bodies, 6, num_dof+6),
+    #       EE row = ee_idx, joint cols = arm_ids + 6 (root DOFs precede joints).
+    _fixed = bool(getattr(robot, "is_fixed_base", True))
+    ee_jacobi_idx = (ee_idx - 1) if _fixed else ee_idx
+    _JAC_DOF_OFFSET = 0 if _fixed else 6
 
     q_default = robot.data.default_joint_pos.clone()  # (1, n)
 
@@ -94,7 +100,8 @@ def main() -> int:
         for _ in range(n):
             pos_b, quat_b = ee_pos_b()
             ik.set_command(cmd, ee_pos=pos_b, ee_quat=quat_b)
-            jac = robot.root_physx_view.get_jacobians()[:, ee_jacobi_idx, :3, arm_ids]
+            jac_cols = [_JAC_DOF_OFFSET + j for j in arm_ids]
+            jac = robot.root_physx_view.get_jacobians()[:, ee_jacobi_idx, :3, jac_cols]
             q_arm = robot.data.joint_pos[:, arm_ids]
             q_des_arm = ik.compute(pos_b, quat_b, jac, q_arm)  # (1, n_arm) absolute joint targets
             # build full action (normalized): arm = (q_des - q_default)/0.5; gripper = grip
@@ -106,10 +113,13 @@ def main() -> int:
 
     # target z above table for approach/lift
     z_high = args.obj_z + 0.12
-    obj_b_target = [args.obj_x, args.obj_y, args.obj_z + 0.02]
-    above_obj = [args.obj_x, args.obj_y, z_high]
+    # Read the die's ACTUAL rest pose (it settles to z≈0.008, not the 0.05 spawn).
+    op0 = obj.data.root_pos_w[0].detach().cpu().numpy()
+    grasp_z = 0.04  # gripper_link target — fingertips extend ~4 cm below → reach the table die
+    obj_b_target = [float(op0[0]), float(op0[1]), grasp_z]
+    above_obj = [float(op0[0]), float(op0[1]), z_high]
     above_tgt = [args.tgt_x, args.tgt_y, z_high]
-    at_tgt = [args.tgt_x, args.tgt_y, args.obj_z + 0.04]
+    at_tgt = [args.tgt_x, args.tgt_y, 0.06]
 
     trace = {}
     def log(tag):
@@ -122,11 +132,11 @@ def main() -> int:
     log("start")
     step_to(above_obj, grip=-1.0, n=50)   # 1. move above object, open
     log("above_obj")
-    step_to(obj_b_target, grip=-1.0, n=50)  # 2. descend onto object
+    step_to(obj_b_target, grip=-1.0, n=90)  # 2. descend onto die (more steps to fully reach)
     log("at_obj")
-    step_to(obj_b_target, grip=1.0, n=30)   # 3. close gripper
+    step_to(obj_b_target, grip=1.0, n=50)   # 3. close gripper on die
     log("closed")
-    step_to(above_obj, grip=1.0, n=50)      # 4. lift
+    step_to(above_obj, grip=1.0, n=60)      # 4. lift
     log("lifted")
     step_to(above_tgt, grip=1.0, n=60)      # 5. carry above target
     log("above_tgt")
