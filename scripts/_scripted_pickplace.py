@@ -78,8 +78,13 @@ def main() -> int:
 
     q_default = robot.data.default_joint_pos.clone()  # (1, n)
 
-    ik_cfg = DifferentialIKControllerCfg(command_type="position", use_relative_mode=False, ik_method="dls")
+    # Pose IK (position + orientation) so the gripper points DOWN to grasp the
+    # table die. The 5-DOF arm can't hit an arbitrary 6-DOF pose → DLS approximates.
+    ik_cfg = DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls")
     ik = DifferentialIKController(ik_cfg, num_envs=1, device=device)
+    # Downward-grasp orientation (gripper_link quat, base≈world) from the grasp-pose
+    # probe (a=[-0.3,1,1,-1] → jaw near the die). (w,x,y,z).
+    GRASP_QUAT = [-0.8593, -0.0507, 0.507, -0.0434]
 
     action_dim = env.action_space.shape[-1]
     obs, _ = env.reset()
@@ -93,15 +98,17 @@ def main() -> int:
         pos_b, quat_b = subtract_frame_transforms(root_pos, root_quat, ee_w, ee_quat_w)
         return pos_b, quat_b
 
-    def step_to(target_b, grip, n=40):
-        """Drive EE toward target_b (base frame) for n steps; hold gripper at `grip`."""
+    def step_to(target_b, grip, n=40, quat=None):
+        """Drive EE toward target_b (base-frame pos) + orientation `quat` (default
+        GRASP_QUAT, pointing down) for n steps; hold gripper at `grip`."""
         ik.reset()
-        cmd = torch.tensor([target_b], device=device, dtype=torch.float32)
+        q_des = quat if quat is not None else GRASP_QUAT
+        cmd = torch.tensor([list(target_b) + list(q_des)], device=device, dtype=torch.float32)  # (1,7)
         for _ in range(n):
             pos_b, quat_b = ee_pos_b()
             ik.set_command(cmd, ee_pos=pos_b, ee_quat=quat_b)
             jac_cols = [_JAC_DOF_OFFSET + j for j in arm_ids]
-            jac = robot.root_physx_view.get_jacobians()[:, ee_jacobi_idx, :3, jac_cols]
+            jac = robot.root_physx_view.get_jacobians()[:, ee_jacobi_idx, :6, jac_cols]  # pose: 6 rows
             q_arm = robot.data.joint_pos[:, arm_ids]
             q_des_arm = ik.compute(pos_b, quat_b, jac, q_arm)  # (1, n_arm) absolute joint targets
             # build full action (normalized): arm = (q_des - q_default)/0.5; gripper = grip
