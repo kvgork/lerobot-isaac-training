@@ -125,3 +125,10 @@ Format: `[time] SYMPTOM → ROOT CAUSE → FIX (commit/file)`.
   break past the −10.6 ceiling all prior runs hit. Confirms root cause = object size: a graspable
   object lets the existing shaping (closure+lift_shaping+place) actually grasp+lift. Climbing
   toward 0 / place_success. Run continues.
+- [16:30 +1d] DR/generalization run (stage 4, num_envs=4) CRASHED at boot: `object_pose term is
+  not EventTermCfg (got ObjectPoseRandomizationCfg)`. The DR randomization (randomization.py +
+  SO101EventsCfg stages 3/4) is UNIMPLEMENTED SCAFFOLD — the custom ObjectPoseRandomizationCfg
+  was never wired to Isaac's EventManager (needs an EventTermCfg with e.g. mdp.reset_root_state_
+  uniform). So stage 3/4 DR doesn't work without a wiring fix. DR also premature (would harden a
+  grasp+lift policy that can't yet place). Reverted to stage 2 (working). LEROBOT_ISAAC_STAGE env
+  var added (commit) but stage>2 needs the DR event wiring fixed first.
