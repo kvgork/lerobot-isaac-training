@@ -137,3 +137,11 @@ Format: `[time] SYMPTOM → ROOT CAUSE → FIX (commit/file)`.
   blow VRAM (imagination rollouts × horizon × longer sequences). Backing off to the memory-neutral
   knob: replay_ratio=4 ALONE (4x WM grad steps/env step, ~no extra peak mem — research's "most
   impactful single change"), default horizon=15/seq=64. horizon/seq increases need a bigger GPU.
+- [20:xx +1d] ORCHESTRATION Step 7.5a — code-review-orchestrator (opus) on the session's new code
+  (demo_buffer, isaac_vector_env, rewards terms, pick_and_place, entry patch). Verdict: APPROVE
+  (committed code safe in default-OFF) + 2 HIGH latent bugs fixed (fix-back loop):
+  (1) demo_buffer image resize was aspect-distorting nearest-neighbour ≠ online _resize_chw → now
+  bilinear-matched (+2 tests); (2) isaac_vector_env _t was a shared scalar → desynced truncated +
+  episode-length on early per-env termination → now per-env array. +LOW: success-demo terminal =
+  terminated not truncated. MEDIUM (place_success /step_dt) → assert env.step_dt==control dt on the
+  GPU smoke. 7 demo-buffer unit tests pass. Commits in lerobot-isaac-adapters.
