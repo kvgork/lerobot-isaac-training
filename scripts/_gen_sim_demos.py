@@ -81,8 +81,10 @@ def main() -> int:
         print(f"[demos] ERROR: {out_dir} exists — remove it first (LeRobotDataset.create won't overwrite).", flush=True)
         os._exit(1)
     ds = LeRobotDataset.create(repo_id=f"local/{out_dir.name}", root=str(out_dir), fps=30, features=feats)
+    rew_dir = out_dir / "meta" / "demo_rewards"  # per-episode env-reward sidecar (.npy)
 
     frames: list[dict] = []
+    rewards_buf: list[float] = []  # per-step env reward, parallel to frames (sidecar, not a LeRobot feature)
 
     def grab_frame(action_vec):
         st = torch.cat([robot.data.joint_pos[0], robot.data.joint_vel[0]]).detach().cpu().numpy().astype("float32")
@@ -111,11 +113,19 @@ def main() -> int:
             action[0, grip_idx] = g
             if record:
                 grab_frame(action[0].detach().cpu().numpy())
-            env.step(action)
+            out = env.step(action)
+            if record:
+                rew = out[1]  # gym 5-tuple: (obs, reward, terminated, truncated, info)
+                try:
+                    rew = float(np.asarray(rew).reshape(-1)[0])
+                except Exception:
+                    rew = float(rew)
+                rewards_buf.append(rew)
 
     def rollout(ox, oy):
         """Reset, jitter die to (ox,oy), settle, full pick->place. Returns SUCCESS."""
         frames.clear()
+        rewards_buf.clear()
         env.reset()
         # teleport die to jittered xy (keep spawn z + identity rot)
         root = obj.data.root_state_w.clone()
@@ -146,11 +156,19 @@ def main() -> int:
         oy = args.obj_y + random.uniform(-args.jitter, args.jitter)
         ok = rollout(ox, oy)
         if ok:
+            ep_rewards = np.asarray(rewards_buf, dtype="float32").copy()  # before add_frame mutates
             for fr in frames:
                 ds.add_frame(fr)
             ds.save_episode()
+            # Reward SIDECAR: lerobot 0.5.1 can't store a (1,) reward feature
+            # (save crashes), so per-step env reward is written next to the dataset.
+            # demo_buffer.load_sim_demos reads it; replaces the reward-0 default that
+            # poisoned the reward model in warmstart-v1.
+            rew_dir.mkdir(parents=True, exist_ok=True)
+            np.save(rew_dir / f"ep_{saved:04d}.npy", ep_rewards)
             saved += 1
-            print(f"[demos] SAVED {saved}/{args.episodes} (attempt {attempts}, obj=({ox:.3f},{oy:.3f}), {len(frames)} frames)", flush=True)
+            print(f"[demos] SAVED {saved}/{args.episodes} (attempt {attempts}, obj=({ox:.3f},{oy:.3f}), "
+                  f"{len(frames)} frames, reward sum={float(ep_rewards.sum()):.2f} last={float(ep_rewards[-1]):.3f})", flush=True)
         else:
             print(f"[demos] skip fail (attempt {attempts}, obj=({ox:.3f},{oy:.3f}))", flush=True)
 
