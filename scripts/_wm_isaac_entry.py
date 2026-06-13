@@ -153,6 +153,73 @@ def _patch_gym_vector_isaac() -> None:
         setattr(gv, cls_name, _factory)
 
 
+def _patch_seed_demo_buffer() -> None:
+    """Stage 3 warm-start: pre-seed sheeprl's replay buffer with SIM pick-place demos.
+
+    Gated by env var LEROBOT_ISAAC_DEMO_DATASET (path to a LeRobotDataset). The demos
+    give the DreamerV3 world model the carry->place DYNAMICS it can't discover online
+    (plans/2026-06-11-demo-warmstart-plan.md, user order 1->3->2: seed buffer first).
+
+    Mechanism: monkeypatch EnvIndependentReplayBuffer.add to LAZY-seed on its first
+    call — at that point the online step_data reveals the exact obs schema (keys, state
+    dim, image size, dtypes), so the demo arrays are adapted to match before insertion.
+    Demos are added to env-0's sub-buffer as full (T,1,...) sequences. Rewards are 0 (the
+    WM learns dynamics; the actor learns reward from online episodes / a later BC pass).
+    """
+    import os
+    demo_root = os.environ.get("LEROBOT_ISAAC_DEMO_DATASET", "").strip()
+    if not demo_root:
+        return
+    try:
+        from sheeprl.data.buffers import EnvIndependentReplayBuffer
+        from lerobot_isaac_adapters.sheeprl_plugin.demo_buffer import load_sim_demos
+    except Exception as exc:  # noqa: BLE001
+        print(f"[wm-isaac-entry] demo-seed patch skipped (import): {exc}", flush=True)
+        return
+    if getattr(EnvIndependentReplayBuffer.add, "_lerobot_demo_seed_patched", False):
+        return
+    import numpy as np
+
+    _orig_add = EnvIndependentReplayBuffer.add
+    max_demos = int(os.environ.get("LEROBOT_ISAAC_DEMO_MAX", "0")) or None
+
+    def _seed(self, sample):
+        keys = list(sample.keys())
+        state_dim = int(sample["state"].shape[-1]) if "state" in sample else None
+        img = int(sample["rgb"].shape[-1]) if "rgb" in sample else 64
+        eps = load_sim_demos(demo_root, image_size=img, max_episodes=max_demos)
+        n_steps = 0
+        for ep in eps:
+            data = {}
+            for k in keys:
+                if k not in ep:
+                    raise KeyError(f"demo episode missing online key {k!r} (have {list(ep)})")
+                arr = np.asarray(ep[k])
+                if k == "state" and state_dim and arr.shape[-1] != state_dim:
+                    arr = arr[..., :state_dim]   # 12-dim (pos+vel) demo -> 6-dim env (joint pos)
+                data[k] = arr[:, None]           # (T, ...) -> (T, 1, ...) for one env
+            _orig_add(self, data, indices=[0], validate_args=False)
+            n_steps += data[keys[0]].shape[0]
+        print(f"[wm-isaac-entry] SEEDED {len(eps)} demo episodes ({n_steps} transitions) "
+              f"into replay buffer from {demo_root}", flush=True)
+
+    def patched_add(self, data, indices=None, validate_args=False):
+        if not getattr(self, "_lerobot_demos_seeded", False):
+            self._lerobot_demos_seeded = True
+            try:
+                _seed(self, data)
+            except Exception as exc:  # noqa: BLE001 — never block training on a seed error
+                import traceback
+                traceback.print_exc()
+                print(f"[wm-isaac-entry] demo seeding FAILED: {exc}", flush=True)
+        return _orig_add(self, data, indices=indices, validate_args=validate_args)
+
+    patched_add._lerobot_demo_seed_patched = True
+    EnvIndependentReplayBuffer.add = patched_add
+    print(f"[wm-isaac-entry] demo-seed patch armed (dataset={demo_root}, "
+          f"max={max_demos or 'all'})", flush=True)
+
+
 def main() -> None:
     # 1. Boot SimulationApp FIRST — claims libgobject + omni.kit.app.
     from isaaclab.app import AppLauncher
@@ -175,6 +242,7 @@ def main() -> None:
     _patch_gym_transform_observation()
     _patch_gym_vector_final_info()
     _patch_gym_vector_isaac()  # Fix 2: num_envs>1 → one batched IsaacSO101VectorEnv
+    _patch_seed_demo_buffer()  # Stage 3: seed replay buffer with sim demos (env-gated)
 
     # 3. Call sheeprl's hydra-decorated `run()` with the remaining argv.
     #    sys.argv[0] is expected to be the program name; rewrite to mimic
