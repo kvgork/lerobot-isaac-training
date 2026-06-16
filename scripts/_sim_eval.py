@@ -90,15 +90,20 @@ def _build_policy_input(obs_group: dict, device: str, task: str):
     jv = _t(obs_group["joint_vel"]).float().to(device)      # (1,6)
     state = torch.cat([jp, jv], dim=-1)                      # (1,12)
 
+    import torch.nn.functional as F
     rgb = _t(obs_group["d435_rgb"]).to(device).float()       # (1,3,480,640) uint8->float
     if rgb.max() > 1.5:                                       # uint8 [0,255] -> [0,1]
         rgb = rgb / 255.0
+    # Policy was trained on the demo dataset's `observation.images.d435_rgb` at 64x64
+    # (sim demos). Resize the env's 480x640 frame to match the trained input shape +
+    # use the SAME key, else the policy preprocessor KeyErrors / shape-mismatches.
+    rgb = F.interpolate(rgb, size=(64, 64), mode="bilinear", align_corners=False)
 
     # Raw batch (batch dim already present, B=1). The preprocessor tokenizes
     # `task` and normalizes state/image — do NOT pre-normalize beyond uint8->[0,1].
     return {
         "observation.state": state,
-        "observation.images.overhead": rgb,
+        "observation.images.d435_rgb": rgb,
         "task": task,
     }
 
