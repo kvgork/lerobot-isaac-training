@@ -220,6 +220,29 @@ def _patch_seed_demo_buffer() -> None:
           f"max={max_demos or 'all'})", flush=True)
 
 
+def _patch_torch_load_weights_only() -> None:
+    """PyTorch 2.6 defaults torch.load(weights_only=True), which rejects sheeprl
+    checkpoints on resume (checkpoint.resume_from) — they pickle the replay buffer +
+    cfg, not just tensors → UnpicklingError "Weights only load failed". Our own ckpts
+    are trusted, so force weights_only=False. Needed for the curriculum resume chain."""
+    try:
+        import torch
+    except Exception as exc:  # noqa: BLE001
+        print(f"[wm-isaac-entry] torch.load patch skipped: {exc}", flush=True)
+        return
+    if getattr(torch.load, "_lerobot_wo_patched", False):
+        return
+    _orig = torch.load
+
+    def _load(*a, **k):
+        k.setdefault("weights_only", False)
+        return _orig(*a, **k)
+
+    _load._lerobot_wo_patched = True
+    torch.load = _load
+    print("[wm-isaac-entry] torch.load weights_only=False patch armed (for resume)", flush=True)
+
+
 def main() -> None:
     # 1. Boot SimulationApp FIRST — claims libgobject + omni.kit.app.
     from isaaclab.app import AppLauncher
@@ -243,6 +266,7 @@ def main() -> None:
     _patch_gym_vector_final_info()
     _patch_gym_vector_isaac()  # Fix 2: num_envs>1 → one batched IsaacSO101VectorEnv
     _patch_seed_demo_buffer()  # Stage 3: seed replay buffer with sim demos (env-gated)
+    _patch_torch_load_weights_only()  # allow checkpoint.resume_from on torch 2.6 (curriculum)
 
     # 3. Call sheeprl's hydra-decorated `run()` with the remaining argv.
     #    sys.argv[0] is expected to be the program name; rewrite to mimic
