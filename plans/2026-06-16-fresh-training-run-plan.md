@@ -109,3 +109,42 @@ current demos recorded state=12 (joint_pos+joint_vel) → **mismatch**. Options:
 - vault: `05-Wiki/synthesis/2026-06-16-wm-vla-training-playbook`, `concepts/Training-Debugging-Playbook`,
   `concepts/Hyperparameter-Effects`, `concepts/Curriculum-Learning-(Robot-Manipulation)`
 - plans: `2026-06-13-pipeline-analysis.md`, `2026-06-11-demo-warmstart-plan.md`
+
+## 8. Vet + fixes (2026-06-20) — BEFORE committing GPU-days
+
+A smoke (cp-smoke-20260620, 2000 steps) confirmed the run TRAINS (env boots, 8 staged-reward
+terms active, no abort — the cur2b abort was stale/dreamer-path-specific, env-boot is healthy).
+An adversarial vet (6-agent workflow) then caught **3 blockers** the smoke alone hid — each
+would waste the ~11-14h stage-1 run:
+
+1. **`clip_rewards` is BOOLEAN, not magnitude.** §3's "reward clip [−10,+10]" CANNOT be done via
+   `env.clip_rewards=10.0` — sheeprl applies `np.tanh()` to every reward when truthy (saturates
+   the staged landscape). Leave `clip_rewards=false`; bound range by scaling weights instead.
+2. **Lever #1 (object_pose) was a NO-OP for the WM** — `mlp_keys.encoder=[]` (only `cnn_keys=[rgb]`).
+   Fix: add `algo.mlp_keys.encoder=[state]` (decoder auto-interpolates). The whole premise of this
+   run depends on this one Hydra flag.
+3. **Spawn-in-bin** — `success_radius=0.06` + ±3cm jitter spawned the die in-bin ~31% at 6.6cm,
+   4.6% at 9cm (Monte-Carlo) → free 2-step "successes". **FIXED in `pick_and_place.py`:
+   `success_radius` 0.06→0.04, reset jitter ±0.03→±0.015** → P(spawn-in-bin)≈0 across 6→18cm.
+
+Also: throughput ~0.5 env-steps/s (replay 16, num_envs=1) → 50k/stage ≈ 27h; **use STEPS≈20k/stage**.
+Seeding is forced OFF (option B) — the seeder only truncates (state 12↛13), can't grow obs.
+Resume between stages is **manual** (`checkpoint.resume_from=<prior-ckpt>` per relaunch).
+
+**curriculum_controller MISALIGNMENT (blocks autonomous Phase-2):** the shipped controller advances
+an integer DR-intensity stage (2-4) via `LEROBOT_ISAAC_STAGE`; it does NOT emit `OBJECT_X/Y`, so it
+cannot drive this plan's die-DISTANCE ladder. Multi-stage advance is MANUAL for now (see
+`docs/internals/system-improvements.md` 2026-06-20 entry).
+
+**Corrected stage-1 launch command (vetted, GO after a clean re-smoke):**
+```
+SESSION_ID=cp-stage1-<date> STEPS=20000 BATCH_SIZE=8 REPLAY_RATIO=16 PRECISION=bf16-mixed \
+NUM_ENVS=1 CHECKPOINT_EVERY=5000 SECONDS_PER_EXP=50000 \
+LEROBOT_ISAAC_INCLUDE_OBJECT_POSE=1 LEROBOT_ISAAC_STAGED_REWARD=1 LEROBOT_ISAAC_CLOSURE_WEIGHT=4 \
+LEROBOT_ISAAC_LIFT_SHAPING_WEIGHT=14 LEROBOT_ISAAC_PLACE_STD=0.15 LEROBOT_ISAAC_FIX_BASE=1 \
+LEROBOT_ISAAC_OBJECT_SCALE=0.267 LEROBOT_ISAAC_OBJECT_X=0.16 LEROBOT_ISAAC_OBJECT_Y=-0.10 \
+LEROBOT_ISAAC_TARGET_X=0.22 LEROBOT_ISAAC_TARGET_Y=-0.13 \
+EXTRA_HYDRA="algo.horizon=25 algo.actor.ent_coef=1e-3 metric.log_every=500 algo.mlp_keys.encoder=[state]" \
+bash scripts/_run_wm_isaac_overnight.sh
+```
+Memory: `dreamerv3-carryplace-launch-gotchas`.
