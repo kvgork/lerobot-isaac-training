@@ -145,3 +145,16 @@ infrastructure/missing-agent gaps land here.
   - Physical-process control with safety clamps
   - Persistent storage with unbounded writes (e.g. training loops, sweep loops)
   Currently Step 7.5a is gated only on `RIGOR=agentic`, but the implementation-executor's self-review may miss safety bugs in narrow domains. Domain-specific review checklists (motor-write, training-loop, schema-migration) would improve consistency.
+
+### 2026-06-19 — CLAUDE.md is 539 lines (2.7× over the 200-line ceiling)
+- **Type:** systemic (CLAUDE.md hygiene)
+- **Discovered in:** `20260619-161309-level3-pipeline` (Step 8 lessons-routing pre-check)
+- **Gap:** Project `CLAUDE.md` is 539 lines vs the Karpathy 200-line ceiling. The `claude-md-update` skill will refuse any new rule append while over-ceiling, so behavioural-rule additions are currently blocked without a prune. A stale OOM-ladder ref (`dataloader-gpu-decode-plan.md` → moved to `plans/archive/`) was found + corrected in-place this run.
+- **Workaround applied:** Surgical zero-growth stale-ref correction at CLAUDE.md:333 (added `archive/` prefix + pointer to the active `dali-gpu-decode-plan.md`). Did NOT prune mid-orchestration (out of scope; disruptive).
+- **Suggested fix:** Run a dedicated `claude-md-prune apply` session to relocate verbose pitfall/runbook content (the bulk of lines ~250–400) into `docs/`, leaving cross-links. Target ≤200 lines so `claude-md-update` unblocks.
+
+### 2026-06-20 — dry-run tests fail in the `default` env (torch absent) for lack of skip markers
+- **Type:** systemic (test hygiene / CI marking)
+- **Discovered in:** `20260620-084313-continue-level3-plan` (Step 7.5b full CPU sweep across 4 trees)
+- **Gap:** `lerobot-isaac-deploy/tests/test_wm_dryrun.py::test_run_dryrun_missing_ckpt_raises` and `lerobot-isaac-autoresearch/tests/test_e2e_dry_run.py::{test_wrapper_dry_run_does_not_invoke_heavy_backend, ...[dreamerv3]}` fail in the `default` env with `ImportError: torch is required ...`. Heavy deps are intentionally not installed in `default` (see CLAUDE.md), but these tests are not marked `requires_dreamerv3`/`requires_lerobot`, so they run and fail instead of skipping. `test_e2e_dry_run.py` also uses an unregistered `@pytest.mark.requires_workspace_root` (PytestUnknownMarkWarning). Pre-existing — NOT caused by the Phase 1/2 changeset shipped this session.
+- **Suggested fix:** mark the torch-dependent dry-run tests with the existing `requires_*` markers (or guard with `pytest.importorskip("torch")`), and register `requires_workspace_root` in the autoresearch `pyproject.toml`/`conftest.py` so the marker is honored and the warning clears.

@@ -330,7 +330,7 @@ Isaac Lab requires a separate manual step (GPU + disk space).
     unchanged) — bigger batches starve the data loader. Drop to 2 only
     on OOM.
   - Use the cached path for any real run; uncached only for diagnostics.
-    See `plans/2026-05-15-dataloader-gpu-decode-plan.md` (approach A).
+    See `plans/archive/2026-05-15-dataloader-gpu-decode-plan.md` (approach A; archived — active OOM ladder is `plans/2026-05-15-dali-gpu-decode-plan.md`, approach D).
 - **LeRobotDataset returns FLOAT32 normalized images, NOT uint8** (lerobot 0.5.1).
   Per-row shape is also `(T, 3, H, W)` not `(3, H, W)` — the `T` dim comes
   from `cfg.policy.observation_delta_indices` (defaults to `[0]` for SmolVLA,

@@ -2,11 +2,24 @@
 
 Unlike `_open_loop_eval.py` (action-MSE on recorded frames, no environment), this
 actually steps the policy through the Isaac Lab `ManagerBasedRLEnv` and scores the
-env's own `success_termination` (EE-to-object distance < threshold). Reports
-`pc_success` = fraction of episodes that hit a (non-timeout) terminal state.
+env's own termination manager's "success" term (place_termination -> object_in_bin).
+Reports `pc_success` = fraction of episodes that hit a (non-timeout) terminal state.
+
+Also reports `task_success` = fraction of episodes where the env's "success"
+termination term fired — read from the termination manager's pre-reset cache, so it
+is immune to Isaac Lab's auto-reset that clobbers `root_pos_w` before step() returns.
+
+The "success" term for pick_and_place wires to place_termination (object_in_bin),
+verified at pick_and_place.py:461:
+  terminations.success = TermCfg(func=place_termination,
+                                  params={target_pos, success_radius:0.06,
+                                          object_name:"source_object"})
 
 AppLauncher MUST boot before any `isaaclab.*` import — same recipe as
 `scripts/_wm_isaac_entry.py`.
+
+TODO: This fix (sourcing task_success from termination_manager pre-reset cache) is
+NOT yet GPU-verified and must be confirmed on the next GPU run.
 
 Caveats (sim2real): the policy was trained on REAL D435 frames + real joint-state
 units. The Isaac `d435_rgb`/joint obs differ in appearance and unit scaling, so a
@@ -37,6 +50,24 @@ import json
 import sys
 import uuid
 from pathlib import Path
+
+
+def _read_success_term(env) -> "bool | None":
+    """Whether the env's 'success' termination term fired on the last step.
+
+    Reads the termination manager's cached per-term done (computed pre-reset),
+    so it is immune to the auto-reset that clobbers root_pos_w. None if unavailable.
+
+    For pick_and_place the 'success' term is place_termination -> object_in_bin,
+    wired at pick_and_place.py:461. This is the canonical predicate captured at
+    the correct (pre-reset) time.
+    """
+    try:
+        tm = env.unwrapped.termination_manager
+        done = tm.get_term("success") if hasattr(tm, "get_term") else tm._term_dones["success"]
+        return bool(done[0])
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def _boot_app(headless: bool):
@@ -124,8 +155,8 @@ def main(argv: list[str] | None = None) -> int:
     out_path = Path(args.output_json).resolve()
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # 1. Boot Isaac FIRST.
-    app = _boot_app(args.headless)
+    # 1. Boot Isaac FIRST.  Keep reference alive — SimulationApp must not be GC'd.
+    _app = _boot_app(args.headless)  # noqa: F841
 
     import torch
 
@@ -144,7 +175,10 @@ def main(argv: list[str] | None = None) -> int:
 
     # 4. Rollout.
     successes = 0
+    task_successes = 0
     ep_lens: list[int] = []
+    _verifier_available = True  # flip False if termination_manager is unavailable
+
     for ep in range(args.n_episodes):
         obs_dict, _ = env.reset()
         obs_group = obs_dict["policy"]
@@ -169,25 +203,60 @@ def main(argv: list[str] | None = None) -> int:
                 break
         successes += int(success)
         ep_lens.append(steps)
+
+        # Source task_success from the termination manager's pre-reset "success" term
+        # verdict. Isaac Lab auto-resets terminated sub-envs INSIDE step() before
+        # returning, clobbering root_pos_w — the termination manager caches its
+        # per-term done flags before the reset, making this the only correct read.
+        if _verifier_available:
+            ts_verdict = _read_success_term(env)
+            if ts_verdict is None:
+                # termination_manager unavailable — fall back to env-termination outcome
+                # and disable further reads.
+                _verifier_available = False
+                task_successes += int(success)
+            else:
+                task_successes += int(ts_verdict)
+        else:
+            task_successes += int(success)
+
         print(f"[sim-eval] ep={ep} success={success} steps={steps}", flush=True)
 
     pc_success = successes / max(1, args.n_episodes)
+    task_success = task_successes / max(1, args.n_episodes)
+
+    if _verifier_available:
+        _success_criterion = (
+            "env \"success\" termination-term verdict (place_termination -> object_in_bin),"
+            " captured pre-reset via termination_manager —"
+            " geom comes from the term params (pick_and_place.py:461:"
+            " target_pos, success_radius=0.06, object_name='source_object')"
+        )
+    else:
+        _success_criterion = "env termination fallback (termination_manager unavailable)"
+
     payload = {
         "run_id": "sim-eval-" + uuid.uuid4().hex[:8],
         "task": f"{Path(args.dataset_root).name}-sim-{args.task}",
         "pc_success": pc_success,
+        "task_success": task_success,
         "n_episodes": args.n_episodes,
         "mean_ep_len": sum(ep_lens) / max(1, len(ep_lens)),
         "_metadata": {
             "source": "closed_loop_isaac_sim",
             "successes": successes,
+            "task_successes": task_successes,
             "max_steps": args.max_steps,
             "policy_path": str(Path(args.policy_path).resolve()),
-            "success_criterion": "env success_termination (EE-to-object < threshold)",
+            "success_criterion": _success_criterion,
         },
     }
     out_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    print(f"[sim-eval] result: pc_success={pc_success:.4f} ({successes}/{args.n_episodes}) -> {out_path}", flush=True)
+    print(
+        f"[sim-eval] result: pc_success={pc_success:.4f} task_success={task_success:.4f}"
+        f" ({successes}/{args.n_episodes}) -> {out_path}",
+        flush=True,
+    )
 
     # Hard exit to bypass Isaac's hanging atexit SimulationApp.close().
     try:
