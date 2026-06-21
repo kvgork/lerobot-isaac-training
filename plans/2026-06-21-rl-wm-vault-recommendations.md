@@ -62,6 +62,18 @@ actor never converts to place *behaviour*. Two principled, dual-mode, small-code
 2 sim-only techniques (relied on privileged sim state / instant parallel resets — no HITL signal). Several
 redundant with the existing autoresearch loop / curriculum_controller / outcome_verifier (don't rebuild).
 
+## IMPLEMENTED 2026-06-21 (adopt-now code tier — committed, GPU-validation pending)
+- **BC actor-loss wiring** ✅ — `behavior_cloning_loss` + DAPG decay + RLPD demo sampling now wired into
+  sheeprl `dreamer_v3.train` via `_wm_isaac_entry._patch_bc_actor_loss` (commits: adapters `606971b`,
+  workspace `6e7e32e`). Default OFF (`LEROBOT_ISAAC_BC_WEIGHT=0.0`); enable with `BC_WEIGHT>0` +
+  `BC_DECAY_STEPS`. 14 CPU tests; grill-reviewed (OFF-path no-op verified, 3 ON-path fixes applied).
+  **GPU validation PENDING** (the actor-update hook firing in a live sheeprl run — 5 sheeprl-internal
+  integration points to confirm; run a 500-step smoke with `BC_WEIGHT=0.1 BC_DECAY_STEPS=200`).
+- **Distance-curriculum auto-relaunch driver** ✅ — `lerobot_isaac_autoresearch.curriculum_campaign`
+  (commit autoresearch `dc22eea`): loops DISTANCE_LADDER, derives place-success from TB `ep_len_avg`,
+  `advance_distance`, chains `resume_from`. 36 tests + `--dry_run`. **GPU validation PENDING** (live chained run).
+- **Deferred** (next): Plan2Explore/RND intrinsic reward + sign/normalization guardrail (queue); Director (research).
+
 ## Recommended sequence (folds into the plateau lever queue)
 B (running) → **wire BC actor loss + RLPD (adopt-now #1)** → Plan2Explore/RND intrinsic reward → build the
 autonomous distance-curriculum driver → (research) Director hierarchy. Every step dual-mode by the principle above.
