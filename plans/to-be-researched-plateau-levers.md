@@ -19,9 +19,27 @@ climbing past ~−20, sustained over a trailing window. = the policy places.
 
 ## Queue
 
-### 0. Lever A — DreamerFD demo-seed  ← IN FLIGHT (2026-06-21)
-`cp-stage1-seed-20260621`, replay 8, +25 demos (5412 transitions) seeded. Running. If this
-breaks the plateau, levers 1–4 below become research backlog (do NOT run).
+### 0. Lever A — DreamerFD demo-seed  ← FAILED (2026-06-21)
+`cp-stage1-seed-20260621`, replay 8, +25 demos (5412 transitions) seeded. Ran to step 8500: reward
+flat ~−25 (max −22.7), ep_len_avg 300, ZERO places — did NOT break the plateau. **Root cause (from the
+2026-06-21 RL+WM vault research, `plans/2026-06-21-rl-wm-vault-recommendations.md`): the BC actor-gradient
+is UNWIRED — seeding loads place dynamics into the WM but gives the actor no imitation gradient, so it
+never converts to place behaviour.** ckpt_5000 preserved.
+
+### 0b. Lever B — easier curriculum step-0 + resume + seed  ← IN FLIGHT (2026-06-21)
+`cp-stage1-easyB-20260621`: resume ckpt_10000 (10k reach/lift) + die (0.185,−0.13)=3.5cm (genuinely easier
+than the 7.2cm ladder step-0) + demo seed kept. A place is reachable by chance → reward locks on.
+
+### QUEUE REORDERED per the 2026-06-21 RL+WM research (was A→B→C→more-demos→explicit-BC):
+Research elevates the BC-wiring from "hardest/last" to **next + highest-EV + small-code**, and adds the
+principled exploration family. New order after B:
+1. **Wire decaying BC actor loss (DAPG) + RLPD 50/50 replay** — adopt-now, small-code, native-dual. The
+   load-bearing fix (call `demo_buffer.behavior_cloning_loss` from `_wm_isaac_entry.py` actor-update monkeypatch).
+2. **Plan2Explore / ensemble-disagreement intrinsic reward** (or lighter RND-in-RSSM) — principled
+   sparse-reward exploration cure; sheeprl `p2e_dv3` config-level start; native-dual.
+3. Easier-curriculum auto-relaunch DRIVER (the Phase-2 autonomy piece) — gated on the binary verifier; dual-mode.
+4. (research) Director manager/worker latent-subgoal hierarchy — large-code, revisit if 1–2 insufficient.
+The OLD levers C (terminal bonus) / more-demos fold into the above (low-EV alone).
 
 ### 1. Lever B — easier curriculum step-0 (EASIEST; env-var only)
 Make a place reachable by chance so the reward locks on, then curriculum-harden outward.
