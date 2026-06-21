@@ -166,3 +166,11 @@ step-0 die at 6.6cm). Ran clean ~5.5h to step ~7500. **Outcome: confirmed place-
 3. **(C) `LEROBOT_ISAAC_PLACE_SUCCESS_WEIGHT` terminal bonus.** Makes a place dominate the return — but USELESS standalone (a bigger reward for an event that never happens = still no gradient). Only useful COMBINED with (B): once (B) makes places occur, (C) reinforces them strongly. Recommend B+C together.
 
 **Recommendation:** kill the plateaued run (ckpt_5000 preserved, nothing lost), relaunch lever **B+C** resuming `ckpt_5000` with die at ~3.5cm + terminal place bonus on. Awaiting user sign-off (do not auto-launch).
+
+### Lever A LAUNCHED (2026-06-21) — DreamerFD demo-seeded run
+User chose lever **A** (regen demos + BC-seed). Executed:
+- Killed the plateaued `cp-stage1-r8` run (ckpt_5000 + ckpt_10000 preserved; plateau held through 10000).
+- **Fixed `_gen_sim_demos.py`** (commit `4ac3b1a`): (1) `observation.state` 12→13 = `joint_pos_rel ⊕ object_pose` (world frame) — byte-matching the sheeprl wrapper's state assembly (the old 12-dim = joint_pos++joint_vel silently shape-failed seeding); (2) terminated-as-success — the env's XY-only `place_termination` (radius 0.04) fires + auto-resets the die mid-demo, so the old post-hoc die-pose check failed all 90 attempts; now read the place_termination verdict + stop recording (clean carry→place). Result: **25 demos, state=13 verified, reward sidecar non-zero, 5412 transitions.**
+- **Note:** scripted-grasp success at the (0.16,−0.10) die-start is only ~18-28% (the grasp struggles at low obj_x near the base); demos cluster at the high-x jitter edge. 25 demos is a workable first seed.
+- **Launched fresh seeded run** `cp-stage1-seed-20260621` (replay 8, object_pose, staged reward, horizon 25, ent_coef 1e-3, mlp_keys=[state], `LEROBOT_ISAAC_DEMO_DATASET=…demos-op`, 19h timeout). Confirmed `SEEDED 25 demo episodes (5412 transitions)` fired in the training path, booted clean.
+- **Win condition watched:** `Game/ep_len_avg` dropping below 300 / min-ever < 300 = the seeded WM enabled places (the carry-place plateau broken). The unseeded run never placed in 10000 steps; if this one places, demo-seeding is the unlock.
