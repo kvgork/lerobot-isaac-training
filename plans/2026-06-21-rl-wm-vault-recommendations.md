@@ -93,3 +93,10 @@ the RARE place event → imagined return doesn't credit placing → actor drifts
 (make place learnable by the WM, ranked): BC actor-loss (keep place data flowing — testing 0.3→0.6);
 **`LEROBOT_ISAAC_PLACE_SUCCESS_WEIGHT` terminal bonus is OFF (0.0) — a missed lever** (salient place reward →
 WM models it); prioritized place replay; Plan2Explore. **Best next lever after BC-weight = BC + PLACE_SUCCESS_WEIGHT.**
+
+## Retention ladder progress (2026-06-21, autonomous)
+- Lever B (easier start, no BC): placed → regressed +3500.
+- BC-0.3 (resume ckpt_15000): placed → regressed +1500.
+- BC-0.6 (resume clean ckpt_10000): placed → regressed +1500 (SAME point). Key: bc_loss magnitude small (~0.3) → BC gradient weak regardless of weight 0.3 vs 0.6. **BC-weight alone EXHAUSTED.**
+- → BC-0.6 + **PLACE_SUCCESS_WEIGHT=10** (cp-stage1-bcps): attacks the WM-under-modeling root directly — a salient dt-invariant terminal place bonus (placing return -3→~+7) so the WM reward head models place strongly. + slower BC decay (30000). IN FLIGHT.
+- If BC+PLACE_SUCCESS also regresses → Plan2Explore intrinsic reward (sheeprl p2e_dv3) or prioritized place-replay (both attack WM coverage of the rare place event).
