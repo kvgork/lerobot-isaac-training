@@ -69,9 +69,13 @@ def main() -> int:
     GRIP_OPEN, GRIP_CLOSE = 1.0, -1.0
     z_high = 0.17
 
-    # LeRobotDataset features — match the env d435 obs (3,H,W) + 12-dim state + 6 action.
+    # LeRobotDataset features — match the env d435 obs (3,H,W) + 13-dim state + 6 action.
+    # state = joint_pos_rel[6] + object_pose[7] — EXACTLY the vector the sheeprl wrapper
+    # packs (isaac_env.py:355-386: joint_pos_rel ++ object_pose) when
+    # LEROBOT_ISAAC_INCLUDE_OBJECT_POSE=1. The old (12,) = joint_pos++joint_vel did NOT
+    # match the run's obs, so DreamerFD seeding silently shape-failed (vet 2026-06-20).
     feats = {
-        "observation.state": {"dtype": "float32", "shape": (12,), "names": None},
+        "observation.state": {"dtype": "float32", "shape": (13,), "names": None},
         "observation.images.d435_rgb": {"dtype": "image", "shape": (3, args.img, args.img),
                                         "names": ["channels", "height", "width"]},
         "action": {"dtype": "float32", "shape": (6,), "names": None},
@@ -85,9 +89,21 @@ def main() -> int:
 
     frames: list[dict] = []
     rewards_buf: list[float] = []  # per-step env reward, parallel to frames (sidecar, not a LeRobot feature)
+    # place_termination (success_radius, XY-only) fires the instant the die is carried into
+    # the bin and Isaac AUTO-RESETS the die that same step — so the old post-hoc
+    # `die-to-target < r` check (read AFTER the rollout) saw the reset spawn pose and ALWAYS
+    # failed once the env became episodic + place-terminated. The terminated verdict IS the
+    # RLVR success signal; capture it at the step and stop (don't record post-reset garbage).
+    _placed = {"hit": False}
 
     def grab_frame(action_vec):
-        st = torch.cat([robot.data.joint_pos[0], robot.data.joint_vel[0]]).detach().cpu().numpy().astype("float32")
+        # state = joint_pos_rel[6] ++ object_pose[7], byte-for-byte matching the sheeprl
+        # wrapper's state assembly (isaac_env.py:355-386):
+        #   joint_pos_rel = joint_pos - default_joint_pos  (= mdp.joint_pos_rel)
+        #   object_pose   = cat(root_pos_w, root_quat_w)    (= observations.object_pose, world frame)
+        jp_rel = robot.data.joint_pos[0] - q_default[0]                              # (6,)
+        obj_pose = torch.cat([obj.data.root_pos_w[0], obj.data.root_quat_w[0]])       # (7,) pos++quat, world
+        st = torch.cat([jp_rel, obj_pose]).detach().cpu().numpy().astype("float32")  # (13,)
         rgb = cam.data.output["rgb"][0]                      # (480,640,3) uint8
         rgb = rgb[..., :3].permute(2, 0, 1).float().unsqueeze(0)  # (1,3,480,640)
         rgb = F.interpolate(rgb, size=(args.img, args.img), mode="bilinear", align_corners=False)
@@ -98,6 +114,8 @@ def main() -> int:
                        "task": "pick and place the die in the bin"})
 
     def step_to(target_b, grip, n, quat, grip_end=None, record=True):
+        if _placed["hit"]:
+            return  # already placed this rollout — skip remaining scripted steps (post-reset)
         ik.reset()
         cmd = torch.tensor([list(target_b) + list(quat)], device=device, dtype=torch.float32)
         for s in range(n):
@@ -121,11 +139,23 @@ def main() -> int:
                 except Exception:
                     rew = float(rew)
                 rewards_buf.append(rew)
+                # place_termination verdict = RLVR success. The env auto-resets the die
+                # THIS step, so trust the terminated flag (not the post-step die pose) and
+                # stop recording — the trajectory up to here is the clean carry→place.
+                term = out[2]
+                try:
+                    term0 = bool(np.asarray(term).reshape(-1)[0])
+                except Exception:
+                    term0 = bool(term)
+                if term0:
+                    _placed["hit"] = True
+                    break
 
     def rollout(ox, oy):
         """Reset, jitter die to (ox,oy), settle, full pick->place. Returns SUCCESS."""
         frames.clear()
         rewards_buf.clear()
+        _placed["hit"] = False
         env.reset()
         # teleport die to jittered xy (keep spawn z + identity rot)
         root = obj.data.root_state_w.clone()
@@ -146,8 +176,9 @@ def main() -> int:
         step_to([args.tgt_x, args.tgt_y, z_high], GRIP_CLOSE, 60, q)
         step_to([args.tgt_x, args.tgt_y, 0.06], GRIP_CLOSE, 40, q)
         step_to([args.tgt_x, args.tgt_y, 0.06], GRIP_OPEN, 20, q)
-        op = obj.data.root_pos_w[0].detach().cpu().numpy()
-        return bool(((op[0] - args.tgt_x) ** 2 + (op[1] - args.tgt_y) ** 2) ** 0.5 < 0.06)
+        # SUCCESS = the env's place_termination fired during the rollout (RLVR verdict),
+        # NOT a post-hoc die-pose check (the die has been auto-reset by then).
+        return bool(_placed["hit"])
 
     saved, attempts = 0, 0
     while saved < args.episodes and attempts < args.max_attempts:
