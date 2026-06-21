@@ -67,8 +67,14 @@ redundant with the existing autoresearch loop / curriculum_controller / outcome_
   sheeprl `dreamer_v3.train` via `_wm_isaac_entry._patch_bc_actor_loss` (commits: adapters `606971b`,
   workspace `6e7e32e`). Default OFF (`LEROBOT_ISAAC_BC_WEIGHT=0.0`); enable with `BC_WEIGHT>0` +
   `BC_DECAY_STEPS`. 14 CPU tests; grill-reviewed (OFF-path no-op verified, 3 ON-path fixes applied).
-  **GPU validation PENDING** (the actor-update hook firing in a live sheeprl run — 5 sheeprl-internal
-  integration points to confirm; run a 500-step smoke with `BC_WEIGHT=0.1 BC_DECAY_STEPS=200`).
+  **GPU-VALIDATED 2026-06-21** — the `cp-bc-smoke` run crossed `learning_starts` and ran the `_bc_step`
+  actor-update past step 1024 with NO Traceback (all 5 sheeprl-integration risks cleared: rssm.dynamic
+  sig, actor() unpack, fabric.backward, zero_grad interplay, cfg attrs; `decoupled_rssm:false` path).
+  One cosmetic logging bug found+fixed (`a2dad55`: register `Loss/bc_loss`/`Params/bc_weight` in the
+  MetricAggregator so bc_loss reaches TB). **Full BC run LAUNCHED** `cp-stage1-bc-20260621`: resume
+  ckpt_15000 (lever-B place experience) + `BC_WEIGHT=0.3 BC_DECAY_STEPS=20000` + seed + 3.5cm start —
+  testing the hypothesis that the continuous imitation gradient gives STABLE placing (vs lever B's
+  oscillation 43↔300).
 - **Distance-curriculum auto-relaunch driver** ✅ — `lerobot_isaac_autoresearch.curriculum_campaign`
   (commit autoresearch `dc22eea`): loops DISTANCE_LADDER, derives place-success from TB `ep_len_avg`,
   `advance_distance`, chains `resume_from`. 36 tests + `--dry_run`. **GPU validation PENDING** (live chained run).
