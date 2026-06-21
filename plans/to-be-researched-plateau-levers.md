@@ -26,9 +26,18 @@ flat ~−25 (max −22.7), ep_len_avg 300, ZERO places — did NOT break the pla
 is UNWIRED — seeding loads place dynamics into the WM but gives the actor no imitation gradient, so it
 never converts to place behaviour.** ckpt_5000 preserved.
 
-### 0b. Lever B — easier curriculum step-0 + resume + seed  ← IN FLIGHT (2026-06-21)
-`cp-stage1-easyB-20260621`: resume ckpt_10000 (10k reach/lift) + die (0.185,−0.13)=3.5cm (genuinely easier
-than the 7.2cm ladder step-0) + demo seed kept. A place is reachable by chance → reward locks on.
+### 0b. Lever B — easier curriculum step-0 + resume + seed  ← ✅ SOLVED (2026-06-21) — PLATEAU BROKEN
+`cp-stage1-easyB-20260621`: resume ckpt_10000 (10k reach/lift) + die (0.185,−0.13)=3.5cm + demo seed.
+**At step ~11500: rew_avg −25 → −3, Game/ep_len_avg 300 → ~50 (min-ever 43.7) — `place_termination`
+FIRING = the die is being placed. FIRST carry-place success in the project.** The unlock = the easier
+3.5cm start (sparse-reward exploration: a place becomes reachable by chance → reward locks on). Lever A
+(6.6cm + seed) never placed; B (3.5cm) does → attributable to the easier curriculum start.
+
+**Remaining levers below → BACKLOG (not needed for the plateau; keep as enhancements):** the BC actor-loss
+(now BUILT + committed, default OFF — available to accelerate convergence), Plan2Explore intrinsic reward,
+more-demos. **NEXT (not a plateau lever — the autonomy follow-on): harden the die back OUTWARD via the
+distance-curriculum driver (`curriculum_campaign.py`, built) starting from B's 3.5cm + checkpoint, walking
+to 6→18cm — the ladder step-0 must be lowered to ~3.5cm to chain from B (research caveat).**
 
 ### QUEUE REORDERED per the 2026-06-21 RL+WM research (was A→B→C→more-demos→explicit-BC):
 Research elevates the BC-wiring from "hardest/last" to **next + highest-EV + small-code**, and adds the
