@@ -148,3 +148,21 @@ EXTRA_HYDRA="algo.horizon=25 algo.actor.ent_coef=1e-3 metric.log_every=500 algo.
 bash scripts/_run_wm_isaac_overnight.sh
 ```
 Memory: `dreamerv3-carryplace-launch-gotchas`.
+
+## 9. Stage-1 result (2026-06-21) — PLATEAU at the place wall
+
+`cp-stage1-r8-20260620` (replay 8, object_pose obs, staged reward, fixed geometry, fine-curriculum
+step-0 die at 6.6cm). Ran clean ~5.5h to step ~7500. **Outcome: confirmed place-breakthrough plateau.**
+
+- Reward climbed −71 → −24 by ~step 2500 (learned reach+lift via dense shaping), then **dead flat ~−25 for 5000 steps** (2500→7500). Max-ever −24.1.
+- `Game/ep_len_avg` = 300 the ENTIRE run, min-ever 300 → **not one episode ever placed** (no `place_termination`).
+- Diagnostic combo: `Grads/actor` decayed 0.9→0.25 while `post_entropy` rose 9.6→12.0 and `State/kl` clamped to the 1.0 free-bits floor. = **over-explore / under-converge**: the agent never randomly carries the die to within 4cm of the bin from 6.6cm, so the place reward never fires, so there is no gradient toward placing — the actor freezes into a non-placing local optimum.
+- NOT a collapse, NOT a config bug (geometry/obs/reward/throughput all verified healthy). It is the classic **sparse-reward exploration failure**: the success event is too rare to discover by chance from a cold 6.6cm start.
+- `ckpt_5000` saved → any lever can resume the learned reach/lift instead of restarting cold.
+
+**Lever options (ranked, NOT yet launched — strategy change, needs user sign-off):**
+1. **(B) Easier curriculum step-0 — highest EV, cheapest, root-cause fix.** Restart (resume `ckpt_5000`) with the die VERY close to the bin (~3-4cm, `LEROBOT_ISAAC_OBJECT_X/Y` near TARGET) so a place happens by chance within the existing reach/lift policy → the place reward fires → credit locks on. Then the distance-curriculum (now built: `DISTANCE_LADDER`) walks the die back out 4→6→9→12→15→18cm. This is exactly what the curriculum was for; the 6.6cm cold-start was too hard. Pure env-var change.
+2. **(A) DreamerFD BC-loss demo seeding.** Strongest if demos exist, BUT blocked: existing demos are state=12, this run needs state=13 (object_pose) and the seeder only truncates (can't grow) — needs a demo REGEN with object_pose state first (`_gen_sim_demos.py` change). Real work; do as a follow-up if (B) stalls.
+3. **(C) `LEROBOT_ISAAC_PLACE_SUCCESS_WEIGHT` terminal bonus.** Makes a place dominate the return — but USELESS standalone (a bigger reward for an event that never happens = still no gradient). Only useful COMBINED with (B): once (B) makes places occur, (C) reinforces them strongly. Recommend B+C together.
+
+**Recommendation:** kill the plateaued run (ckpt_5000 preserved, nothing lost), relaunch lever **B+C** resuming `ckpt_5000` with die at ~3.5cm + terminal place bonus on. Awaiting user sign-off (do not auto-launch).
