@@ -83,3 +83,13 @@ redundant with the existing autoresearch loop / curriculum_controller / outcome_
 ## Recommended sequence (folds into the plateau lever queue)
 B (running) → **wire BC actor loss + RLPD (adopt-now #1)** → Plan2Explore/RND intrinsic reward → build the
 autonomous distance-curriculum driver → (research) Director hierarchy. Every step dual-mode by the principle above.
+
+## Regression mechanism analysis (2026-06-21) — why placing isn't retained
+Placing is reliably DISCOVERED (easier start) but not RETAINED (lever B + BC-0.3 both regressed). Analysis:
+`Rewards/rew_avg = ep["episode"]["r"]` (episode return); placing return ≈ −3 (incl +5 success_bonus on
+place_termination) ≫ timeout return ≈ −25 → **the objective FAVORS placing** (not a reward-design bug).
+Root cause = **WM-imagination instability**: DreamerV3 trains the actor in imagination, the WM under-models
+the RARE place event → imagined return doesn't credit placing → actor drifts off → regression. Fix family
+(make place learnable by the WM, ranked): BC actor-loss (keep place data flowing — testing 0.3→0.6);
+**`LEROBOT_ISAAC_PLACE_SUCCESS_WEIGHT` terminal bonus is OFF (0.0) — a missed lever** (salient place reward →
+WM models it); prioritized place replay; Plan2Explore. **Best next lever after BC-weight = BC + PLACE_SUCCESS_WEIGHT.**
