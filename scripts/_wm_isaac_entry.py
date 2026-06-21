@@ -171,6 +171,7 @@ def _patch_seed_demo_buffer() -> None:
     if not demo_root:
         return
     try:
+        import numpy as np
         from sheeprl.data.buffers import EnvIndependentReplayBuffer
         from lerobot_isaac_adapters.sheeprl_plugin.demo_buffer import load_sim_demos
     except Exception as exc:  # noqa: BLE001
@@ -178,7 +179,6 @@ def _patch_seed_demo_buffer() -> None:
         return
     if getattr(EnvIndependentReplayBuffer.add, "_lerobot_demo_seed_patched", False):
         return
-    import numpy as np
 
     _orig_add = EnvIndependentReplayBuffer.add
     max_demos = int(os.environ.get("LEROBOT_ISAAC_DEMO_MAX", "0")) or None
@@ -218,6 +218,292 @@ def _patch_seed_demo_buffer() -> None:
     EnvIndependentReplayBuffer.add = patched_add
     print(f"[wm-isaac-entry] demo-seed patch armed (dataset={demo_root}, "
           f"max={max_demos or 'all'})", flush=True)
+
+
+def _patch_bc_actor_loss() -> None:
+    """DreamerFD BC actor loss: inject an explicit behavior-cloning gradient into
+    DreamerV3's actor update, so the actor *converts* demo dynamics (already loaded
+    into the replay buffer by _patch_seed_demo_buffer) into demo BEHAVIOUR.
+
+    Without this patch the actor gets zero imitation gradient — it can only
+    discover the carry→place policy through online reward, which plateaus because
+    exploration never reaches the bin. This patch closes the loop.
+
+    Gating (env vars):
+        LEROBOT_ISAAC_BC_WEIGHT    (float, default 0.0 = OFF)
+            Initial BC weight.  When 0.0 the patch is a no-op and existing runs
+            are completely unaffected (no sheeprl module touched on import).
+        LEROBOT_ISAAC_BC_DECAY_STEPS  (int, default 20000)
+            Number of actor-update steps over which bc_weight decays linearly
+            toward 0.0 (DreamerFD "virtual clutch").
+        LEROBOT_ISAAC_DEMO_DATASET
+            Path to the demo LeRobotDataset.  Required for BC to work;
+            if absent the patch exits early with a warning.
+
+    Mechanism — monkeypatch ``sheeprl.algos.dreamer_v3.dreamer_v3.train``:
+        After the standard DreamerV3 train() call (WM update + imagined actor
+        update + critic update), a SEPARATE BC actor step fires:
+          1. Sample a demo mini-batch from DemoBuffer (RLPD-style: same
+             batch_size and sequence_length as the online batch).
+          2. Encode demo obs (rgb + state) through world_model.encoder and
+             world_model.rssm to produce latent_states.
+          3. Call actor(latent_states) → distributions.
+          4. BC loss = -bc_weight(step) * mean(log pi(a_demo | latent)).
+          5. actor_optimizer.zero_grad → fabric.backward(bc_loss) → step.
+
+    The latent encoding path mirrors sheeprl's dreamer_v3.train() exactly
+    (same RSSM dynamic call, same latent concatenation) so the actor sees the
+    same latent geometry as during imagination — no distribution shift.
+
+    GPU validation required (see tests/test_bc_loss.py for CPU-only unit tests).
+    """
+    import os
+
+    bc_w = float(os.environ.get("LEROBOT_ISAAC_BC_WEIGHT", "0.0"))
+    if bc_w <= 0.0:
+        return  # OFF — zero behaviour change, nothing patched
+
+    demo_root = os.environ.get("LEROBOT_ISAAC_DEMO_DATASET", "").strip()
+    if not demo_root:
+        print(
+            "[wm-isaac-entry] BC patch: LEROBOT_ISAAC_BC_WEIGHT > 0 but "
+            "LEROBOT_ISAAC_DEMO_DATASET not set — BC actor loss DISABLED.",
+            flush=True,
+        )
+        return
+
+    decay_steps = int(os.environ.get("LEROBOT_ISAAC_BC_DECAY_STEPS", "20000"))
+
+    try:
+        import sheeprl.algos.dreamer_v3.dreamer_v3 as _dv3_mod
+        from lerobot_isaac_adapters.sheeprl_plugin.demo_buffer import (
+            DemoBuffer,
+            bc_weight,
+            load_sim_demos,
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"[wm-isaac-entry] BC patch skipped (import): {exc}", flush=True)
+        return
+
+    if getattr(_dv3_mod.train, "_lerobot_bc_patched", False):
+        return
+
+    _orig_train = _dv3_mod.train
+
+    # State shared across train() calls (closed over by the wrapper).
+    # Populated lazily on the first call so we know the obs schema from cfg.
+    _state: dict = {
+        "demo_buf": None,       # DemoBuffer | None
+        "step": 0,              # actor-update step counter
+        "warned_once": False,   # suppress repeated error spam
+    }
+
+    def _ensure_demo_buf(cfg) -> "DemoBuffer | None":
+        """Load DemoBuffer once; return None on failure."""
+        if _state["demo_buf"] is not None:
+            return _state["demo_buf"]
+        # Infer image size from cfg: cfg.env.screen_size or fall back to 64
+        img = 64
+        try:
+            img = int(cfg.env.screen_size)
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            max_ep = int(os.environ.get("LEROBOT_ISAAC_DEMO_MAX", "0")) or None
+            episodes = load_sim_demos(demo_root, image_size=img, max_episodes=max_ep)
+            buf = DemoBuffer(episodes=episodes)
+            _state["demo_buf"] = buf
+            print(
+                f"[wm-isaac-entry] BC patch: loaded {buf.n_episodes} demo episodes "
+                f"({buf.n_transitions} transitions) into DemoBuffer.",
+                flush=True,
+            )
+            return buf
+        except Exception as exc:  # noqa: BLE001
+            if not _state["warned_once"]:
+                print(f"[wm-isaac-entry] BC patch: DemoBuffer load FAILED: {exc}", flush=True)
+                _state["warned_once"] = True
+            return None
+
+    def _bc_step(fabric, world_model, actor, actor_optimizer, cfg, aggregator):
+        """One BC actor update on a demo mini-batch.
+
+        Encodes demo obs through world_model → latents → actor log_prob(demo_actions)
+        → BC loss → fabric.backward → actor_optimizer step.
+        """
+        import torch
+
+        step = _state["step"]
+        w = bc_weight(step, start=bc_w, decay_steps=decay_steps)
+        if w <= 0.0:
+            return  # weight has fully decayed
+
+        buf = _ensure_demo_buf(cfg)
+        if buf is None:
+            return
+
+        batch_size = cfg.algo.per_rank_batch_size
+        seq_len = cfg.algo.per_rank_sequence_length
+        stochastic_size = cfg.algo.world_model.stochastic_size
+        discrete_size = cfg.algo.world_model.discrete_size
+        recurrent_state_size = cfg.algo.world_model.recurrent_model.recurrent_state_size
+        device = fabric.device
+
+        try:
+            demo = buf.sample(batch_size=batch_size, seq_len=seq_len)
+        except Exception as exc:  # noqa: BLE001
+            if not _state["warned_once"]:
+                print(f"[wm-isaac-entry] BC patch: demo sample FAILED: {exc}", flush=True)
+                _state["warned_once"] = True
+            return
+
+        # Build obs dict matching what sheeprl's train() uses
+        cnn_keys = list(cfg.algo.cnn_keys.encoder)  # e.g. ["rgb"]
+        mlp_keys = list(cfg.algo.mlp_keys.encoder)  # e.g. ["state"]
+
+        demo_obs: dict = {}
+        for k in cnn_keys:
+            if k in demo:
+                arr = demo[k]  # (seq, batch, 3, H, W) uint8
+                demo_obs[k] = torch.from_numpy(arr).float().to(device) / 255.0 - 0.5
+            else:
+                # sheeprl key may be "rgb" but DemoBuffer stores "d435_rgb" — try both
+                for dk in ("rgb", "d435_rgb"):
+                    if dk in demo:
+                        arr = demo[dk]
+                        demo_obs[k] = torch.from_numpy(arr).float().to(device) / 255.0 - 0.5
+                        break
+        for k in mlp_keys:
+            if k in demo:
+                arr = demo[k]  # (seq, batch, state_dim)
+                demo_obs[k] = torch.from_numpy(arr).float().to(device)
+
+        # Demo actions: (seq, batch, action_dim)
+        demo_actions = torch.from_numpy(demo["actions"]).float().to(device)
+
+        # is_first: (seq, batch, 1) — force first step = True as train() does
+        is_first = torch.from_numpy(demo["is_first"]).float().to(device)
+        is_first[0] = torch.ones_like(is_first[0])
+
+        # Build batch_actions with leading zero (mirrors sheeprl train())
+        batch_actions_demo = torch.cat(
+            (torch.zeros_like(demo_actions[:1]), demo_actions[:-1]), dim=0
+        )
+
+        # Encode demo obs → latent states (same RSSM path as sheeprl train())
+        with torch.no_grad():
+            embedded = world_model.encoder(demo_obs)
+
+        recurrent_state = torch.zeros(1, batch_size, recurrent_state_size, device=device)
+
+        decoupled = getattr(cfg.algo.world_model, "decoupled_rssm", False)
+        if decoupled:
+            with torch.no_grad():
+                _posteriors_logits, posteriors_d = world_model.rssm._representation(embedded)
+            recurrent_states = torch.empty(seq_len, batch_size, recurrent_state_size, device=device)
+            posteriors = posteriors_d
+            for i in range(seq_len):
+                prior_post = torch.zeros_like(posteriors_d[:1]) if i == 0 else posteriors_d[i - 1:i]
+                with torch.no_grad():
+                    recurrent_state, _, _ = world_model.rssm.dynamic(
+                        prior_post, recurrent_state,
+                        batch_actions_demo[i:i + 1], is_first[i:i + 1],
+                    )
+                recurrent_states[i] = recurrent_state
+        else:
+            posterior = torch.zeros(1, batch_size, stochastic_size, discrete_size, device=device)
+            posteriors = torch.empty(seq_len, batch_size, stochastic_size, discrete_size, device=device)
+            recurrent_states = torch.empty(seq_len, batch_size, recurrent_state_size, device=device)
+            for i in range(seq_len):
+                with torch.no_grad():
+                    recurrent_state, posterior, _, _, _ = world_model.rssm.dynamic(
+                        posterior, recurrent_state,
+                        batch_actions_demo[i:i + 1],
+                        embedded[i:i + 1],
+                        is_first[i:i + 1],
+                    )
+                recurrent_states[i] = recurrent_state
+                posteriors[i] = posterior
+
+        # latent_states: (seq, batch, stoch+recurrent)
+        latent_states = torch.cat(
+            (posteriors.view(*posteriors.shape[:-2], -1), recurrent_states), -1
+        )
+
+        # BC loss: -w * E[log pi(a_demo | latent)]
+        # Split demo_actions across actor heads (continuous: 1 head; discrete: N heads).
+        # Uniform split: if action_dim divisible by n_heads; otherwise all to head 0.
+        actor_optimizer.zero_grad(set_to_none=True)
+        _, policies = actor(latent_states)
+        n_heads = len(policies)
+        act_dim = demo_actions.shape[-1]
+        if n_heads > 0 and act_dim % n_heads == 0:
+            action_splits = torch.split(demo_actions, act_dim // n_heads, dim=-1)
+        else:
+            # SO-101 continuous actor is single-head (n_heads==1) so this never fires.
+            # If a future multi-head actor doesn't divide the action dim evenly, BC would
+            # silently supervise only head 0 — warn loudly rather than degrade in silence.
+            import logging as _lg
+            _lg.getLogger(__name__).warning(
+                "[wm-isaac-entry] BC: actor has %d heads but action_dim=%d is not divisible "
+                "— BC supervises head 0 only; multi-head BC split is unimplemented.",
+                n_heads, act_dim,
+            )
+            action_splits = [demo_actions] + [demo_actions[:, :, :0]] * (n_heads - 1)
+
+        lp_list = []
+        for pol, act_chunk in zip(policies, action_splits):
+            try:
+                lp = pol.log_prob(act_chunk)  # (seq, batch) or (seq, batch, 1)
+                lp_list.append(lp.reshape(seq_len, batch_size))
+            except Exception:  # noqa: BLE001
+                pass
+
+        if not lp_list:
+            actor_optimizer.zero_grad(set_to_none=True)
+            return
+
+        log_prob = torch.stack(lp_list, dim=-1).sum(dim=-1)  # (seq, batch)
+        bc_loss = -w * log_prob.mean()
+
+        fabric.backward(bc_loss)
+        actor_optimizer.step()
+
+        if aggregator and not aggregator.disabled:
+            try:
+                aggregator.update("Loss/bc_loss", bc_loss.detach())
+                aggregator.update("Params/bc_weight", torch.tensor(w))
+            except Exception:  # noqa: BLE001
+                pass
+
+        _state["step"] += 1
+
+    def patched_train(
+        fabric, world_model, actor, critic, target_critic,
+        world_optimizer, actor_optimizer, critic_optimizer,
+        data, aggregator, cfg, is_continuous, actions_dim, moments,
+    ):
+        # 1. Standard DreamerV3 update (WM update + imagined actor + critic)
+        _orig_train(
+            fabric, world_model, actor, critic, target_critic,
+            world_optimizer, actor_optimizer, critic_optimizer,
+            data, aggregator, cfg, is_continuous, actions_dim, moments,
+        )
+        # 2. Extra BC actor step on a demo mini-batch (DreamerFD)
+        try:
+            _bc_step(fabric, world_model, actor, actor_optimizer, cfg, aggregator)
+        except Exception as exc:  # noqa: BLE001 — never crash training on BC error
+            import traceback
+            traceback.print_exc()
+            print(f"[wm-isaac-entry] BC actor step FAILED (non-fatal): {exc}", flush=True)
+
+    patched_train._lerobot_bc_patched = True
+    _dv3_mod.train = patched_train
+    print(
+        f"[wm-isaac-entry] BC actor-loss patch armed "
+        f"(bc_weight={bc_w}, decay_steps={decay_steps}, demo={demo_root})",
+        flush=True,
+    )
 
 
 def _patch_torch_load_weights_only() -> None:
@@ -266,6 +552,7 @@ def main() -> None:
     _patch_gym_vector_final_info()
     _patch_gym_vector_isaac()  # Fix 2: num_envs>1 → one batched IsaacSO101VectorEnv
     _patch_seed_demo_buffer()  # Stage 3: seed replay buffer with sim demos (env-gated)
+    _patch_bc_actor_loss()     # DreamerFD: explicit BC actor gradient (env-gated by LEROBOT_ISAAC_BC_WEIGHT)
     _patch_torch_load_weights_only()  # allow checkpoint.resume_from on torch 2.6 (curriculum)
 
     # 3. Call sheeprl's hydra-decorated `run()` with the remaining argv.
