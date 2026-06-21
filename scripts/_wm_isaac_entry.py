@@ -471,8 +471,21 @@ def _patch_bc_actor_loss() -> None:
 
         if aggregator and not aggregator.disabled:
             try:
+                # Register our keys once (lazily) — sheeprl builds the aggregator from
+                # cfg.metric.aggregator, which does NOT include our BC keys, so an
+                # unregistered update() is silently dropped with a UserWarning. add()
+                # itself warns if the key exists, so guard on membership to avoid
+                # per-step warn-spam. MeanMetric mirrors sheeprl's Loss/* metrics;
+                # sync_on_compute=False is correct for the single-process (devices=1) run.
+                from torchmetrics import MeanMetric
+
+                _dev = bc_loss.device
+                if "Loss/bc_loss" not in aggregator.metrics:
+                    aggregator.add("Loss/bc_loss", MeanMetric(sync_on_compute=False).to(_dev))
+                if "Params/bc_weight" not in aggregator.metrics:
+                    aggregator.add("Params/bc_weight", MeanMetric(sync_on_compute=False).to(_dev))
                 aggregator.update("Loss/bc_loss", bc_loss.detach())
-                aggregator.update("Params/bc_weight", torch.tensor(w))
+                aggregator.update("Params/bc_weight", torch.tensor(w, device=_dev))
             except Exception:  # noqa: BLE001
                 pass
 
