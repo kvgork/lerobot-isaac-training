@@ -47,3 +47,22 @@ pouring more GPU into from-scratch grasp RL — 11 runs say it won't spontaneous
   grasp-first stage, distance-curriculum driver, demo-gen state=13, RL+WM dual-mode recommendations.
 - `ckpt_10000` (reach/lift base) preserved. GPU idle. No arm motion taken (hardware untouched).
 - Memory: `carryplace-place-wall-plateau` (full chain), `dreamerv3-carryplace-launch-gotchas`.
+
+## Action-authority check (2026-06-22, cheap diagnostic — done)
+Action = `JointPositionActionCfg(scale=0.5, use_default_offset=True)` → ±0.5 rad DELTA from the rest pose.
+Gripper rest = open. So action=0 (policy center) = gripper OPEN; a firm grip needs SUSTAINED extreme action
+(demos use ±1.0). Authority EXISTS (demos grip via the same mapping) — but the parameterization BIASES the
+gripper open and makes grip hard to explore/sustain. Rules out "broken action path"; adds a cheaper lever:
+- **(0) Re-parameterize the gripper action** (NEW, cheapest targeted lever, do before residual-RL/P2E):
+  give the gripper joint a larger action scale OR absolute-position control so a grip is commandable with
+  MODERATE actions (not only the ±1.0 extreme). CAVEAT: changes the action interface → invalidates resuming
+  ckpt_10000 (action semantics shift) → fresh run; it's a design change, so confirm direction before doing it.
+
+## Updated recommendation
+0. **Gripper-action re-parameterization** (cheapest; attacks the open-bias directly) — needs a design nod
+   (alters the action interface).  THEN
+1. **Residual RL on the scripted grasp** (reuse the working primitive).  Cheap action-authority check is DONE
+   (#3 ruled out).  P2E (#2) remains a bigger bet.
+
+**PAUSED for user direction on the fork — autonomous knob-tuning + cheap diagnostics are exhausted; the
+next moves (action re-parameterization / residual-RL / P2E) are design choices. GPU idle, no run active.**
