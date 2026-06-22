@@ -100,3 +100,11 @@ WM models it); prioritized place replay; Plan2Explore. **Best next lever after B
 - BC-0.6 (resume clean ckpt_10000): placed → regressed +1500 (SAME point). Key: bc_loss magnitude small (~0.3) → BC gradient weak regardless of weight 0.3 vs 0.6. **BC-weight alone EXHAUSTED.**
 - → BC-0.6 + **PLACE_SUCCESS_WEIGHT=10** (cp-stage1-bcps): attacks the WM-under-modeling root directly — a salient dt-invariant terminal place bonus (placing return -3→~+7) so the WM reward head models place strongly. + slower BC decay (30000). IN FLIGHT.
 - If BC+PLACE_SUCCESS also regresses → Plan2Explore intrinsic reward (sheeprl p2e_dv3) or prioritized place-replay (both attack WM coverage of the rare place event).
+
+## Carry-place retention — full ladder + the slide revelation (2026-06-22)
+- B / BC-0.3 / BC-0.6 / BC+PS: all "placed" (ep_len→43, rew→-3) then regressed. rew capped at -3.1 across ALL.
+- ROOT CAUSE found: place_termination was XY-only → the agent SLID the die in (rew -3, no lift); place_success(+50) needs a lift → never fired. The "placing" was a SLIDE ARTIFACT — true carry-place never learned.
+- FIX (fd8e977): place_termination now requires the lift (LEROBOT_ISAAC_PLACE_REQUIRE_LIFT). Slides stop terminating → ep_len back to 300, CONFIRMING the agent only slid. rew moved to ~-14 (lift_shaping engaging = partial grasp+lift) then declined → agent reaches+pushes, won't discover the grasp→lift→carry→place chain.
+- Bottleneck is now EXPLORATION of the grasp→carry chain (not retention). Cheap levers exhausted (BC weight 0.3/0.6, PS, lift-gate, easy start, seed).
+- LAST CHEAP LEVER: strong persistent BC (weight 1.5, ~no decay) to maximally inject the demos' full chain (cp-stage1-bcstrong). IN FLIGHT.
+- If strong-BC fails → next is BIGGER: Plan2Explore integration (sheeprl ships p2e_dv3 but adapter hardcodes exp=dreamer_v3 + BC/seed monkeypatches target dreamer_v3 → real integration, not a config swap), OR a grasp-first sub-curriculum / more+better demos. Research-scale; consolidate before committing more GPU.
