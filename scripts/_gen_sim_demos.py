@@ -191,12 +191,16 @@ def main() -> int:
         # lowered/released, not carried aloft). The full sequence already released the gripper.
         dp = obj.data.root_pos_w[0].detach().cpu().numpy()
         xy = float(((dp[0] - args.tgt_x) ** 2 + (dp[1] - args.tgt_y) ** 2) ** 0.5)
-        was_lifted = _acc["maxz"] > 0.07
-        resting = float(dp[2]) < 0.04
-        _radius = float(os.environ.get("LEROBOT_ISAAC_PLACE_SUCCESS_RADIUS", "0.05"))  # match cup
-        ok = bool(xy < _radius and was_lifted and resting)
+        # Mirror the env's is_placed() exactly so demos "succeed" by the SAME rule the env trains on:
+        #   lifted (max die-z > rest+margin) AND resting low AND released (gripper open) AND in radius.
+        _lift_thr = float(os.environ.get("LEROBOT_ISAAC_OBJECT_Z", "0.05")) + 0.02  # rest_height + lift_margin
+        _radius = float(os.environ.get("LEROBOT_ISAAC_PLACE_SUCCESS_RADIUS", "0.05"))  # match cup / place_termination
+        was_lifted = _acc["maxz"] > _lift_thr
+        resting = float(dp[2]) < float(os.environ.get("LEROBOT_ISAAC_PLACE_REST_Z", "0.04"))
+        released = float(robot.data.joint_pos[0, grip_idx]) > float(os.environ.get("LEROBOT_ISAAC_GRIPPER_OPEN_THRESH", "0.0"))
+        ok = bool(xy < _radius and was_lifted and resting and released)
         print(f"[demos]   post-hoc: die_final=({dp[0]:.3f},{dp[1]:.3f},{dp[2]:.3f}) xy_to_bin={xy:.4f} "
-              f"maxz={_acc['maxz']:.4f} lifted={was_lifted} resting={resting} -> {'OK' if ok else 'SKIP'}", flush=True)
+              f"maxz={_acc['maxz']:.4f} lifted={was_lifted} resting={resting} released={released} -> {'OK' if ok else 'SKIP'}", flush=True)
         return ok
 
     saved, attempts = 0, 0
