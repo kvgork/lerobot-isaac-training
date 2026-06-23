@@ -135,3 +135,36 @@ test sys.modules pollution → monkeypatch.setitem.
 **Launch sketch (when GPU frees from P2E):** resume the reach/lift ckpt_10000, GRASP_STAGE=1 +
 LEROBOT_ISAAC_RESIDUAL_RL_WEIGHT=1.0 + _DECAY_STEPS≈30000 + INCLUDE_OBJECT_POSE=1 + BC + seed, watch
 ep_len<300 (held-lift) emerging earlier than the from-scratch runs.
+
+### 2026-06-23 (cont.) — residual run FAILED, root-caused to the scripted controller
+First residual validation run (residual-grasp-20260623-021443, resume ckpt_10000, w0=1.0 decay=15000,
+no-BC): ep_len stayed 300, reward −60→−72 (WORSE than reach baseline) at script_frac=0.90. Killed +
+diagnosed with a standalone GPU probe (`scratchpad/_probe_scripted.py`, applies ONLY the scripted action):
+- **The reactive controller PUSHED the die.** It closed the gripper at ~1.3cm xy error → knocked the 16mm
+  die to (0.31,0.33), beyond the 0.346 m reach → arm flailed (|a|=12). FIXED by rewriting
+  `compute_scripted_action` to a demo-ordered, state-gated phase machine (APPROACH align-high → DESCEND
+  vertical → CLOSE gradual-ramp → LIFT gradual). Probe now aligns to ~1mm — no more pushing. (commit 3f6bad2)
+- **But the grasp does NOT yet CAPTURE/HOLD.** Even with ~1mm alignment + gradual close + gradual lift, the
+  die slips out at ~0.066 m (below the 0.09 lift threshold) every cycle. Not alignment/timing — it's grasp
+  PHYSICS: grasp_z=0.106 may put the fingertips slightly above the die, or scale-0.5 grip is too weak to
+  hold through the lift (cf. gs5: scale 5.0 grips firmer). The die rises ~5cm dragged by the fingertips,
+  then falls out.
+- **Probe escalation (commits 3f6bad2, 266618c):** added STABILIZE + gradual close + gradual lift — all
+  demo-faithful, none captured. The die hits a hard ceiling at max_obj_z=0.066 every variant.
+- **Kinematic-floor finding (REFUTES "lower grasp_z"):** `LEROBOT_ISAAC_GRASP_Z=0.065` → the arm CANNOT
+  descend, stuck at z=0.106 ⇒ **z=0.106 is the gripper_link kinematic floor** (arm reach / table). At that
+  floor the fingertips sit ~0.066, ~4.8 cm above a 16 mm die (top ~0.018) → the die hangs from the tips and
+  slips. So grasp_z is NOT tunable lower, and the slip is a contact-geometry issue at the floor.
+- **The paradox:** `_gen_sim_demos` grasps the SAME die at grasp_z=0.106 ([[scripted-grasp-infeasible]]
+  SOLVED). So a working grasp EXISTS at the floor — my controller has a subtle reconstruction gap at the
+  contact moment (open-loop contact dynamics, or the demo's fingers close with the die between the finger
+  SIDES while pressing toward the table, not pinched at the tips).
+- **NEXT (real path):** instrument `_gen_sim_demos` to log, frame-by-frame at the grasp moment, the gripper
+  joint position + finger body poses + die pose, and diff against `_probe_scripted.py`. Find what the demo
+  does at contact that captures the die. Likely answers: the demo's full grip-close width (joint range) vs
+  mine, OR the descend pressing into table-contact before close, OR the die needs to be nudged between the
+  fingers. THEN fix compute_scripted_action to match. Probe (`_probe_scripted.py`, ~4 min/cycle) before any
+  multi-hour residual run. [[so101-gripper-kinematic-floor]]
+**Status: residual MECHANISM done+validated+committed; scripted GRASP CONTROLLER aligns perfectly but the
+contact doesn't capture the die at the kinematic floor — a focused grasp-physics investigation (frame-by-frame
+vs the working demo) is the remaining blocker. GPU idle, no run active.**
