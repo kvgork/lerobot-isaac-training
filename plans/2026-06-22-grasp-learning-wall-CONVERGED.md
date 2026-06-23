@@ -208,3 +208,22 @@ firmer grip — widen the gripper USD joint close range past −0.175 +/- die fr
 scripts/_probe_demo_grasp.py.
 **Status: carry-place blocker FULLY understood (marginal grasp, config unchanged). Clear cheap unblock +
 real fix defined. GPU idle, no run active. Residual mechanism committed+pushed and ready once the grasp holds.**
+
+### 2026-06-23 (END OF AUTONOMOUS SESSION) — every autonomous path exhausted; AWAITING USER FORK DECISION
+- Grip-fix tried (sibling a969d79): friction 1→5 + solver 32 + offsets + die 16→30mm → lift PEAK 0.071→0.096
+  but NEVER HOLDS (slips, final ~0.013). The −0.175 closed grip is the hard physical root.
+- Band-aid tried (LIFT_HOLD_STEPS=1, residual run residual-hold1-20260623-044414): DID NOT trigger ep_len<300 —
+  the residual clamps the scripted action to [−1,1] (actor-reproducibility), but the unclamped grasp only
+  peaks ~0.066–0.071 (needs |a|>1); clamped it falls below the 0.07 threshold. Killed.
+- **The residual lever is DOUBLY blocked (marginal grasp + clamp), both reducing to the sim-gripper model.**
+**DECISION REQUIRED FROM USER — pick a fork (all autonomous knob/probe space is exhausted):**
+  (A) Fix the SO-101 sim gripper MODEL — widen the gripper joint close-range in the USD (close past −0.175) or
+      fix the jaw collider/geometry. The real fix, but a risky robot-asset edit + a sim2real-validity question
+      (is −0.175 the real hardware fully-closed?). NOT done autonomously by design.
+  (B) Accept SLIDE-place as the task (the 25 demos are slides; the env already rewards slide-into-bin if the
+      lift-gate is off) — pragmatic if a true grasp isn't required for the use case.
+  (C) Redesign the manipulation object so the −0.175 closed jaw actually clamps it (breaks ckpt_10000's 16mm
+      assumption → fresh training).
+  (D) Park carry-place; the residual MECHANISM (built+grilled+GPU-validated) + P2E (validated runnable) are
+      reusable for other tasks once a graspable setup exists.
+**Everything committed+pushed. GPU idle, arm untouched. Loop ended pending direction.**
