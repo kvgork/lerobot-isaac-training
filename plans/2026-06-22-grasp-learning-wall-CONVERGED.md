@@ -168,3 +168,25 @@ diagnosed with a standalone GPU probe (`scratchpad/_probe_scripted.py`, applies 
 **Status: residual MECHANISM done+validated+committed; scripted GRASP CONTROLLER aligns perfectly but the
 contact doesn't capture the die at the kinematic floor — a focused grasp-physics investigation (frame-by-frame
 vs the working demo) is the remaining blocker. GPU idle, no run active.**
+
+### 2026-06-23 (cont.) — frame-by-frame done → ENV GRASP-FEASIBILITY REGRESSION (the real bedrock)
+Instrumented the EXACT _gen_sim_demos open-loop grasp (scripts/_probe_demo_grasp.py, logs gripper joint +
+die/ee geometry) — i.e. the SUPPOSEDLY-working demo, not my controller. **It ALSO fails to hold the die:**
+- 16mm die: max_die_z=0.071 (<0.09 lift thresh). Same at X=0.18 (the 2026-06-13 SOLVED position) AND X=0.22
+  → object position NOT the cause. Same at gripper scale 0.5 AND 5.0 → **gripper scale IRRELEVANT** (gripJOINT
+  clamps to −0.175 rad, a USD joint limit; target −5.0 can't exceed it). 27mm die: 0.096 (crosses 0.09) but
+  still slips (final 0.013).
+- Mechanism: the jaw tip reaches the die (grasp_z floor 0.106, jaw ~9.6cm → tip at die level), grips, lifts
+  3–5cm, then the die SLIPS OUT — the closed grip at the −0.175 limit is too LOOSE for a 16mm die.
+**THE REFRAME (supersedes "RL grasp wall"):** the grasp is ENV-INFEASIBLE in the current config — REGRESSED
+from 2026-06-13 ([[scripted-grasp-infeasible]] SOLVED, where a 16mm die was picked up). No RL/residual/P2E can
+learn a grasp the physics won't reliably support → explains all 13 grasp-stage runs that never got ep_len<300,
+and the 25 demos were likely SLIDES not true grasps. The residual lever (mechanism built+grilled+validated) is
+BLOCKED at its foundation until the scripted grasp holds.
+**NEXT (env-physics, needs a direction decision — surfaced to user):** (1) git-diff gripper USD /
+payloads/instances.usda collider / die CuboidCfg / actuator (stiffness/effort_limit/friction) vs the
+2026-06-13 SOLVED commit to find the regression; (2) firmer grip — widen the gripper joint close range in USD
+(close past −0.175) +/- die physics_material friction>1.0 + solver_position_iteration_count↑; (3) bigger die
+(≥27mm) + (2). Iterate with scripts/_probe_scripted_grasp.py / _probe_demo_grasp.py (~6 min, no training).
+**Status: residual mechanism done; carry-place BLOCKED on an env grasp-feasibility regression (scripted grasp
+doesn't hold the die). Needs an env-physics fix + likely a user steer on direction. GPU idle, no run active.**
