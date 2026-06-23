@@ -1,0 +1,72 @@
+# Carry-place-into-cup — campaign handoff (2026-06-23)
+
+Session built the full real-place-into-a-cup pipeline + ran 2 warm-starts (both plateaued). Paused for a
+dedicated curriculum campaign. Everything below is committed + ready to resume.
+
+## What "place" means now (changed this session — see [[carryplace-real-place-cup]])
+A REAL place: grasp → lift → carry → **lower + RELEASE** the 16mm die into a **9cm-diameter × 7cm-tall CUP**
+(4 static collidable walls). Success = `is_placed` = die XY in cup (radius 0.05) **AND** ever-lifted (latch)
+**AND** resting (z<0.04) **AND** gripper released (open). All default-ON, env-tunable.
+
+## What's BUILT + verified (committed)
+- **Grasp works ~80%** (retracted the "infeasible" call) — `scripts/_probe_lift_stats.py`, `_probe_carry_mechanism.py`.
+- **Env real-place predicate** (latch + resting + release) — sibling `lerobot-isaac-env` commits f15988f, 4d23cc1.
+  Helpers: `terminations.latch_ever_lifted`, `is_placed`, `_gripper_open`. Both place_termination +
+  place_success_reward use `is_placed` with a shared 0.05 radius (env knob `LEROBOT_ISAAC_PLACE_SUCCESS_RADIUS`).
+- **Cup walls** — `pick_and_place.py`, static `AssetBaseCfg`+collision (no kinematic sim-hang). Knobs:
+  `LEROBOT_ISAAC_PLACE_CUP` (1), `_PLACE_CUP_RADIUS` (0.045), `_PLACE_CUP_HEIGHT` (0.07).
+- **Demos** `datasets/local/so101-sim-pickplace-demos-op3` — 40 full pick-lift-carry-place-RELEASE demos (die 0.18),
+  validated VALID-WITH-CAVEATS vs recorded human demos (orchestrated workflow; gripper/lift/arm/smoothness all
+  pass; warns = scripted determinism). Demo-gen: `scripts/_gen_sim_demos.py` (workspace 9af0427, 28900a6).
+- **SO-101 reach**: die hangs ~0.096 below gripper_link; carry height `LEROBOT_ISAAC_CARRY_Z=0.19` lifts the die
+  to ~0.107 (clears the 7cm rim); 0.22 BREAKS the grasp (reach-capped).
+- **Warm-start machinery** (all in `scripts/_wm_isaac_entry.py`, env-gated): demo-seed (`LEROBOT_ISAAC_DEMO_DATASET`),
+  DreamerFD BC actor-loss (`LEROBOT_ISAAC_BC_WEIGHT`), residual RL (`LEROBOT_ISAAC_RESIDUAL_RL_WEIGHT`).
+
+## The 2 plateaus (this session, ~8h GPU)
+| run | die / carry | place bonus | result |
+|-----|-------------|-------------|--------|
+| `cup-warmstart-v1` | 0.18 / 18cm (full) | OFF | ep_len=300 pinned, 0 places, rew flat ~−31 |
+| `cup-warmstart-cur-v1` | (0.20,0.0) / ~13cm | ON (weight 1.0) | ep_len=300 pinned, 0 places, rew flat ~−27 (10k–14.5k) |
+Both: BC active + decaying, demos seeded (40 ep / 19400 transitions), reward climbs (reach/grasp/lift) then
+FLAT — **the place is never DISCOVERED** (no positive reward spikes, no terminating episodes). Matches every prior
+full-task run + the ACT-BC closed-loop failure ([[demo-warmstart-pipeline]]).
+
+## Why (the obstacle)
+The carry-place breakthrough (cur1, 2026-06-16: 30% places) needed a **short ~6.6cm carry on a FLAT target**.
+The 7cm cup walls block that: die-near-cup → the gripper fingers (±2cm) hit the 7cm wall during grasp (die never
+lifts); and the scripted release ejects the die ~5cm in +X, which lands on the rim/outside from non-tuned
+positions. So the easiest CLEAN-grasp stage is ~13cm carry — still too far for RL to discover the place. The
+place isn't an RL-control problem; it's a **sparse-reward DISCOVERY** problem made harder by the cup geometry.
+
+## RECOMMENDED next: easy-cup curriculum (make place discoverable, then harden)
+The lever that ever worked was an easy-enough start that exploration STUMBLES into a place. The cup must be made
+easy first, then hardened on TWO axes (cup height + carry distance):
+- **Stage 0** — `LEROBOT_ISAAC_PLACE_CUP_HEIGHT=0.03` (low cup, fingers clear it), die IN/at the cup
+  (`OBJECT_X=0.22 OBJECT_Y=-0.13`) → trivial carry; agent discovers lift→release-in-cup. Regenerate matched demos
+  at this config first (`_gen_sim_demos.py --obj_x 0.22 --obj_y -0.13` with `PLACE_CUP_HEIGHT=0.03`).
+- **Stage 1** — cup 0.03, die ~6cm out (e.g. `OBJECT_Y=-0.05`) → short carry. Resume Stage-0 ckpt.
+- **Stage 2..N** — raise `PLACE_CUP_HEIGHT` 0.03→0.07 and push the die out toward (0.18,0.05), resuming each ckpt
+  (`EXTRA_HYDRA=checkpoint.resume_from=<ckpt>`, bump STEPS). cur1→cur2 resume pattern
+  ([[dreamerv3-carryplace-launch-gotchas]]).
+Keep: BC (`BC_WEIGHT=1.0`), seeding (matched demos per stage), place bonus (`PLACE_SUCCESS_WEIGHT=1.0`),
+`INCLUDE_OBJECT_POSE=1` + `EXTRA_HYDRA=algo.mlp_keys.encoder=[state]`, batch 8, ckpt 5k,
+`LEROBOT_TRAIN_TIMEOUT=46800`.
+
+## Other options (if curriculum stalls)
+- **BC policy instead of RL**: `lerobot-isaac-train --target_arch act --dataset .../so101-sim-pickplace-demos-op3`
+  then closed-loop eval — the plan's "quickest path"; sidesteps DreamerV3 discovery (earlier ACT-BC was 0% but
+  on the broken task / narrow demos — worth a re-try on the correct task + -op3).
+- **DreamerFD harder**: bc_weight 1→3, decay 20k→50k, prioritized place-transition replay, more steps.
+
+## Launch templates (ready)
+- Full warm-start: `scratchpad/launch_warmstart_full.sh` (die 0.18, the v1 config).
+- Easy curriculum: `scratchpad/launch_warmstart_cur.sh` (edit OBJECT_X/Y + PLACE_CUP_HEIGHT per stage).
+- Pre-flight: kill stray GPU procs (`nvidia-smi --query-compute-apps`); batch 8 (not 16) on this 10GB GPU.
+
+## Known caveats
+- Pre-existing eval `test()` crash (inference-mode tensor in Isaac DR reset) — hits cur1/v5 too, NOT from this
+  session; rc=1 at the very end but ckpts survive. Read the place signal from the TB reward curve (rew>−10) +
+  `Game/ep_len_avg` (<300 = real terminating places), NOT the test() eval. Proper ckpt eval =
+  sheeprl `evaluate.py` (DreamerV3), not `_sim_eval.py` (lerobot only).
+- Bash safety classifier (Opus-backed) was intermittently unavailable this session — retry transient failures.
