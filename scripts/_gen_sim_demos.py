@@ -52,6 +52,17 @@ def main() -> int:
     from lerobot.datasets.lerobot_dataset import LeRobotDataset
 
     env = make_env(task="pick_and_place", num_envs=1, headless=not args.gui, enable_cameras=True)
+    # Disable time_out: the full scripted sequence (~485 steps) exceeds the 300-step episode
+    # cap (episode_length_s=10 * 30 Hz), so time_out would TRUNCATE mid-grasp (~step 300, during
+    # the seat phase) and auto-reset the die before lift+carry+place ever happen → 0 demos saved.
+    # max_episode_length is a read-only property derived from cfg.episode_length_s; bumping the
+    # cfg field recomputes it huge. place_termination then fires at carry once the lifted die
+    # reaches the bin (verified scripts/_probe_place_term.py, 2026-06-23).
+    try:
+        env.cfg.episode_length_s = 1.0e6
+        print(f"[demos] time_out disabled: max_episode_length -> {getattr(env, 'max_episode_length', None)}", flush=True)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[demos] WARN could not disable time_out: {exc}", flush=True)
     device = env.device
     robot = env.scene["robot"]
     obj = env.scene["source_object"]
@@ -67,7 +78,10 @@ def main() -> int:
     ik = DifferentialIKController(DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"), num_envs=1, device=device)
     GRASP_QUAT = [1.0, 0.0, 0.0, 0.0]
     GRIP_OPEN, GRIP_CLOSE = 1.0, -1.0
-    z_high = 0.17
+    # Carry height. Raised from 0.17 so the held die (hangs ~0.096 below gripper_link) clears the
+    # ~7 cm cup rim during the lateral carry (die_z ≈ z_high - 0.096; 0.22 -> die ~0.10 > 0.07).
+    # Capped by SO-101 vertical reach at the cup radius — verified by the demo-gen maxz log.
+    z_high = float(os.environ.get("LEROBOT_ISAAC_CARRY_Z", "0.19"))
 
     # LeRobotDataset features — match the env d435 obs (3,H,W) + 13-dim state + 6 action.
     # state = joint_pos_rel[6] + object_pose[7] — EXACTLY the vector the sheeprl wrapper
@@ -94,7 +108,7 @@ def main() -> int:
     # `die-to-target < r` check (read AFTER the rollout) saw the reset spawn pose and ALWAYS
     # failed once the env became episodic + place-terminated. The terminated verdict IS the
     # RLVR success signal; capture it at the step and stop (don't record post-reset garbage).
-    _placed = {"hit": False}
+    _acc = {"maxz": -9.0}  # max object-z reached this rollout (post-hoc lift check)
 
     def grab_frame(action_vec):
         # state = joint_pos_rel[6] ++ object_pose[7], byte-for-byte matching the sheeprl
@@ -114,8 +128,6 @@ def main() -> int:
                        "task": "pick and place the die in the bin"})
 
     def step_to(target_b, grip, n, quat, grip_end=None, record=True):
-        if _placed["hit"]:
-            return  # already placed this rollout — skip remaining scripted steps (post-reset)
         ik.reset()
         cmd = torch.tensor([list(target_b) + list(quat)], device=device, dtype=torch.float32)
         for s in range(n):
@@ -132,6 +144,7 @@ def main() -> int:
             if record:
                 grab_frame(action[0].detach().cpu().numpy())
             out = env.step(action)
+            _acc["maxz"] = max(_acc["maxz"], float(obj.data.root_pos_w[0, 2]))
             if record:
                 rew = out[1]  # gym 5-tuple: (obs, reward, terminated, truncated, info)
                 try:
@@ -139,23 +152,17 @@ def main() -> int:
                 except Exception:
                     rew = float(rew)
                 rewards_buf.append(rew)
-                # place_termination verdict = RLVR success. The env auto-resets the die
-                # THIS step, so trust the terminated flag (not the post-step die pose) and
-                # stop recording — the trajectory up to here is the clean carry→place.
-                term = out[2]
-                try:
-                    term0 = bool(np.asarray(term).reshape(-1)[0])
-                except Exception:
-                    term0 = bool(term)
-                if term0:
-                    _placed["hit"] = True
-                    break
+            # NO early break: place_termination is SUPPRESSED during demo-gen (launch with
+            # LEROBOT_ISAAC_PLACE_REST_Z=-1 so the real-place gate never fires -> no mid-sequence
+            # auto-reset). The FULL scripted sequence runs incl the descend+RELEASE, and success
+            # is judged post-hoc in rollout(). This captures the gripper reopen the recorded human
+            # demos have (validation 2026-06-23 flagged the old break-at-success cut the release).
 
     def rollout(ox, oy):
         """Reset, jitter die to (ox,oy), settle, full pick->place. Returns SUCCESS."""
         frames.clear()
         rewards_buf.clear()
-        _placed["hit"] = False
+        _acc["maxz"] = -9.0
         env.reset()
         # teleport die to jittered xy (keep spawn z + identity rot)
         root = obj.data.root_state_w.clone()
@@ -175,10 +182,22 @@ def main() -> int:
         step_to([gx, gy, z_high], GRIP_CLOSE, 60, q)
         step_to([args.tgt_x, args.tgt_y, z_high], GRIP_CLOSE, 60, q)
         step_to([args.tgt_x, args.tgt_y, 0.06], GRIP_CLOSE, 40, q)
-        step_to([args.tgt_x, args.tgt_y, 0.06], GRIP_OPEN, 20, q)
-        # SUCCESS = the env's place_termination fired during the rollout (RLVR verdict),
-        # NOT a post-hoc die-pose check (the die has been auto-reset by then).
-        return bool(_placed["hit"])
+        # GENTLE release: slow ramp CLOSE->OPEN (50 steps) to avoid the jaw impulsively
+        # ejecting the die forward (~5cm) as it opens (validation 2026-06-23 saw die land
+        # ~0.052 past bin center with an instant open).
+        step_to([args.tgt_x, args.tgt_y, 0.06], GRIP_CLOSE, 50, q, grip_end=GRIP_OPEN)
+        # POST-HOC SUCCESS (real place): die ended in the bin XY (success_radius) AND was lifted
+        # at some point (max die-z > rest+lift_margin = 0.07) AND is now RESTING low (< 0.04 =
+        # lowered/released, not carried aloft). The full sequence already released the gripper.
+        dp = obj.data.root_pos_w[0].detach().cpu().numpy()
+        xy = float(((dp[0] - args.tgt_x) ** 2 + (dp[1] - args.tgt_y) ** 2) ** 0.5)
+        was_lifted = _acc["maxz"] > 0.07
+        resting = float(dp[2]) < 0.04
+        _radius = float(os.environ.get("LEROBOT_ISAAC_PLACE_SUCCESS_RADIUS", "0.05"))  # match cup
+        ok = bool(xy < _radius and was_lifted and resting)
+        print(f"[demos]   post-hoc: die_final=({dp[0]:.3f},{dp[1]:.3f},{dp[2]:.3f}) xy_to_bin={xy:.4f} "
+              f"maxz={_acc['maxz']:.4f} lifted={was_lifted} resting={resting} -> {'OK' if ok else 'SKIP'}", flush=True)
+        return ok
 
     saved, attempts = 0, 0
     while saved < args.episodes and attempts < args.max_attempts:
