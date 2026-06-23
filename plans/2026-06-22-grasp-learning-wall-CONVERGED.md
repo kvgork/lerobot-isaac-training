@@ -190,3 +190,21 @@ payloads/instances.usda collider / die CuboidCfg / actuator (stiffness/effort_li
 (≥27mm) + (2). Iterate with scripts/_probe_scripted_grasp.py / _probe_demo_grasp.py (~6 min, no training).
 **Status: residual mechanism done; carry-place BLOCKED on an env grasp-feasibility regression (scripted grasp
 doesn't hold the die). Needs an env-physics fix + likely a user steer on direction. GPU idle, no run active.**
+
+### 2026-06-23 (final) — RECONCILED: MARGINAL grasp, NOT a regression
+git-diff RULED OUT a regression: no gripper/collider/die/actuator commits after the SOLVED 6569587, and
+`instances.usda` still has the convexDecomposition fix (the `.bak` is the pre-fix convexHull). The SOLVED
+grasper `_scripted_pickplace.py` uses near-identical params (grasp_z 0.108 / dwell 30 / close 80) to my probe.
+The truth: **the grasp is MARGINAL** — it grips + lifts the die to **0.071 (~2cm above rest 0.05)** = exactly
+the 2026-06-13 "die picks up" — then SLIPS (grip at the −0.175 closed limit too loose for a sustained lift).
+The grasp-stage success / `lift_termination` needs rest+0.04 = **0.09 (4cm)**, which is ABOVE the 0.071
+ceiling → grasp-stage success is physically UNREACHABLE by the current grip. This fully explains the 13
+grasp-stage RL runs (the 2cm lift = "grip fires"/lift_shaping; never the 4cm hold = ep_len stays 300) — a
+MARGINAL-GRASP physics limit, NOT an RL-learning wall.
+**NEXT — two paths (see [[scripted-grasp-infeasible]]):** (QUICK) lower `lift_termination` lift_margin
+0.04→0.015 (threshold 0.065 < 0.071) so the marginal lift COUNTS → grasp-stage success reachable → RL/residual
+finally get signal → learn it → then harden. Add a LEROBOT_ISAAC_LIFT_MARGIN knob if not tunable. (REAL FIX)
+firmer grip — widen the gripper USD joint close range past −0.175 +/- die friction>1.0 + 27mm die. Iterate via
+scripts/_probe_demo_grasp.py.
+**Status: carry-place blocker FULLY understood (marginal grasp, config unchanged). Clear cheap unblock +
+real fix defined. GPU idle, no run active. Residual mechanism committed+pushed and ready once the grasp holds.**
