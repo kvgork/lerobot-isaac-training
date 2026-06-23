@@ -542,6 +542,161 @@ def _patch_torch_load_weights_only() -> None:
     print("[wm-isaac-entry] torch.load weights_only=False patch armed (for resume)", flush=True)
 
 
+def _patch_residual_rl_action() -> None:
+    """Residual RL on the scripted grasp: blend a scripted base action with the policy
+    action so the agent learns a residual on a WORKING grasp primitive instead of
+    re-discovering the (unlearnable) grasp from scratch.
+
+    Env vars:
+        LEROBOT_ISAAC_RESIDUAL_RL_WEIGHT       (float, default 0.0 = OFF) — w0, the
+                                                SCRIPT fraction at step 0; w0=1.0 ⇒ pure
+                                                script initially. The POLICY fraction is
+                                                (1 - script_frac) and rises 0→1.
+        LEROBOT_ISAAC_RESIDUAL_RL_DECAY_STEPS  (int, default 50000) — env-steps over
+                                                which script_frac decays w0→0 (DAgger /
+                                                residual handoff: script-dominant early,
+                                                policy-solo late). Counts non-eval
+                                                get_actions calls (= env steps at
+                                                num_envs=1, post-prefill).
+
+    CRITICAL (model-based RL): the blend MUST happen at the action-SELECTION seam
+    (PlayerDV3.get_actions, called at dreamer_v3.py:577) — BEFORE rb.add (:587) — so the
+    SAME action is recorded to the replay buffer AND executed by the env. Blending inside
+    IsaacSO101Env.step would record the policy action but execute the blended one, teaching
+    the world model wrong dynamics (silent failure). We also overwrite `player.actions`
+    with the blended action so the player's online recurrent latent stays consistent with
+    what the env executed. See memory `sheeprl-action-override-buffer-seam`.
+
+    Eval: sheeprl calls `test(..., greedy=False)` (dreamer_v3.py:767) — so the `greedy`
+    flag does NOT mark eval. We therefore wrap dreamer_v3's `test` to set an `in_eval`
+    flag and skip the blend during eval, so eval measures the PURE policy.
+
+    Caveats (GPU-validation pending — see plans/2026-06-22-grasp-learning-wall-CONVERGED.md):
+      * Actions are clipped to [-1,1] so the tanh actor can reproduce them; the scripted
+        controller is REACTIVE (re-solves each step), so the clip rate-limits rather than
+        breaks it (multi-step convergence vs the open-loop demo's |a|>1 single moves).
+      * Run with LEROBOT_ISAAC_INCLUDE_OBJECT_POSE=1 so the actor observes the object
+        location the script uses — else it cannot learn to reproduce the grasp.
+      * num_envs MUST be 1 (also the is_first constraint); the patch guards >1.
+      * The scripted action is sim-only (Isaac IK); on hardware compute_scripted_action()
+        returns None → blend skipped → pure policy (residual effectively OFF).
+    """
+    import os
+
+    w0 = float(os.environ.get("LEROBOT_ISAAC_RESIDUAL_RL_WEIGHT", "0.0"))
+    if w0 <= 0.0:
+        return  # OFF — no patch (default); returns before importing sheeprl
+    decay_steps = int(os.environ.get("LEROBOT_ISAAC_RESIDUAL_RL_DECAY_STEPS", "50000"))
+
+    try:
+        from sheeprl.algos.dreamer_v3.agent import PlayerDV3
+    except Exception as exc:  # noqa: BLE001
+        print(f"[wm-isaac-entry] residual RL patch skipped: {exc}", flush=True)
+        return
+    if getattr(PlayerDV3.get_actions, "_lerobot_residual_patched", False):
+        return
+
+    _orig_get_actions = PlayerDV3.get_actions
+    _state = {"step": 0, "in_eval": False, "warned_layout": False, "warned_nenvs": False}
+
+    # Wrap dreamer_v3's `test` so the blend is skipped during eval (eval uses
+    # greedy=False, so the greedy flag alone cannot detect it).
+    try:
+        import sheeprl.algos.dreamer_v3.dreamer_v3 as _dv3_main
+
+        if hasattr(_dv3_main, "test") and not getattr(_dv3_main.test, "_lerobot_eval_wrap", False):
+            _orig_test = _dv3_main.test
+
+            def _test_wrap(*a, **k):
+                _state["in_eval"] = True
+                try:
+                    return _orig_test(*a, **k)
+                finally:
+                    _state["in_eval"] = False
+
+            _test_wrap._lerobot_eval_wrap = True
+            _dv3_main.test = _test_wrap
+    except Exception as exc:  # noqa: BLE001 — non-fatal; falls back to greedy-only guard
+        print(f"[wm-isaac-entry] residual RL: eval-guard wrap skipped ({exc})", flush=True)
+
+    def patched_get_actions(self, obs, greedy=False, mask=None):
+        actions = _orig_get_actions(self, obs, greedy=greedy, mask=mask)
+        # Skip blend during eval (greedy OR the test() phase) — eval measures pure policy.
+        if greedy or _state["in_eval"]:
+            return actions
+        # Only the continuous single-block action layout is supported (multi-categorical
+        # → no-op). Warn once so an operator can't mistake "armed" for "active".
+        if not isinstance(actions, (list, tuple)) or len(actions) != 1:
+            if not _state["warned_layout"]:
+                print(
+                    "[residual-rl] action layout is not single-block (len != 1) — residual "
+                    "is a NO-OP for this actor; pure policy used.",
+                    flush=True,
+                )
+                _state["warned_layout"] = True
+            return actions
+        # Advance the decay clock on EVERY non-eval training step (even ones we end up
+        # not blending), so the schedule never stalls on a transient skip.
+        step = _state["step"]
+        _state["step"] = step + 1
+        script_frac = w0 * max(0.0, 1.0 - step / max(1, decay_steps))
+        if script_frac <= 1e-4:
+            return actions  # handed off to the policy — skip the IK cost entirely
+        try:
+            import torch
+
+            from lerobot_isaac_adapters.sheeprl_plugin import isaac_env as _ienv
+
+            wrapper = getattr(_ienv, "_LAST_WRAPPER", None)
+            if wrapper is None:
+                return actions
+            a_pol = actions[0]
+            # num_envs>1 is unsupported (one scripted action can't be broadcast across
+            # envs correctly) — and num_envs must be 1 anyway (is_first bug). Guard + warn.
+            # Action shape is (1, num_envs, action_dim) → shape[-2] is num_envs.
+            n_envs = a_pol.shape[-2] if a_pol.dim() >= 2 else 1
+            if n_envs != 1:
+                if not _state["warned_nenvs"]:
+                    print(
+                        "[residual-rl] num_envs>1 detected — residual unsupported, pure "
+                        "policy used.",
+                        flush=True,
+                    )
+                    _state["warned_nenvs"] = True
+                return actions
+            a_script = wrapper.compute_scripted_action()
+            if a_script is None:
+                return actions  # hardware / scene unavailable → pure policy
+            a_scr = torch.as_tensor(a_script, dtype=a_pol.dtype, device=a_pol.device)
+            if a_scr.numel() != a_pol.numel():
+                return actions
+            # Match a_pol's exact shape (e.g. (1,1,6)) — no broadcast luck.
+            a_scr = a_scr.reshape(a_pol.shape)
+            # Clip to [-1,1]: the tanh actor can only reproduce in-range actions, so the
+            # recorded/executed action must stay in range for the handoff to converge.
+            a_blend = torch.clamp(script_frac * a_scr + (1.0 - script_frac) * a_pol, -1.0, 1.0)
+            # Keep the player's internal "last action" consistent with the executed action.
+            self.actions = torch.cat([a_blend], -1)
+            if step % 500 == 0:
+                print(
+                    f"[residual-rl] step={step} script_frac={script_frac:.3f} "
+                    f"(w0={w0}, decay={decay_steps})",
+                    flush=True,
+                )
+            return [a_blend]
+        except Exception as exc:  # noqa: BLE001 — never crash the rollout on a residual error
+            print(f"[residual-rl] blend FAILED (non-fatal, using policy action): {exc}", flush=True)
+            return actions
+
+    patched_get_actions._lerobot_residual_patched = True
+    PlayerDV3.get_actions = patched_get_actions
+    print(
+        f"[wm-isaac-entry] residual RL patch armed (w0={w0}, decay_steps={decay_steps}) — "
+        "scripted-grasp base action blended at the get_actions seam (sim-only, eval-guarded)",
+        flush=True,
+    )
+
+
 def main() -> None:
     # 1. Boot SimulationApp FIRST — claims libgobject + omni.kit.app.
     from isaaclab.app import AppLauncher
@@ -566,6 +721,7 @@ def main() -> None:
     _patch_gym_vector_isaac()  # Fix 2: num_envs>1 → one batched IsaacSO101VectorEnv
     _patch_seed_demo_buffer()  # Stage 3: seed replay buffer with sim demos (env-gated)
     _patch_bc_actor_loss()     # DreamerFD: explicit BC actor gradient (env-gated by LEROBOT_ISAAC_BC_WEIGHT)
+    _patch_residual_rl_action()  # Residual RL: blend scripted-grasp base action (env-gated by LEROBOT_ISAAC_RESIDUAL_RL_WEIGHT)
     _patch_torch_load_weights_only()  # allow checkpoint.resume_from on torch 2.6 (curriculum)
 
     # 3. Call sheeprl's hydra-decorated `run()` with the remaining argv.
