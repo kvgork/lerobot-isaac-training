@@ -44,7 +44,7 @@ The lever that ever worked was an easy-enough start that exploration STUMBLES in
 easy first, then hardened on TWO axes (cup height + carry distance):
 - **Stage 0** — `LEROBOT_ISAAC_PLACE_CUP_HEIGHT=0.03` (low cup, fingers clear it), die IN/at the cup
   (`OBJECT_X=0.22 OBJECT_Y=-0.13`) → trivial carry; agent discovers lift→release-in-cup. Regenerate matched demos
-  at this config first (`_gen_sim_demos.py --obj_x 0.22 --obj_y -0.13` with `PLACE_CUP_HEIGHT=0.03`).
+  at this config first (`_gen_sim_demos.py --obj_x 0.22 --obj_y -0.13` with env `LEROBOT_ISAAC_PLACE_CUP_HEIGHT=0.03` exported — cup height is an ENV knob read at scene build, NOT a script flag).
 - **Stage 1** — cup 0.03, die ~6cm out (e.g. `OBJECT_Y=-0.05`) → short carry. Resume Stage-0 ckpt.
 - **Stage 2..N** — raise `PLACE_CUP_HEIGHT` 0.03→0.07 and push the die out toward (0.18,0.05), resuming each ckpt
   (`EXTRA_HYDRA=checkpoint.resume_from=<ckpt>`, bump STEPS). cur1→cur2 resume pattern
@@ -52,16 +52,27 @@ easy first, then hardened on TWO axes (cup height + carry distance):
 Keep: BC (`BC_WEIGHT=1.0`), seeding (matched demos per stage), place bonus (`PLACE_SUCCESS_WEIGHT=1.0`),
 `INCLUDE_OBJECT_POSE=1` + `EXTRA_HYDRA=algo.mlp_keys.encoder=[state]`, batch 8, ckpt 5k,
 `LEROBOT_TRAIN_TIMEOUT=46800`.
+**ADD the exploration counter-levers BOTH v1 plateaus omitted** — the flat-reward / ep_len=300-pinned signature IS
+entropy/exploration collapse (2026-06-16 wm-vla playbook): actor `ent_coef 1e-3` (5–10× the DreamerV3 default),
+`replay_ratio 16`, `horizon 25`, `demo_ratio 0.5`. Treat the curriculum as ONE of TWO simultaneous levers (easier
+start **AND** raised exploration entropy), not curriculum alone — both v1 plateaus ran without the raised actor_ent.
+See `[[2026-06-16-wm-vla-training-playbook]]`.
 
 ## Other options (if curriculum stalls)
 - **BC policy instead of RL**: `lerobot-isaac-train --target_arch act --dataset .../so101-sim-pickplace-demos-op3`
   then closed-loop eval — the plan's "quickest path"; sidesteps DreamerV3 discovery (earlier ACT-BC was 0% but
   on the broken task / narrow demos — worth a re-try on the correct task + -op3).
 - **DreamerFD harder**: bc_weight 1→3, decay 20k→50k, prioritized place-transition replay, more steps.
+- **Residual-RL / Plan2Explore** (vault IL-plateau ladder, `[[2026-06-16-wm-vla-training-playbook]]`): freeze a BC
+  base + train a small residual head online via `LEROBOT_ISAAC_RESIDUAL_RL_WEIGHT` (built, default OFF — see line 24),
+  or add P2E ensemble-disagreement exploration. **Caveat** (`[[Plan2Explore]]`, 2026-06-21): DreamerV3-XP finds
+  disagreement gains *modest* vs prediction-error replay prioritization; LeRobot has no native curiosity trainer;
+  the clean `--expl_behavior` flag is DreamerV2-era — not one-flag-easy.
 
-## Launch templates (ready)
-- Full warm-start: `scratchpad/launch_warmstart_full.sh` (die 0.18, the v1 config).
-- Easy curriculum: `scratchpad/launch_warmstart_cur.sh` (edit OBJECT_X/Y + PLACE_CUP_HEIGHT per stage).
+## Launch templates (MUST RECREATE — were in ephemeral `scratchpad/`, never committed; absent as of 2026-06-24)
+- Full warm-start: `scratchpad/launch_warmstart_full.sh` (die 0.18, the v1 config) — **GONE; recreate from the Stage-2
+  launch block in `plans/2026-06-23-world-model-training-plan.md` + the env knobs above.**
+- Easy curriculum: `scratchpad/launch_warmstart_cur.sh` (edit OBJECT_X/Y + PLACE_CUP_HEIGHT per stage) — **GONE; recreate.**
 - Pre-flight: kill stray GPU procs (`nvidia-smi --query-compute-apps`); batch 8 (not 16) on this 10GB GPU.
 
 ## Known caveats
@@ -69,4 +80,7 @@ Keep: BC (`BC_WEIGHT=1.0`), seeding (matched demos per stage), place bonus (`PLA
   session; rc=1 at the very end but ckpts survive. Read the place signal from the TB reward curve (rew>−10) +
   `Game/ep_len_avg` (<300 = real terminating places), NOT the test() eval. Proper ckpt eval =
   sheeprl `evaluate.py` (DreamerV3), not `_sim_eval.py` (lerobot only).
+- **Prove the seeding actually helps** each stage with a seed-vs-no-seed A/B (`LEROBOT_ISAAC_DEMO_DATASET` set vs
+  unset) — vault gate-on-place-rate principle (`[[2026-06-23-wm-training-plan-research]]`). Coverage from online
+  failures matters more than demo purity; keep the messy seeded transitions, don't aggressively SAL/TED-filter.
 - Bash safety classifier (Opus-backed) was intermittently unavailable this session — retry transient failures.

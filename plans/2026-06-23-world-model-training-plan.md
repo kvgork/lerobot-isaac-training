@@ -119,8 +119,9 @@ STEPS=50000 BATCH_SIZE=8 SESSION_ID=wm-warmstart-v1 \
   LEROBOT_ISAAC_DEMO_DATASET=datasets/local/so101-sim-pickplace-demos \
   bash scripts/_run_wm_isaac_overnight.sh
 ```
-Optionally warm-start the WM weights from the Stage-1 checkpoint (`checkpoint.exploration_ckpt_path=` is already detected by `wm_dreamerv3.run`; confirm sheeprl resume semantics before relying on it).
-**Constraints:** num_envs=1 (the `is_first` bug at >1 is unfixed — see memory); ~0.5–1.2 steps/s (camera-bound); batch 8 fits 10 GB, drop to 4 on OOM. learning_starts ≥ seq_len (≥64 at num_envs=1).
+Optionally warm-start the WM weights from the Stage-1 checkpoint. **Caveat (verified 2026-06-24):** the `checkpoint.exploration_ckpt_path=` hook in `wm_dreamerv3.run` is appended ONLY when the sheeprl exp name ends with `_finetuning` (the P2E finetuning path, `wm_dreamerv3.py:216`) — it is NOT wired for the default `dreamer_v3` exp used in the launch command above. To resume a plain dreamer_v3 WM, use sheeprl's native `checkpoint.resume_from=` (confirm semantics) rather than this flag.
+**Knobs (from the 2026-06-16 wm-vla playbook — Stage 2's failure surface IS entropy-collapse + sparse-credit, exactly what these target):** actor `ent_coef 1e-3` (5–10× the sheeprl default — beats the reach+grip entropy-collapse), `horizon 25`, `replay_ratio 16`, `kl_free 1.0`, `demo_ratio 0.5` (seed lift transitions), `batch 16` if VRAM allows (else keep 8 on the 10 GB 3080). Earlier repo runs used `3e-4 / horizon 15 / replay_ratio 2` — undershoots; raise them. See `[[2026-06-16-wm-vla-training-playbook]]`.
+**Constraints:** num_envs=1 (the `is_first` bug at >1 is unfixed — see memory; note the `IsaacSO101VectorEnv` + "Fix 2" vector patch ARE built and invoked at `_wm_isaac_entry.py:114,721`, so >1 is attempted-but-crashing, not absent); ~0.5–1.2 steps/s (camera-bound); batch 8 fits 10 GB, drop to 4 on OOM. learning_starts ≥ **num_envs×seq_len** (=64 at num_envs=1, seq_len=64; would be 256 at 4×64 — do NOT state the rule as merely ≥ seq_len).
 **Inputs:** sim env + demo dataset (+ optional Stage-1 ckpt). **Outputs:** WM+actor checkpoint, episode-return curve.
 **Go/No-Go (measurable, the real one):** episode reward climbs **past the −10.6 carry-place plateau** toward a place-bearing return, AND `scripts/_sim_eval.py` reports a nonzero **place/task-success rate** (not just reach). This is the metric that matters; recon_loss is secondary here.
 
@@ -129,6 +130,7 @@ Optionally warm-start the WM weights from the Stage-1 checkpoint (`checkpoint.ex
 - **Generate more scripted demos** at varied object x/y to broaden the seed buffer: `scripts/_gen_sim_demos.py --episodes N` (built).
 - **DR replay** (`lerobot-isaac-synthetic`) to vary lighting/pose on the *sim* (single-schema) data only — never mixed with the overhead real data.
 - **MimicGen — deferred** (Phase 4b, gated by `LEROBOT_MIMICGEN_ENABLED=1`; joint→EE calibration for SO-101 not done). Do not start here.
+- **Plan2Explore (if reward moves but exploration stalls / entropy collapses despite raised `ent_coef`)** — ensemble-disagreement intrinsic reward (sheeprl, K≈5), injected at `player.get_actions` before `rb.add` (memory: `sheeprl-action-override-buffer-seam`; the `p2e_dv3_finetuning` exp path exists). **Temper expectations** — DreamerV3-XP (2025) finds disagreement gains *modest* vs prediction-error replay prioritization; try the prioritization first. The clean `--expl_behavior` flag is DreamerV2-era; current `danijar/dreamerv3` restructured it. LeRobot has no native curiosity trainer. See `[[2026-06-21-rl-reward-coupled-world-model-training]]`, `[[Plan2Explore]]`.
 **Go/No-Go:** seed-buffer success fraction and Stage-2 place-rate both rise vs the Stage-2 baseline; if reward regresses, the added sim data is poisoning — cut it.
 
 ---
@@ -164,13 +166,13 @@ Optionally warm-start the WM weights from the Stage-1 checkpoint (`checkpoint.ex
 
 ## 6. Relation to the paused carry-place RL
 
-**Does a better WM help the place-wall plateau? Partially — and only in combination with the reward/grasp fixes.** The memory trail is explicit that the plateau is **not primarily a dynamics-model-quality problem**: it is (a) the success-termination REACH bug (episode ends on EE-to-object < 5 cm, so the agent is never rewarded for placing — `success-termination-reach-bug`), (b) grasp feasibility (the scripted tip-pinch slips, `so101-gripper-kinematic-floor`), and (c) sparse-reward exploration from a cold start (`carryplace-place-wall-plateau`).
+**Does a better WM help the place-wall plateau? Partially — and only in combination with the reward (termination) fix.** The memory trail is explicit that the plateau is **not primarily a dynamics-model-quality problem**: it is (a) the success-termination REACH bug (episode ends on EE-to-object < 5 cm, so the agent is never rewarded for placing — `success-termination-reach-bug`), and (b) sparse-reward exploration from a cold start (`carryplace-place-wall-plateau`). **The earlier "grasp feasibility" framing is RETRACTED (2026-06-23 PM):** scripted grasp is CONFIRMED working ~80% pick-carry-place (ee↔die constant 0.096 thru lift+carry); the wall is **purely RL exploration**, not grasp control (`scripted-grasp-infeasible`, retraction note in `carryplace-place-wall-plateau`).
 
 Therefore:
 
-1. **Fix object-in-bin termination + grasp feasibility FIRST.** A perfect WM on a mis-specified reward (one that terminates on reach) will still never learn to place. This is the highest-leverage work and is independent of WM quality.
+1. **Fix object-in-bin termination FIRST.** A perfect WM on a mis-specified reward (one that terminates on reach) will still never learn to place. This is the highest-leverage work and is independent of WM quality. (Grasp is NOT a blocker — scripted grasp works ~80%, see retraction above.)
 2. **Then the warm-started DreamerV3 (Stage 2) directly attacks the exploration half** of the plateau: the demo seeding injects place-bearing trajectories the cold-start agent never reaches on its own, and imagination amplifies them. This is the legitimate WM contribution.
-3. **Net:** the WM is a *complement* to, not a *substitute* for, the reward/grasp fixes. Sequence them: termination+grasp fix → Stage-2 warm-start → measure place-rate. If place-rate is still 0 after both, the bottleneck is grasp feasibility (control), and no WM will fix it.
+3. **Net:** the WM is a *complement* to, not a *substitute* for, the reward (termination) fix. Sequence them: object-in-bin termination fix → Stage-2 warm-start → measure place-rate. If place-rate is still 0 after both, the bottleneck is **RL exploration of the place step** (the scripted controller already grasps+carries ~80%) — escalate to more/varied demo seeding or Plan2Explore (Stage 3), **not** a grasp-mechanics rework.
 
 **Files/paths referenced:** `datasets/local/so101-pickplace-new`, `datasets/local/so101-sim-pickplace-demos[-op3]`, `~/.claude/skills/lerobot_world_model_bridge/operations.py`, `src/lerobot-isaac-adapters/.../targets/wm_dreamerv3.py:139`, `scripts/_run_wm_isaac_overnight.sh`, `scripts/_gen_sim_demos.py`, `scripts/_sim_eval.py`, `plans/2026-06-07-good-world-model-plan.md`, `plans/2026-06-11-demo-warmstart-plan.md`.
 
