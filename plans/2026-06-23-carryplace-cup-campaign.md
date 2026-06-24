@@ -45,6 +45,17 @@ easy first, then hardened on TWO axes (cup height + carry distance):
 - **Stage 0** — `LEROBOT_ISAAC_PLACE_CUP_HEIGHT=0.03` (low cup, fingers clear it), die IN/at the cup
   (`OBJECT_X=0.22 OBJECT_Y=-0.13`) → trivial carry; agent discovers lift→release-in-cup. Regenerate matched demos
   at this config first (`_gen_sim_demos.py --obj_x 0.22 --obj_y -0.13` with env `LEROBOT_ISAAC_PLACE_CUP_HEIGHT=0.03` exported — cup height is an ENV knob read at scene build, NOT a script flag).
+  > **GPU finding (2026-06-24, demo-gen smokes):** die-IN-cup geometry is **UNDEMOABLE** by the scripted
+  > controller — it cannot lift a die from inside the cup (walls block the side-approach grasp; **8/8 attempts
+  > `lifted=False`, maxz≈0.008**). The scripted grasp needs the die on the OPEN TABLE. Corrected easy-Stage-0 =
+  > die ~7 cm from the low cup (`OBJECT_Y=-0.06`, tgt `(0.22,-0.13)`, cup 0.03 — replicates the cur1 ~6.6 cm
+  > flat-carry that hit 30% places): grasp then LIFTS, but matched-demo gen is still **marginal** — carry-slip
+  > (die lands far from cup) + **`released=False` finger-jam on the narrow 3 cm-cup release** (near-misses landed
+  > die in-radius + resting but gripper read closed); **0/8 clean** in a quick smoke (`-op3` itself was only ~48%).
+  > **To proceed:** either (a) tune demo-gen (lower `--jitter`, more `--max_attempts`, debug the release-jam),
+  > (b) seed Stage-0 with the existing `-op3` demos (geometry-mismatched but valid place trajectories), or
+  > (c) run **no-seed** (easy geometry + raised `actor.ent_coef`/`replay_ratio`/`horizon` alone may stumble into
+  > the place, per cur1). GPU paused 2026-06-24 before committing the multi-hour run — pending this choice.
 - **Stage 1** — cup 0.03, die ~6cm out (e.g. `OBJECT_Y=-0.05`) → short carry. Resume Stage-0 ckpt.
 - **Stage 2..N** — raise `PLACE_CUP_HEIGHT` 0.03→0.07 and push the die out toward (0.18,0.05), resuming each ckpt
   (`EXTRA_HYDRA=checkpoint.resume_from=<ckpt>`, bump STEPS). cur1→cur2 resume pattern
@@ -76,8 +87,10 @@ See `[[2026-06-16-wm-vla-training-playbook]]`.
 - Pre-flight: kill stray GPU procs (`nvidia-smi --query-compute-apps`); batch 8 (not 16) on this 10GB GPU.
 
 ## Known caveats
-- Pre-existing eval `test()` crash (inference-mode tensor in Isaac DR reset) — hits cur1/v5 too, NOT from this
-  session; rc=1 at the very end but ckpts survive. Read the place signal from the TB reward curve (rew>−10) +
+- Eval `test()` crash (inference-mode tensor in Isaac DR reset) — **FIXED + GPU-verified 2026-06-24** (adapters
+  commit `741eccc`: `IsaacSO101Env.reset/step` wrap the Isaac calls in `torch.inference_mode(False)`; a 600-step
+  verify run reached end `test()` clean — `Test - Reward` emitted, rc=0, zero inference-tensor errors). Historically
+  hit cur1/v5 (rc=1 at the very end; ckpts survived). Still read the place signal from the TB reward curve (rew>−10) +
   `Game/ep_len_avg` (<300 = real terminating places), NOT the test() eval. Proper ckpt eval =
   sheeprl `evaluate.py` (DreamerV3), not `_sim_eval.py` (lerobot only).
 - **Prove the seeding actually helps** each stage with a seed-vs-no-seed A/B (`LEROBOT_ISAAC_DEMO_DATASET` set vs
