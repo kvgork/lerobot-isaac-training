@@ -28,6 +28,7 @@ A REAL place: grasp → lift → carry → **lower + RELEASE** the 16mm die into
 |-----|-------------|-------------|--------|
 | `cup-warmstart-v1` | 0.18 / 18cm (full) | OFF | ep_len=300 pinned, 0 places, rew flat ~−31 |
 | `cup-warmstart-cur-v1` | (0.20,0.0) / ~13cm | ON (weight 1.0) | ep_len=300 pinned, 0 places, rew flat ~−27 (10k–14.5k) |
+| `cup0-s0-r4` (2026-06-26) | (0.22,−0.06) / ~7cm, cup 0.03 low | ON (1.0) + **ent_coef 1e-3 + horizon 25 + R=4** | ep_len_avg=300@5k, **0 places**; rew −28→−20 (creeping, beats v1 band) but no break to −10.6. Cut @7825/4.1h by inner `LEROBOT_TRAIN_TIMEOUT=14400` default → **no ckpt** (ckpt_every=10000). Demo-gen unblocked via `DEMO_REST_Z` decouple; 37 demos `so101-sim-pickplace-demos-cup0`. |
 Both: BC active + decaying, demos seeded (40 ep / 19400 transitions), reward climbs (reach/grasp/lift) then
 FLAT — **the place is never DISCOVERED** (no positive reward spikes, no terminating episodes). Matches every prior
 full-task run + the ACT-BC closed-loop failure ([[demo-warmstart-pipeline]]).
@@ -73,6 +74,12 @@ See `[[2026-06-16-wm-vla-training-playbook]]`.
 - **BC policy instead of RL**: `lerobot-isaac-train --target_arch act --dataset .../so101-sim-pickplace-demos-op3`
   then closed-loop eval — the plan's "quickest path"; sidesteps DreamerV3 discovery (earlier ACT-BC was 0% but
   on the broken task / narrow demos — worth a re-try on the correct task + -op3).
+  - **RAN 2026-06-26 on cup0 (correct task + matched demos): ACT loss converged 0.037 but closed-loop
+    `task_success=0/20`, mean_ep_len=300.** BC fails closed-loop via COMPOUNDING ERROR (narrow deterministic
+    scripted manifold, no recovery data) — opposite failure mode to RL's discovery wall. Both standard
+    approaches now exhausted; gap = closed-loop robustness from narrow scripted demos. Next: DAgger/noise-
+    injected corrective demos, more+diverse demos, DreamerFD harder, or diffusion policy. (`_sim_eval.py` got a
+    13-dim object-pose state fix — was hardcoded 12-dim.) See memory `[[carryplace-cup0-warmstart-r4-result]]`.
 - **DreamerFD harder**: bc_weight 1→3, decay 20k→50k, prioritized place-transition replay, more steps.
 - **Residual-RL / Plan2Explore** (vault IL-plateau ladder, `[[2026-06-16-wm-vla-training-playbook]]`): freeze a BC
   base + train a small residual head online via `LEROBOT_ISAAC_RESIDUAL_RL_WEIGHT` (built, default OFF — see line 24),

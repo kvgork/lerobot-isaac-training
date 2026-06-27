@@ -78,6 +78,11 @@ def main() -> int:
     ik = DifferentialIKController(DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"), num_envs=1, device=device)
     GRASP_QUAT = [1.0, 0.0, 0.0, 0.0]
     GRIP_OPEN, GRIP_CLOSE = 1.0, -1.0
+    # Release-open amount. Full GRIP_OPEN (1.0) spreads the fingers into the cup wall ->
+    # servo stalls -> joint_pos never crosses the released threshold (released=False finger-jam,
+    # narrow-cup demo-gen 2026-06-24). A PARTIAL open drops the 16mm die without ramming the
+    # wall, yet must still land joint_pos > GRIPPER_OPEN_THRESH (default 0.0) to read as released.
+    PART_OPEN = float(os.environ.get("LEROBOT_ISAAC_PLACE_PART_OPEN", str(GRIP_OPEN)))
     # Carry height. Raised from 0.17 so the held die (hangs ~0.096 below gripper_link) clears the
     # ~7 cm cup rim during the lateral carry (die_z ≈ z_high - 0.096; 0.22 -> die ~0.10 > 0.07).
     # Capped by SO-101 vertical reach at the cup radius — verified by the demo-gen maxz log.
@@ -185,7 +190,7 @@ def main() -> int:
         # GENTLE release: slow ramp CLOSE->OPEN (50 steps) to avoid the jaw impulsively
         # ejecting the die forward (~5cm) as it opens (validation 2026-06-23 saw die land
         # ~0.052 past bin center with an instant open).
-        step_to([args.tgt_x, args.tgt_y, 0.06], GRIP_CLOSE, 50, q, grip_end=GRIP_OPEN)
+        step_to([args.tgt_x, args.tgt_y, 0.06], GRIP_CLOSE, 50, q, grip_end=PART_OPEN)
         # POST-HOC SUCCESS (real place): die ended in the bin XY (success_radius) AND was lifted
         # at some point (max die-z > rest+lift_margin = 0.07) AND is now RESTING low (< 0.04 =
         # lowered/released, not carried aloft). The full sequence already released the gripper.
@@ -196,11 +201,17 @@ def main() -> int:
         _lift_thr = float(os.environ.get("LEROBOT_ISAAC_OBJECT_Z", "0.05")) + 0.02  # rest_height + lift_margin
         _radius = float(os.environ.get("LEROBOT_ISAAC_PLACE_SUCCESS_RADIUS", "0.05"))  # match cup / place_termination
         was_lifted = _acc["maxz"] > _lift_thr
-        resting = float(dp[2]) < float(os.environ.get("LEROBOT_ISAAC_PLACE_REST_Z", "0.04"))
-        released = float(robot.data.joint_pos[0, grip_idx]) > float(os.environ.get("LEROBOT_ISAAC_GRIPPER_OPEN_THRESH", "0.0"))
+        # Post-hoc resting threshold is DECOUPLED from LEROBOT_ISAAC_PLACE_REST_Z: the latter is
+        # set to -1 at demo-gen to suppress the ENV place_termination (no mid-sequence auto-reset),
+        # but the script must still validate the die actually settled low. Reusing PLACE_REST_Z=-1
+        # here made `resting` always False -> every demo SKIP even though die_z ~0.01 (artifact found
+        # in the PART_OPEN sweep, 2026-06-24). Use a separate knob (default 0.04 = the real bin-rest).
+        resting = float(dp[2]) < float(os.environ.get("LEROBOT_ISAAC_DEMO_REST_Z", "0.04"))
+        grip_q = float(robot.data.joint_pos[0, grip_idx])
+        released = grip_q > float(os.environ.get("LEROBOT_ISAAC_GRIPPER_OPEN_THRESH", "0.0"))
         ok = bool(xy < _radius and was_lifted and resting and released)
         print(f"[demos]   post-hoc: die_final=({dp[0]:.3f},{dp[1]:.3f},{dp[2]:.3f}) xy_to_bin={xy:.4f} "
-              f"maxz={_acc['maxz']:.4f} lifted={was_lifted} resting={resting} released={released} -> {'OK' if ok else 'SKIP'}", flush=True)
+              f"maxz={_acc['maxz']:.4f} grip_q={grip_q:.4f} lifted={was_lifted} resting={resting} released={released} -> {'OK' if ok else 'SKIP'}", flush=True)
         return ok
 
     saved, attempts = 0, 0

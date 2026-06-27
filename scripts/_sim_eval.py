@@ -117,9 +117,21 @@ def _build_policy_input(obs_group: dict, device: str, task: str):
     def _t(x):
         return x if torch.is_tensor(x) else torch.as_tensor(x)
 
-    jp = _t(obs_group["joint_pos"]).float().to(device)      # (1,6)
-    jv = _t(obs_group["joint_vel"]).float().to(device)      # (1,6)
-    state = torch.cat([jp, jv], dim=-1)                      # (1,12)
+    jp = _t(obs_group["joint_pos"]).float().to(device)      # (1,6) = joint_pos_rel
+    # State layout must MATCH the policy's training data:
+    #   - real so101-pickplace-new policy: 12-dim = joint_pos_rel[6] + joint_vel[6]
+    #   - sim demo policy (object_pose obs, LEROBOT_ISAAC_INCLUDE_OBJECT_POSE=1):
+    #     13-dim = joint_pos_rel[6] + object_pose[7] (pos3+quat4), matching
+    #     _gen_sim_demos.py's state assembly. Auto-detect via the obs group:
+    #     INCLUDE_OBJECT_POSE=1 adds "object_pose" to the policy obs group
+    #     (so101_env_cfg.py:375). Picking the wrong layout -> normalize-stats
+    #     size mismatch (12 vs 13) at the first step.
+    if "object_pose" in obs_group:
+        objp = _t(obs_group["object_pose"]).float().to(device)   # (1,7)
+        state = torch.cat([jp, objp], dim=-1)                # (1,13)
+    else:
+        jv = _t(obs_group["joint_vel"]).float().to(device)   # (1,6)
+        state = torch.cat([jp, jv], dim=-1)                  # (1,12)
 
     import torch.nn.functional as F
     rgb = _t(obs_group["d435_rgb"]).to(device).float()       # (1,3,480,640) uint8->float
