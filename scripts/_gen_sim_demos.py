@@ -87,6 +87,13 @@ def main() -> int:
     # ~7 cm cup rim during the lateral carry (die_z ≈ z_high - 0.096; 0.22 -> die ~0.10 > 0.07).
     # Capped by SO-101 vertical reach at the cup radius — verified by the demo-gen maxz log.
     z_high = float(os.environ.get("LEROBOT_ISAAC_CARRY_Z", "0.19"))
+    # DAgger-style corrective demos: when >0, EXECUTE a noise-perturbed action (drifts the
+    # arm off the clean scripted manifold) but RECORD the clean IK expert action as the label.
+    # The IK re-aims from the perturbed state each step, so successful rollouts contain
+    # recovery trajectories — the corrective data plain BC lacks (its 0/20 closed-loop failure
+    # is compounding error / off-manifold drift). Noise is applied only on non-grasp-critical
+    # phases (approach/lift/carry/lower), NOT during close/seat/hold/release (would wreck grasp).
+    _DAGGER_NOISE = float(os.environ.get("LEROBOT_ISAAC_DEMO_ACTION_NOISE", "0.0"))
 
     # LeRobotDataset features — match the env d435 obs (3,H,W) + 13-dim state + 6 action.
     # state = joint_pos_rel[6] + object_pose[7] — EXACTLY the vector the sheeprl wrapper
@@ -132,7 +139,7 @@ def main() -> int:
                        "action": np.asarray(action_vec, dtype="float32"),
                        "task": "pick and place the die in the bin"})
 
-    def step_to(target_b, grip, n, quat, grip_end=None, record=True):
+    def step_to(target_b, grip, n, quat, grip_end=None, record=True, noise=True):
         ik.reset()
         cmd = torch.tensor([list(target_b) + list(quat)], device=device, dtype=torch.float32)
         for s in range(n):
@@ -147,8 +154,18 @@ def main() -> int:
                 action[0, jid] = (q_des[0, k] - q_default[0, jid]) / 0.5
             action[0, grip_idx] = g
             if record:
-                grab_frame(action[0].detach().cpu().numpy())
-            out = env.step(action)
+                grab_frame(action[0].detach().cpu().numpy())  # LABEL = clean IK expert action
+            # DAgger: execute a perturbed action (drift off-manifold) but keep the clean label.
+            action_exec = action
+            if _DAGGER_NOISE > 0.0 and noise:
+                pert = action.clone()
+                for jid in arm_ids:
+                    pert[0, jid] = action[0, jid] + torch.randn((), device=device) * _DAGGER_NOISE
+                action_exec = pert
+            out = env.step(action_exec)
+            _term = out[2]
+            if (_term[0].item() if torch.is_tensor(_term) else _term):
+                _acc["terminated"] = True  # env place_termination fired (gate ON in eval-check mode)
             _acc["maxz"] = max(_acc["maxz"], float(obj.data.root_pos_w[0, 2]))
             if record:
                 rew = out[1]  # gym 5-tuple: (obs, reward, terminated, truncated, info)
@@ -168,6 +185,7 @@ def main() -> int:
         frames.clear()
         rewards_buf.clear()
         _acc["maxz"] = -9.0
+        _acc["terminated"] = False
         env.reset()
         # teleport die to jittered xy (keep spawn z + identity rot)
         root = obj.data.root_state_w.clone()
@@ -179,18 +197,18 @@ def main() -> int:
         op0 = obj.data.root_pos_w[0].detach().cpu().numpy()
         gx, gy = float(op0[0]), float(op0[1])
         q = GRASP_QUAT
-        step_to([gx, gy, z_high], GRIP_OPEN, 50, q)
-        step_to([gx, gy, args.grasp_z], GRIP_OPEN, 90, q)
-        step_to([gx, gy, args.grasp_z], GRIP_OPEN, 30, q)
-        step_to([gx, gy, args.grasp_z], GRIP_OPEN, 80, q, grip_end=GRIP_CLOSE)
-        step_to([gx, gy, args.grasp_z], GRIP_CLOSE, 25, q)
-        step_to([gx, gy, z_high], GRIP_CLOSE, 60, q)
-        step_to([args.tgt_x, args.tgt_y, z_high], GRIP_CLOSE, 60, q)
-        step_to([args.tgt_x, args.tgt_y, 0.06], GRIP_CLOSE, 40, q)
+        step_to([gx, gy, z_high], GRIP_OPEN, 50, q)                       # approach-above: noise OK
+        step_to([gx, gy, args.grasp_z], GRIP_OPEN, 90, q, noise=False)    # descend to grasp: precise
+        step_to([gx, gy, args.grasp_z], GRIP_OPEN, 30, q, noise=False)    # settle: precise
+        step_to([gx, gy, args.grasp_z], GRIP_OPEN, 80, q, grip_end=GRIP_CLOSE, noise=False)  # close
+        step_to([gx, gy, args.grasp_z], GRIP_CLOSE, 25, q, noise=False)   # hold grip
+        step_to([gx, gy, z_high], GRIP_CLOSE, 60, q)                      # lift: noise OK (recovery)
+        step_to([args.tgt_x, args.tgt_y, z_high], GRIP_CLOSE, 60, q)      # carry: noise OK (recovery)
+        step_to([args.tgt_x, args.tgt_y, 0.06], GRIP_CLOSE, 40, q)        # lower over cup: noise OK
         # GENTLE release: slow ramp CLOSE->OPEN (50 steps) to avoid the jaw impulsively
         # ejecting the die forward (~5cm) as it opens (validation 2026-06-23 saw die land
         # ~0.052 past bin center with an instant open).
-        step_to([args.tgt_x, args.tgt_y, 0.06], GRIP_CLOSE, 50, q, grip_end=PART_OPEN)
+        step_to([args.tgt_x, args.tgt_y, 0.06], GRIP_CLOSE, 50, q, grip_end=PART_OPEN, noise=False)  # release
         # POST-HOC SUCCESS (real place): die ended in the bin XY (success_radius) AND was lifted
         # at some point (max die-z > rest+lift_margin = 0.07) AND is now RESTING low (< 0.04 =
         # lowered/released, not carried aloft). The full sequence already released the gripper.
@@ -211,7 +229,8 @@ def main() -> int:
         released = grip_q > float(os.environ.get("LEROBOT_ISAAC_GRIPPER_OPEN_THRESH", "0.0"))
         ok = bool(xy < _radius and was_lifted and resting and released)
         print(f"[demos]   post-hoc: die_final=({dp[0]:.3f},{dp[1]:.3f},{dp[2]:.3f}) xy_to_bin={xy:.4f} "
-              f"maxz={_acc['maxz']:.4f} grip_q={grip_q:.4f} lifted={was_lifted} resting={resting} released={released} -> {'OK' if ok else 'SKIP'}", flush=True)
+              f"maxz={_acc['maxz']:.4f} grip_q={grip_q:.4f} lifted={was_lifted} resting={resting} released={released} "
+              f"ENV_TERMINATED={_acc.get('terminated', False)} -> {'OK' if ok else 'SKIP'}", flush=True)
         return ok
 
     saved, attempts = 0, 0
