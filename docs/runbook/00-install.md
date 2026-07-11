@@ -127,14 +127,23 @@ refuses to install based on the metadata pin alone. The helper script
 passes `--ignore-requires-python` on Python ≥ 3.12 to bypass the check.
 Drop this flag once sheeprl publishes a 3.12-compatible release.
 
-### Known training-backend gap: LeWorldModel
+### World models (lerobot 0.6.0) and the legacy LeWorldModel gap
 
-`lerobot 0.5.x` does NOT ship `lerobot.scripts.train_world_model`. The
-`le_world_model` adapter target therefore cannot dispatch a real training
-run today — `--dry_run` prints the resolved command and exits 0, but a real
-run fails with `ModuleNotFoundError: No module named 'lerobot.scripts.train_world_model'`.
-Tracked as a system-improvement gap. The DreamerV3 path (`--target_arch dreamerv3`)
-is unaffected.
+**lerobot 0.6.0 ships world models as policy types**, trained via the ordinary
+`lerobot-train` path — no separate WM script. Use them with
+`--target_arch vla_jepa|fastwam|lingbot_va` (see Runbook 03). `vla_jepa` is the
+only one that fits an RTX 3080 (its world model is a training-time auxiliary,
+dropped at inference); `install_train_deps.sh` installs its extra by default and
+enforces `lerobot>=0.6.0`. `fastwam` / `lingbot_va` need >>10 GB VRAM — install
+their extras only on capable hardware:
+`LEROBOT_EXTRAS=training,smolvla,feetech,vla_jepa,fastwam bash scripts/install_train_deps.sh`.
+
+**Legacy gap (unchanged):** the predictive `le_world_model` adapter target expects
+`lerobot.scripts.train_world_model`, which lerobot still does NOT ship (neither
+0.5.x nor 0.6.0). That target defaults to the in-process `_lewm_minimal` trainer;
+`--dry_run` prints the resolved command and exits 0. Opt into the HF subprocess
+with `LEROBOT_ISAAC_LEWM_BACKEND=hf` only on a fork that exposes the script.
+The DreamerV3 path (`--target_arch dreamerv3`) is the predictive-WM route.
 
 ---
 

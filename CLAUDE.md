@@ -305,10 +305,15 @@ Isaac Lab requires a separate manual step (GPU + disk space).
 - **Local LeRobotDataset path:** pass the on-disk root as `--dataset`. The adapter
   splits it into `--dataset.repo_id=<parent>/<name>` + `--dataset.root=<path>`.
   Do NOT pre-flatten it into an HF cache layout.
-- **LeWorldModel real training is BLOCKED (2026-05-13).** `lerobot 0.5.x` does not
-  ship `lerobot.scripts.train_world_model`. The `le_world_model` adapter dry-run
-  works but real dispatch fails. Use `--target_arch dreamerv3` for any actual
-  WM training until upstream lands a CLI.
+- **World models = lerobot 0.6.0 policy types (2026-07-08).** lerobot 0.6.0 ships
+  WMs as POLICIES: `--target_arch vla_jepa` (RTX-3080 fit — WM at train only,
+  dropped at inference), plus `fastwam`/`lingbot_va` (>>10 GB VRAM). They train via
+  the normal `lerobot-train` path (`policy_lerobot.py`), metric `pc_success`.
+  `install_train_deps.sh` installs the `vla_jepa` extra by default (min `lerobot>=0.6.0`).
+  The legacy `le_world_model` target (`lerobot.scripts.train_world_model`) is still
+  NOT shipped upstream → defaults to in-process `_lewm_minimal` (opt into the HF
+  subprocess via `LEROBOT_ISAAC_LEWM_BACKEND=hf`). `dreamerv3` (sheeprl) = the
+  predictive-WM / model-based-RL path.
 - **Bridge `dtype: image` (PNG bytes in parquet) is now supported** as of
   claude_code commit 4e6e21c — the older bridge required MP4 files under
   `videos/`. If you re-pin the bridge skill, ensure the

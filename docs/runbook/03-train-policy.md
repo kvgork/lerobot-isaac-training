@@ -13,6 +13,31 @@
 | `smolvla` | SmolVLA (vision-language-action) | Best general manipulation |
 | `act` | Action Chunking Transformer | Fast inference, table-top tasks |
 | `diffusion` | Diffusion Policy | Complex trajectory distributions |
+| `vla_jepa` | VLA-JEPA (lerobot 0.6.0 world-model policy) | Sample-efficient BC; WM auxiliary at train, dropped at inference. **RTX-3080 fit.** |
+| `fastwam` | FastWAM (lerobot 0.6.0 world-model policy) | Video-gen WM expert. **~5B — needs >>10 GB VRAM.** |
+| `lingbot_va` | LingBot-VA (lerobot 0.6.0 world-model policy) | Autoregressive video+action WM (train **and** inference). **~5B + ~20 GB frozen — big HW only.** |
+
+### World-model policies (lerobot 0.6.0)
+
+`vla_jepa` / `fastwam` / `lingbot_va` are lerobot 0.6.0 policies that use a world
+model *during training*. They dispatch through the same `lerobot-train` path as the
+plain policies and emit `pc_success`, so every step below works unchanged — only
+`--target_arch` differs. Fine-tune from a pretrained checkpoint by passing
+`--policy.path=` after `--`; the adapter then omits its auto `--policy.type`
+(passing both is a lerobot/draccus conflict):
+
+```bash
+# From scratch (RTX 3080 — keep batch small):
+lerobot-isaac-train --target_arch vla_jepa --dataset datasets/so101-pickplace-new \
+  --batch_size 4 --steps 20000 --output_dir outputs/vla_jepa_run1
+
+# Fine-tune from the pretrained VLA-JEPA checkpoint:
+lerobot-isaac-train --target_arch vla_jepa --dataset datasets/so101-pickplace-new \
+  --output_dir outputs/vla_jepa_ft -- --policy.path=lerobot/VLA-JEPA-Pretrain
+```
+
+`fastwam` / `lingbot_va` are registered but need >>10 GB VRAM; install their extras
+first (`LEROBOT_EXTRAS=training,smolvla,feetech,vla_jepa,fastwam bash scripts/install_train_deps.sh`).
 
 ---
 

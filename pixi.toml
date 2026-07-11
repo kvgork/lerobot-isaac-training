@@ -34,9 +34,6 @@ hatchling = "*"
 [feature.realsense.pypi-dependencies]
 pyrealsense2 = "*"
 
-[feature.stable-worldmodel.pypi-dependencies]
-stable-worldmodel = "*"
-
 [feature.dreamerv3]
 # Pip-install sheeprl manually after `pixi install -e train-dreamer`:
 #   bash scripts/install_train_deps.sh --dreamer
@@ -105,8 +102,8 @@ train-policy  = ["dev", "lerobot", "editable-siblings"]
 train-dreamer = ["dev", "lerobot", "dreamerv3", "editable-siblings"]
 train-lewm    = ["dev", "lerobot", "leworldmodel", "editable-siblings"]
 sim           = ["dev", "lerobot", "isaaclab", "editable-siblings"]
-record        = ["dev", "lerobot", "realsense", "stable-worldmodel", "editable-siblings"]
-full          = ["dev", "lerobot", "dreamerv3", "leworldmodel", "isaaclab", "realsense", "stable-worldmodel", "editable-siblings"]
+record        = ["dev", "lerobot", "realsense", "editable-siblings"]
+full          = ["dev", "lerobot", "dreamerv3", "leworldmodel", "isaaclab", "realsense", "editable-siblings"]
 dashboard     = ["dev", "dashboard", "editable-siblings"]
 
 # Legacy: fresh-clone reproducibility check (no src/ deps; pulls from GitHub).
