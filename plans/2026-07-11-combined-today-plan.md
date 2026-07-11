@@ -88,8 +88,43 @@ The deliverable: WM-policy candidate on the same demos as ACT/SmolVLA.
 - **No hardware** — Phase 3 (the only gate that ranks techniques) is not doable in this loop.
 - **3 uncommitted repos** — silent drift risk; Phase 0 clears it before any new run muddies the tree.
 
+---
+
+## EXECUTION RESULTS (2026-07-11, `/orchestrate` full plan P0→P1→P2)
+
+**Phase 0 — DONE.** Flag guard PASS (act→`--policy.type=act`, smolvla→`smolvla`, vla_jepa
+omits `--policy.type` under `--policy.path`; `--successes_only` drops ep 0/34). Workspace
+0.6.0 set committed (`4483717`) + plans (`56b8b61`) on `feature/residual-rl`. Adapter
+committed + **pushed** (`d59587c`, `feature/wm-isaac-env`), 217 tests pass. **Runner DEFERRED
+— not the small mappers fix the plan assumed: 672 insertions / 9 files + 2 new CLIs
+(cli_replay, cli_sweep) uncommitted on `main`; not on today's path (Phase 3 only). Needs its
+own review before pushing to main.**
+
+**Phase 1 — DONE (6 launches to find the recipe).** `vla_jepa` **FITS the RTX 3080** — the
+plan's #1 risk (OOM) retired, but a naked `--policy.path=lerobot/VLA-JEPA-Pretrain` fails
+through 3 distinct blockers before it trains:
+1. state-dict size mismatch (pretrain 7-action/8-state vs SO-101 6/12) → `--policy.reinit_modules`.
+2. camera KeyError (pretrain 2 cams vs 1 overhead; model hard-requires each declared cam) →
+   local patched `config.json` with a single `observation.images.overhead` (rename_map can't
+   fix 2→1 count). Built at `outputs/vla_jepa_pretrain_so101` (config real + safetensors symlinked).
+3. CUDA OOM at batch 4 AND batch 2 (full fp32 2B fine-tune) → **`--policy.freeze_qwen=true`**
+   is the real RTX-3080 fit lever (weights ~7.7 GB; freezing the VLM backbone fits at ~9 GB).
+**Working recipe:** `freeze_qwen=true` + bf16(default) + `reinit_modules` + local 1-cam config +
+`--batch_size 2` + `PYTORCH_ALLOC_CONF=expandable_segments:True`. Smoke: 500/500 clean, 4.3
+step/s, ckpt written, rc=0. **My 0.6.0 runbook was wrong** ("keep batch small" only) — fixed in
+`docs/runbook/03-train-policy.md`.
+
+**Phase 2 — LAUNCHED (running).** Full 20k with the recipe, detached →
+`outputs/vla_jepa_real_so101`, `save_freq=5000` (ckpts 5k/10k/15k/20k). 4.3 step/s, ~9 GB /
+97 % util (**compute-bound, not decode-bound like ACT/SmolVLA**), ETA **~76 min**. Final ckpt =
+the 3rd bake-off candidate for the human's hardware eval (Phase 3, ACT vs SmolVLA vs vla_jepa).
+
+**Follow-ups:** (a) the vla_jepa fine-tune recipe is 3 manual flags + a config patch — the
+adapter could auto-inject freeze_qwen/reinit + handle camera-count adaptation for pretrained
+WM policies (system-improvement). (b) Runner repo `main` needs its own review/commit.
+
 ## Related
 - `[[2026-07-08-lerobot-060-worldmodel-update]]` · `[[2026-06-28-act-real-campaign-plan]]` ·
   `[[2026-06-28-working-policy-next-steps]]`
-- memory: `[[lerobot-060-worldmodel-policies]]` · `[[act-real-campaign-result]]` ·
-  `[[detach-long-training-jobs]]`
+- memory: `[[lerobot-060-worldmodel-policies]]` · `[[vla-jepa-rtx3080-finetune-recipe]]` ·
+  `[[act-real-campaign-result]]` · `[[detach-long-training-jobs]]`
