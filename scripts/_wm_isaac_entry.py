@@ -597,7 +597,27 @@ def _patch_residual_rl_action() -> None:
         return
 
     _orig_get_actions = PlayerDV3.get_actions
-    _state = {"step": 0, "in_eval": False, "warned_layout": False, "warned_nenvs": False}
+    _state = {
+        "step": 0,
+        "in_eval": False,
+        "warned_layout": False,
+        "warned_nenvs": False,
+        "warned_inactive": False,  # warn ONCE if the residual is armed but never engages
+        "blended_once": False,     # set True the first time a blend actually happens
+    }
+
+    def _warn_inactive(reason: str) -> None:
+        # The residual patch is armed but this step fell through to the pure policy.
+        # These paths used to be SILENT — a smoke then showed "armed" yet flat
+        # random-policy reward with no clue why (module `logger` output is swallowed
+        # in the sheeprl/Isaac run). Print ONCE so the reason is visible.
+        if not _state["warned_inactive"]:
+            print(
+                f"[residual-rl] INACTIVE — armed but not engaging: {reason}. "
+                "Executing pure policy; this warning prints once.",
+                flush=True,
+            )
+            _state["warned_inactive"] = True
 
     # Wrap dreamer_v3's `test` so the blend is skipped during eval (eval uses
     # greedy=False, so the greedy flag alone cannot detect it).
@@ -649,6 +669,7 @@ def _patch_residual_rl_action() -> None:
 
             wrapper = getattr(_ienv, "_LAST_WRAPPER", None)
             if wrapper is None:
+                _warn_inactive("_LAST_WRAPPER is None (env wrapper never registered)")
                 return actions
             a_pol = actions[0]
             # num_envs>1 is unsupported (one scripted action can't be broadcast across
@@ -666,9 +687,16 @@ def _patch_residual_rl_action() -> None:
                 return actions
             a_script = wrapper.compute_scripted_action()
             if a_script is None:
+                _warn_inactive(
+                    "compute_scripted_action() returned None (script controller not "
+                    "ready / scene unavailable — see isaac_env init diagnostics)"
+                )
                 return actions  # hardware / scene unavailable → pure policy
             a_scr = torch.as_tensor(a_script, dtype=a_pol.dtype, device=a_pol.device)
             if a_scr.numel() != a_pol.numel():
+                _warn_inactive(
+                    f"scripted action numel {a_scr.numel()} != policy numel {a_pol.numel()}"
+                )
                 return actions
             # Match a_pol's exact shape (e.g. (1,1,6)) — no broadcast luck.
             a_scr = a_scr.reshape(a_pol.shape)
@@ -677,6 +705,13 @@ def _patch_residual_rl_action() -> None:
             a_blend = torch.clamp(script_frac * a_scr + (1.0 - script_frac) * a_pol, -1.0, 1.0)
             # Keep the player's internal "last action" consistent with the executed action.
             self.actions = torch.cat([a_blend], -1)
+            if not _state["blended_once"]:
+                print(
+                    f"[residual-rl] ENGAGED — first blend at step={step} "
+                    f"script_frac={script_frac:.3f} (scripted base is driving the arm).",
+                    flush=True,
+                )
+                _state["blended_once"] = True
             if step % 500 == 0:
                 print(
                     f"[residual-rl] step={step} script_frac={script_frac:.3f} "

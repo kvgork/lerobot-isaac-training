@@ -22,11 +22,18 @@
 #
 # Run (multi-hour GPU on the Isaac host; needs the `sim`/train-dreamer stack):
 #   bash scripts/launch_residual_rl.sh
-# Smoke first (short, verifies the stack boots + the base advances past APPROACH):
-#   STEPS=800 MAX_EPISODE_STEPS=700 SECONDS_PER_EXP=1800 SESSION_ID=residual-smoke \
+# Smoke first (short). IMPORTANT: the residual patch lives on PlayerDV3.get_actions,
+# which sheeprl only calls AFTER algo.learning_starts (default 1024) — before that it
+# collects with random action_space.sample(). So a smoke MUST either run past 1024
+# steps OR lower learning_starts, else get_actions (and the residual) is never exercised
+# and you just measure random prefill. Lower it for a fast smoke:
+#   STEPS=700 MAX_EPISODE_STEPS=700 SECONDS_PER_EXP=2400 SESSION_ID=residual-smoke \
+#     EXTRA_HYDRA='algo.actor.ent_coef=1e-3 algo.horizon=25 algo.world_model.kl_free_nats=1.0 algo.mlp_keys.encoder=[state] algo.learning_starts=200' \
 #     bash scripts/launch_residual_rl.sh
-# Then confirm the [residual-rl] + [script-dbg] lines in the train log show the phase
-# advancing beyond APPROACH (phase=DESCEND/CLOSE/LIFT/CARRY, obj_lifted=True).
+# Then confirm in the train log: [residual-rl] scripted-grasp controller INITIALISED +
+# ENGAGED, and [script-dbg] phase=... advancing beyond APPROACH (DESCEND/CLOSE/LIFT/
+# CARRY, obj_lifted=True), with reward climbing above the ~-61 random-policy floor.
+# (The real run keeps the default learning_starts=1024.)
 # =============================================================================
 set -euo pipefail
 
