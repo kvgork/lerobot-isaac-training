@@ -28,6 +28,23 @@ pretrained checkpoint via `--policy.path=`, the adapter omits its auto
 
 #### RTX-3080 fine-tune recipe (GPU-verified 2026-07-11)
 
+> [!tip] Auto-applied since the adapter update
+> The adapter now **auto-injects this recipe** for `vla_jepa` fine-tuned from a
+> `--policy.path`. You can just run:
+> ```bash
+> PYTORCH_ALLOC_CONF=expandable_segments:True \
+> lerobot-isaac-train --target_arch vla_jepa --dataset datasets/local/so101-pickplace-new \
+>   --successes_only --batch_size 2 --steps 20000 --output_dir outputs/vla_jepa_real_so101 \
+>   -- --policy.path=lerobot/VLA-JEPA-Pretrain --save_freq=5000
+> ```
+> `policy_lerobot` appends `--policy.freeze_qwen=true` + `--policy.reinit_modules=[...]`
+> (unless you set them yourself) and, when `--policy.path` is a **local** checkpoint
+> dir, materialises a camera-count-patched copy under `<output_dir>/_wm_policy_patched`.
+> Override any flag by passing it explicitly; disable the whole thing with
+> `LEROBOT_ISAAC_WM_AUTORECIPE=0`. Camera adaptation only runs for a local dir — for
+> the HF repo id, pre-materialise the 1-camera copy (step 3 below) so `--policy.path`
+> points at a local dir. The rest of this section documents what the recipe does.
+
 The `lerobot/VLA-JEPA-Pretrain` checkpoint is **7-dim action / 8-dim state /
 2-camera** (`exterior_1_left`, `exterior_2_left`). Fine-tuning on SO-101
 (6-action / 12-state / 1 overhead cam) on a 10 GB card needs **three** things —
