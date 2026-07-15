@@ -38,6 +38,11 @@ def main() -> int:
     ap.add_argument("--tgt_y", type=float, default=-0.13)
     ap.add_argument("--gui", action="store_true")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--measure_scale", action="store_true",
+                    help="C1 action-scale probe: run a few full pick->place rollouts with the "
+                         "PROVEN scripted controller, accumulate per-arm-joint max|q_des-q_default| "
+                         "(rad), write outputs/action_scale.json, and exit. Records NO dataset. "
+                         "The measured range sizes _ACTIONS_SCALE_DICT so |action|<=1.")
     args = ap.parse_args()
     random.seed(args.seed)
 
@@ -75,6 +80,17 @@ def main() -> int:
     _OFF = 0 if _fixed else 6
     q_default = robot.data.default_joint_pos.clone()
     action_dim = env.action_space.shape[-1]
+    # C1 action-scale probe: per-arm-joint running max |q_des - q_default| (rad), across the
+    # full scripted pick->place. Sizes _ACTIONS_SCALE_DICT so the demo/scripted/actor actions
+    # all fall in [-1,1] (the residual clamp then becomes a no-op — the ee-descent fix).
+    scale_max = {int(jid): 0.0 for jid in arm_ids}
+    # Per-joint action scale (C1 fix): the recorded `action` label must use the SAME per-joint
+    # scale the env applies, so it stays in [-1,1] and the tanh actor / residual clamp can
+    # reproduce it. Defaults to 0.5 everywhere when LEROBOT_ISAAC_ACTION_SCALE_JSON is unset
+    # (historical behaviour) — so the --measure_scale run itself is unaffected.
+    from lerobot_isaac_env.so101_env_cfg import load_action_scale_dict
+    _scale_by_name = load_action_scale_dict()
+    arm_scales = [float(_scale_by_name.get(robot.data.joint_names[jid], 0.5)) for jid in arm_ids]
     ik = DifferentialIKController(DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"), num_envs=1, device=device)
     GRASP_QUAT = [1.0, 0.0, 0.0, 0.0]
     GRIP_OPEN, GRIP_CLOSE = 1.0, -1.0
@@ -107,11 +123,14 @@ def main() -> int:
         "action": {"dtype": "float32", "shape": (6,), "names": None},
     }
     out_dir = Path(args.out)
-    if out_dir.exists():
-        print(f"[demos] ERROR: {out_dir} exists — remove it first (LeRobotDataset.create won't overwrite).", flush=True)
-        os._exit(1)
-    ds = LeRobotDataset.create(repo_id=f"local/{out_dir.name}", root=str(out_dir), fps=30, features=feats)
-    rew_dir = out_dir / "meta" / "demo_rewards"  # per-episode env-reward sidecar (.npy)
+    ds = None
+    rew_dir = None
+    if not args.measure_scale:
+        if out_dir.exists():
+            print(f"[demos] ERROR: {out_dir} exists — remove it first (LeRobotDataset.create won't overwrite).", flush=True)
+            os._exit(1)
+        ds = LeRobotDataset.create(repo_id=f"local/{out_dir.name}", root=str(out_dir), fps=30, features=feats)
+        rew_dir = out_dir / "meta" / "demo_rewards"  # per-episode env-reward sidecar (.npy)
 
     frames: list[dict] = []
     rewards_buf: list[float] = []  # per-step env reward, parallel to frames (sidecar, not a LeRobot feature)
@@ -151,8 +170,13 @@ def main() -> int:
             q_des = ik.compute(pos_b, quat_b, jac, robot.data.joint_pos[:, arm_ids])
             action = torch.zeros((1, action_dim), device=device)
             for k, jid in enumerate(arm_ids):
-                action[0, jid] = (q_des[0, k] - q_default[0, jid]) / 0.5
+                action[0, jid] = (q_des[0, k] - q_default[0, jid]) / arm_scales[k]
             action[0, grip_idx] = g
+            if args.measure_scale:
+                for k, jid in enumerate(arm_ids):
+                    d = abs(float(q_des[0, k] - q_default[0, jid]))
+                    if d > scale_max[int(jid)]:
+                        scale_max[int(jid)] = d
             if record:
                 grab_frame(action[0].detach().cpu().numpy())  # LABEL = clean IK expert action
             # DAgger: execute a perturbed action (drift off-manifold) but keep the clean label.
@@ -232,6 +256,38 @@ def main() -> int:
               f"maxz={_acc['maxz']:.4f} grip_q={grip_q:.4f} lifted={was_lifted} resting={resting} released={released} "
               f"ENV_TERMINATED={_acc.get('terminated', False)} -> {'OK' if ok else 'SKIP'}", flush=True)
         return ok
+
+    if args.measure_scale:
+        # A few clean rollouts to capture the full per-joint range (jitter varies the reach).
+        for _ in range(3):
+            ox = args.obj_x + random.uniform(-args.jitter, args.jitter)
+            oy = args.obj_y + random.uniform(-args.jitter, args.jitter)
+            rollout(ox, oy)
+        _names = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll"]
+        _id2name = {int(jid): _names[k] for k, jid in enumerate(arm_ids)}
+        _SAFETY = 1.15  # scale = max_delta * safety so worst-case |action| ~= 1/safety < 1
+        per_joint = {}
+        clamp_innocent = True
+        for jid, mx in scale_max.items():
+            nm = _id2name.get(jid, f"joint_{jid}")
+            per_joint[nm] = {"max_abs_delta_rad": round(mx, 4),
+                             "recommended_scale": round(max(mx * _SAFETY, 0.1), 4)}
+            if mx > 0.5:
+                clamp_innocent = False
+        summary = {
+            "per_joint": per_joint,
+            "gripper_scale_unchanged": True,
+            "clamp_innocent": clamp_innocent,  # True => all |delta|<=0.5, clamp never bit, Option A unneeded
+            "safety": _SAFETY,
+            "note": "set _ACTIONS_SCALE_DICT[arm joints] to recommended_scale so |action|<=1; keep gripper",
+        }
+        import json as _json
+        Path("outputs").mkdir(exist_ok=True)
+        with open("outputs/action_scale.json", "w") as f:
+            _json.dump(summary, f, indent=2)
+        print(f"[measure] wrote outputs/action_scale.json: {summary}", flush=True)
+        sys.stdout.flush()
+        os._exit(0)
 
     saved, attempts = 0, 0
     while saved < args.episodes and attempts < args.max_attempts:
