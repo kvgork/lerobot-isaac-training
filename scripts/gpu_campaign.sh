@@ -85,7 +85,8 @@ run_gate() {
 emit campaign start "dry_run=$DRY_RUN poll=${POLL_S}s"
 
 # --- HOP 1: SmolVLA orchestrated sweep (turnkey, offline-scoreable) ----------
-run_job smolvla_A     3600 "bash scripts/_run_tonight_smolvla_12h.sh" || true
+# --ar-seconds 5000 keeps 8 trials inside the 12 h hop cap (8×6000 s = 13.3 h overshoots; plan hop-1 note)
+run_job smolvla_A     3600 "bash scripts/_run_tonight_smolvla_12h.sh --ar-seconds 5000" || true
 
 # --- HOP 2: C1 residual ee-descent gate (probe→apply-scale→regen→smoke→grep) --
 # Gate PASS (rc=0) → run the residual full stretch; FAIL → skip, keep sweeping.
