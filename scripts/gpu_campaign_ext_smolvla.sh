@@ -27,7 +27,10 @@ CAMP_DIR="$WORKSPACE/outputs/gpu_campaign"; mkdir -p "$CAMP_DIR"
 STATE_DIR="$WORKSPACE/.agent-state/gpu-campaign"; mkdir -p "$STATE_DIR"
 EVENTS="$STATE_DIR/events.jsonl"
 POLL_S="${POLL_S:-120}"
-STALE_KILL_S=3600
+# Must exceed the job's longest LEGIT quiet gap on ITS OWN stdout: the AR stage
+# only prints a line per finished trial, so the gap is SECONDS_PER_EXP (5000 s)
+# + eval — 3600 here false-killed the ACT hop's analogue (2026-07-17).
+STALE_KILL_S=6300
 
 ts()  { date -u +%Y-%m-%dT%H:%M:%SZ; }
 emit(){

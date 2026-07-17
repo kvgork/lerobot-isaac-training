@@ -28,7 +28,9 @@ CAMP_DIR="$WORKSPACE/outputs/gpu_campaign"; mkdir -p "$CAMP_DIR"
 STATE_DIR="$WORKSPACE/.agent-state/gpu-campaign"; mkdir -p "$STATE_DIR"
 EVENTS="$STATE_DIR/events.jsonl"
 POLL_S="${POLL_S:-120}"
-STALE_KILL_S=2400
+# Trial 1800 s + eval ≤300 s legit quiet gap on stdout → 3000 with margin
+# (2400 was a coin-flip false-kill; see ACT hop stale-kill 2026-07-17).
+STALE_KILL_S=3000
 
 ts()  { date -u +%Y-%m-%dT%H:%M:%SZ; }
 emit(){
