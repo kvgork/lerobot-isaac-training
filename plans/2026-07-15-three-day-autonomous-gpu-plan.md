@@ -171,6 +171,95 @@ work — the chain continues on sweeps (this is the "gated stretch" contract).
   - **NEXT WALL (separate, pre-existing): grasp does not HOLD/LIFT** — `oz=0.008` through CLOSE, regrasp loop; ~15% demo success here. Gripper closure at scale 0.5 too weak; historical firm grip used `LEROBOT_ISAAC_GRIPPER_ACTION_SCALE≈3.0` (`[[so101-gripper-kinematic-floor]]`). Residual full run gated on this — campaign auto-skips HOP 3 until fixed (no GPU wasted).
 - **0c/0d/0e:** Job-B decay=15000 (supervisor); P2E dropped; sim-eval deps already in `sim` env (transformers 5.3.0 + num2words) — no isolation needed.
 
+## PHASE 1 LAUNCH (2026-07-16, `/orchestrate`)
+- **Unattended window STARTED 2026-07-16T14:51:53Z.** `setsid bash scripts/gpu_campaign.sh` (supervisor
+  pid 11073, own session), hop 1 `smolvla_A` launched.
+- Pre-launch gate re-verified this session: chain `--dry-run` green (7 hops + C1 gate), all hop scripts +
+  shared engine present (`claude_code` on `feat/autoresearch-deterministic-runner`), `action_scale.json`
+  present, disk 3.0 T free, meta tests 71/71, sibling tests in `sim` env **641 passed / 2 failed** —
+  both failures isolated to `test_curriculum_campaign.py::TestDerivePlaceSuccess` (mock patch-target bug
+  in the left-for-review curriculum driver dc22eea; nothing in the campaign chain imports it).
+- **Fix applied pre-launch:** supervisor hop 1 called the SmolVLA script bare → default 8×6000 s = 13.3 h
+  overshot the 12 h cap. Now passes `--ar-seconds 5000` (8 trials, ~11.1 h). Commit `9d6079b` (pushed,
+  `feature/residual-rl`).
+- Monitor: `tail -f outputs/gpu_campaign/campaign.log` · transitions in
+  `.agent-state/gpu-campaign/events.jsonl` · per-job logs `outputs/gpu_campaign/<hop>.log`.
+- Expected: C1 gate ~T+12 h will likely FAIL (grasp HOLD/LIFT wall, gripper scale) → hop 3 auto-skipped,
+  chain continues on sweeps — that is the designed gated-stretch behaviour, not a campaign failure.
+
+## INCIDENT + RECOVERY (2026-07-16, ~T+2 min)
+- **Hop 1 (smolvla_A) exited rc=0 after 2 min** — every AR trial died in ~4 s. Root cause: lerobot
+  0.6.0 removed the train script's local `make_dataset` binding (now `make_train_eval_datasets`), so
+  `cli_train_cached` (the `--cache_frames` monkey-patch) exited 2 before training. Three masking layers
+  made it look green: train_wrapper emitted sentinel `pc_success=0.0`; the AR history heredoc crashed on
+  bare `null` (NameError → record dropped); the 12h wrapper + supervisor treated rc=0 as success.
+- **Fixes (all pushed):** adapters `c018aeb` (dual-path cache patch: 0.5.x local binding / 0.6.0
+  `factory.make_dataset`, verified live — wrapper banner + warmup on pickplace1; tests 20/20);
+  workspace `25cc467` (`gpu_campaign_ext_smolvla.sh` reruns hop 1 after the chain exits + AR heredoc
+  `null`→`None` so failed trials keep their history records).
+- **Hop 4 (LoRA) was exposed to the same crash** — uses `--cache_frames`; the editable-install fix
+  lands automatically for its subprocesses. LoRA `make_policy` patch verified present on 0.6.0.
+- **Rerun waiter bug (caught immediately):** v1 waiter greped events.jsonl for `campaign done` and
+  matched stale dry-run events → launched the sweep alongside the C1 gate (~2 min GPU contention,
+  gate unaffected). Killed; waiter now waits on supervisor **process liveness only** (pid 19211).
+- Chain state during recovery: C1 gate demo regen healthy — early regen'd demos at the new action
+  scale show FULL place success (lifted+resting+released), so the gate may genuinely PASS.
+
+## C1 GATE RESULT (2026-07-16T16:06Z): FAIL — hop 3 skipped, chain on sweeps
+- Evidence (`campaign.log` + `.agent-state/c1-residual-smoke/.../train.log`): **descent fix holds**
+  (`min_ez=0.106`, `xy_to_tgt≈0.000`) but `max_oz=0.057 < 0.07`, `phases=[DESCEND,STABILIZE,CLOSE]`
+  regrasp loop, never LIFT. Scripted weight was ≈1.0 throughout (step 1000 → script_frac 0.967), so
+  residual noise is NOT the cause.
+- **Key discrepancy for follow-up:** the SAME gate's demo regen (via `_gen_sim_demos.py` controller)
+  produced FULL places (maxz 0.103–0.110, lifted+resting+released) — while the adapter's
+  `scripted_grasp_phases` controller (residual path) closes on the die (oz 0.008) and slips. Same env,
+  same action scale, gripper scale shared (no `GRIPPER_ACTION_SCALE` env var anywhere). ⇒ the two phase
+  controllers differ in behaviour (z_high / close depth / hold criteria / step caps), NOT the C1
+  normalisation. Next lever: port the demo controller's grasp sequence into `scripted_grasp_phases`
+  (frame-by-frame diff), then re-gate (~1.5 h) — decision left for the attended wrap.
+- LoRA hop 4 confirmed healthy post-fix: `cache patch applied (0.6.0 factory make_dataset)` in trial 0.
+
+## HOP RESULTS LOG (running)
+- **Hop 4 LoRA (16:06→23:36Z, rc=0): HEALTHY.** 11 trials × full 2400 s (plateau early-stop at 11/16),
+  real metrics; best 0.144 @ rank=64 alpha=128 attn_qv lr=3e-5.
+- **Hop 5 diffusion (23:36→02:36Z, rc=0): trained but banked NOTHING.** 6 full 1800 s trials,
+  ~0.8 step/s ⇒ ~1400 steps < save_freq 1500 (`SECONDS_PER_EXP*25/30` assumes ≥1 step/s) ⇒ zero
+  checkpoints ⇒ zero evals ⇒ all sentinel-0.0 metrics. Fix = `save_freq=SECONDS_PER_EXP/4` in
+  `run_autoresearch_policy_fixed.sh` (COPY — original not edited while ACT hop executes it; **merge back
+  at wrap**). Re-run queued: `gpu_campaign_ext2_diffusion.sh` (diff-camp2, fires after supervisor+ext1).
+  Commit `f70e619`.
+- **Hop 6 ACT** launched 02:36Z (8×2700 s); checkpoint sentinel armed (ACT ~2-4 step/s should clear
+  save_freq 2250 easily — alert if trial 0 shows no ckpt by +50 min).
+- **Hop 6 ACT STALE-KILLED at trial 3/8 (05:37Z)** — false positive: supervisor stale threshold 2700 s
+  == SECONDS_PER_EXP, but dispatchers only print a stdout line per FINISHED trial → hop log legitimately
+  silent for trial+eval. 3 real trials banked (pc≈0.0197–0.0208). **Class-fixed everywhere reachable**
+  (commit `7293e5f`): ext1 stale→6300, ext2→3000, NEW ext3 finishes ACT trials 3-7 into the same
+  act-camp session (engine `AR_TRIAL_START` resume, claude_code commit on
+  `feat/autoresearch-deterministic-runner`); NEW `_wm_keepalive.sh` shields hop 7 (2400+300 vs 2700 —
+  forwards real trial-log liveness to the hop log; real hangs still die). **Merge the stale-threshold
+  rule into `gpu_campaign.sh` itself at wrap** (can't edit while running): stale ≥ trial+eval+margin.
+- GOTCHA (cost 2 relaunches): `setsid <cmd> &` forks — `$!` is the dead parent; pgrep the child's exact
+  cmdline for the real waiter pid before wiring dependent waiters.
+- Extended chain order: hop 7 (WM, keepalive-shielded) → smolvla_A2 (ext1 184800, ~11 h) →
+  diffusion_E2 (ext2 184813, ~3 h) → act_F2 (ext3 184826, ~4 h). Projected end ~13:30Z Jul 18; window
+  ends 14:51Z Jul 19. Fits.
+
+## CAMPAIGN COMPLETE (2026-07-18T02:40Z) — extension chain all green
+- smolvla_A2 (10:10→21:17Z, 8 trials): rerank winner **trial_7 pc 0.129 / MSE 6.73** vs May anchor
+  0.060/15.7 — ckpt `outputs/autoresearch-lerobot-policy-smolvla/trial_7/checkpoints/041660`.
+- diffusion_E2 (6 trials, save_freq fix): real ckpts+evals this time; pc 0.0014–0.0021 (weak proxy).
+- act_F2 (trials 3-5 via AR_TRIAL_START): grid is 6 configs → **ACT sweep complete 6/6**; best remains
+  trial 0 (0.0208, baseline cfg — every HP variant scored worse).
+- Totals: **43 scored trials / 5 families**, zero human interventions post-launch. GPU idle from
+  02:40Z Jul 18 (chain had no further extend hop — add a loop-extend to the supervisor next time).
+- **Vault ingested 2026-07-19**: source `05-Wiki/sources/2026-07-19-gpu-campaign-3day-lessons.md`,
+  updates to Autonomous-ML-Training-Loop / SO-101 / Residual-RL-on-Scripted-Controllers / LeRobot,
+  glossary v81 (+8 terms), log+index verified, capture archived.
+- Wrap remaining (attended): dashboard N-way compare + `_open_loop_eval` refresh across ACT/SmolVLA/
+  vla_jepa + new winners; merge `save_freq` fix into `run_autoresearch_policy.sh` and the
+  stale-threshold rule into `gpu_campaign.sh` (both now safe to edit); `scripted_grasp_phases` port +
+  re-gate (~1.5 h); surface arm bake-off runbook + runner PR.
+
 ## Related
 - `plans/2026-07-12-residual-ee-descent-blocker-plan.md` (C1 fix detail) ·
   `plans/2026-07-12-phase3-model-comparison-plan.md` (excluded arm bake-off) ·
