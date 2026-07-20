@@ -10,7 +10,9 @@
 
 > **Status 2026-07-20:** items 1–3 + 5 DONE (`9eccfca` merge/thresholds/tail-loop, `41b0b4d` grill
 > hardening: restart clobber guard + TAIL_MIN_FREE_GB disk floor; verification 8/8, meta 71 green).
-> Item 4 (push `feat/autoresearch-deterministic-runner` in `~/tools/claude_code`) still OPEN.
+> Item 4 CLOSED 2026-07-20: `feat/autoresearch-deterministic-runner` merged to claude_code main
+> (`4048d5c` contains it); local checkout synced, engine `AR_TRIAL_START` present, dispatcher
+> `--print-cmd` contract smoke green. **Phase 1 complete.**
 > Grill accepted-without-fix list: `docs/.grill-accepted.log`. New knobs: `TAIL_HOPS` (default 2,
 > 0=unlimited), `SEED_OFFSET`, `AR_OUT_ROOT` (env-overridable).
 
