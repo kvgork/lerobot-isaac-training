@@ -87,6 +87,28 @@
 > **Unit-test gate PASSED → re-gate is next (GPU).**
 
 3. **Re-gate** (~1.5 h GPU): `bash scripts/_residual_smoke_gate.sh` — PASS = oz>0.07 + CARRY reached.
+> **Re-gate run 2026-07-20 (~50 min GPU): VERDICT FAIL — but the verdict is UNRELIABLE; two
+> instrumentation/env bugs invalidate it, NOT the ported controller.** Gate line:
+> `phases=['CLOSE'] min_ez=0.106 max_oz=0.015 lifted=False reached_lift=False descended=True`.
+> The descent criterion PASSED (ee at grasp depth 0.106 exactly, xy_to_tgt 0.001 — old ez~0.30
+> blocker gone; C1 scale fix works).
+>
+> Root causes found by log forensics (`.agent-state/c1-residual-smoke/.../train.log`):
+> 1. **Backing Isaac env still truncates at 300 steps** (episode ends at policy_step 300/601/902/
+>    1203 = its own `episode_length_s=10s×30Hz` time_out). The wrapper's `max_episode_steps=700`
+>    only ADDS a cap (`isaac_env.py:270`) — it never raises the backing cap. Demo-gen disables it
+>    (`_gen_sim_demos.py:66-70`, `episode_length_s=1e6`) precisely because the working sequence
+>    needs ~485 steps. Under 300 the ported schedule can reach LIFT at best — never CARRY/PLACE.
+> 2. **Trace aliasing:** `[script-dbg]` prints every 150 compute calls; episodes are 301 steps →
+>    every sample lands at episode-step ~150 (mid-CLOSE). `phases`/`max_oz` in the gate verdict
+>    are blind past that point — a lift at episode-step 200+ would be invisible.
+>
+> **Prescribed fixes (adapter, CPU, before any re-gate):** (a) wrapper raises backing
+> `env.cfg.episode_length_s` when `max_episode_steps` exceeds it (mirror demo-gen); (b) de-alias
+> dbg — print on every phase TRANSITION (+ episode-relative step), not a fixed 150 cadence;
+> (c) optionally have the gate parser also read a per-episode max-phase line. Then re-gate
+> (~1 h GPU). Escalated per step 5 — human decision to proceed.
+
 4. **If PASS → full residual run** (13 h GPU):
    `LEROBOT_ISAAC_RESIDUAL_RL_DECAY_STEPS=15000 bash scripts/launch_residual_rl.sh` (setsid detach,
    stale backstop ≥3600 s; read result from training TB place-rate, NOT `_sim_eval.py`).
