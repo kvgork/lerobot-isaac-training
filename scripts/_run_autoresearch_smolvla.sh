@@ -95,7 +95,7 @@ for cfg in "${CONFIGS[@]:0:$TRIALS}"; do
     iter_log="$AR_DIR/trial_${trial}.log"
     start_ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     start_s=$(date +%s)
-    save_freq=$(( SECONDS_PER_EXP * 25 / 30 ))
+    save_freq=$(( SECONDS_PER_EXP / 4 ))   # was *25/30 — assumed >=1 step/s; /4 guarantees saves at any rate
     [ "$save_freq" -lt 200 ] && save_freq=200
 
     PATH="$WORKSPACE/.pixi/envs/train-policy/bin:$PATH" \

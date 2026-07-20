@@ -84,9 +84,13 @@ run_gate() {
 
 emit campaign start "dry_run=$DRY_RUN poll=${POLL_S}s"
 
+# Stale-threshold rule: STALE_KILL[job] >= SECONDS_PER_EXP(job) + eval(<=300 s)
+# + margin(600 s). AR dispatchers print stdout once per FINISHED trial, so the
+# hop log is legitimately silent for a full trial+eval (7293e5f false-positive).
+
 # --- HOP 1: SmolVLA orchestrated sweep (turnkey, offline-scoreable) ----------
 # --ar-seconds 5000 keeps 8 trials inside the 12 h hop cap (8×6000 s = 13.3 h overshoots; plan hop-1 note)
-run_job smolvla_A     3600 "bash scripts/_run_tonight_smolvla_12h.sh --ar-seconds 5000" || true
+run_job smolvla_A     6300 "bash scripts/_run_tonight_smolvla_12h.sh --ar-seconds 5000" || true  # 5000s trial + eval + margin
 
 # --- HOP 2: C1 residual ee-descent gate (probe→apply-scale→regen→smoke→grep) --
 # Gate PASS (rc=0) → run the residual full stretch; FAIL → skip, keep sweeping.
@@ -99,17 +103,34 @@ else
 fi
 
 # --- HOP 4: LoRA rank sweep (offline-scoreable) ------------------------------
-run_job lora_C        2700 "MAX_TRIALS=16 STEPS=20000 bash scripts/_run_autoresearch_lora.sh" || true
+run_job lora_C        3300 "MAX_TRIALS=16 STEPS=20000 bash scripts/_run_autoresearch_lora.sh" || true  # 2400s trial + eval + margin
 
 # --- HOP 5: diffusion AR baseline (offline-scoreable) — GENERAL dispatcher ---
-run_job diffusion_E   2400 "SESSION_ID=diff-camp TRIALS=6 SECONDS_PER_EXP=1800 bash scripts/run_autoresearch_policy.sh --arch diffusion" || true
+run_job diffusion_E   2700 "SESSION_ID=diff-camp TRIALS=6 SECONDS_PER_EXP=1800 bash scripts/run_autoresearch_policy.sh --arch diffusion" || true  # 1800s trial + eval + margin
 
 # --- HOP 6: ACT sweep (offline-scoreable) — GENERAL dispatcher ---------------
 # (run_autoresearch_policy.sh --arch <x> replaces the per-arch _run_autoresearch_*.sh
 #  copies; loop engine is the shared claude_code autoresearch skill.)
-run_job act_F         2700 "SESSION_ID=act-camp TRIALS=8 SECONDS_PER_EXP=2700 bash scripts/run_autoresearch_policy.sh --arch act" || true
+run_job act_F         3600 "SESSION_ID=act-camp TRIALS=8 SECONDS_PER_EXP=2700 bash scripts/run_autoresearch_policy.sh --arch act" || true  # 2700s trial + eval + margin
 
 # --- HOP 7: WM-offline DreamerV3 AR (low-value tail-fill) --------------------
-run_job wm_offline_G  2700 "MAX_TRIALS=12 STEPS=200000 bash scripts/_run_autoresearch_wm.sh" || true
+run_job wm_offline_G  3300 "MAX_TRIALS=12 STEPS=200000 bash scripts/_run_autoresearch_wm.sh" || true  # 2400s trial + eval + margin
+
+# --- TAIL LOOP: chain exhausted — keep the GPU busy instead of idling --------
+# (2026-07-18 campaign sat idle ~40 h after hop 7.) Re-launch the top offline-
+# scoreable sweep (ACT) with fresh seeds (SEED_OFFSET) + fresh SESSION_ID +
+# per-hop AR_OUT_ROOT — NEVER writes into outputs/autoresearch-lerobot-policy-act/
+# (deploy-candidate checkpoints; the AR engine rm -rfs trial dirs).
+# TAIL_HOPS: extra hops after the chain (default 2; 0 = loop until killed).
+TAIL_HOPS="${TAIL_HOPS:-2}"
+tail_i=1
+while [ "$TAIL_HOPS" -eq 0 ] || [ "$tail_i" -le "$TAIL_HOPS" ]; do
+  if [ "$DRY_RUN" = "1" ]; then
+    emit act_tail dry-run "TAIL_HOPS=$TAIL_HOPS: act sweep, SEED_OFFSET per hop, per-hop AR_OUT_ROOT"
+    break
+  fi
+  run_job "act_tail_${tail_i}" 3600 "SESSION_ID=act-tail-${tail_i} TRIALS=8 SECONDS_PER_EXP=2700 SEED_OFFSET=$(( tail_i * 1000 )) AR_OUT_ROOT=$WORKSPACE/outputs/autoresearch-lerobot-policy-act-tail-${tail_i} bash scripts/run_autoresearch_policy.sh --arch act" || true
+  tail_i=$(( tail_i + 1 ))
+done
 
 emit campaign done "chain complete — see outputs/gpu_campaign/*.log + .agent-state/gpu-campaign/events.jsonl"

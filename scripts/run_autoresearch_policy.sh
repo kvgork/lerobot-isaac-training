@@ -44,6 +44,7 @@ ENV_BIN="$WORKSPACE/.pixi/envs/train-policy/bin"
 DATASET="${DATASET:-$WORKSPACE/datasets/kvgork/so101-pickplace1}"
 SECONDS_PER_EXP="${SECONDS_PER_EXP:-2700}"
 SESSION="${SESSION_ID:-$(date +%Y%m%d-%H%M%S)-autoresearch-$ARCH}"
+SEED_OFFSET="${SEED_OFFSET:-0}"   # tail-hop fresh seeds: added to every grid seed
 
 # --- per-arch mutation grid (extend here to add an arch) ---------------------
 declare -a CONFIGS
@@ -90,7 +91,7 @@ esac
 # --- caller contract for the shared engine -----------------------------------
 SLUG="lerobot-policy-$ARCH"
 AR_DIR="$WORKSPACE/.agent-state/$SESSION/autoresearch/$SLUG"
-AR_OUT_ROOT="$WORKSPACE/outputs/autoresearch-$SLUG"
+AR_OUT_ROOT="${AR_OUT_ROOT:-$WORKSPACE/outputs/autoresearch-$SLUG}"   # overridable: tail hops must NOT clobber campaign checkpoints (engine rm -rfs trial dirs)
 AR_METRIC_NAME="pc_success"
 AR_METRIC_DIR="maximize"
 AR_JQ_PY="$WORKSPACE/.pixi/envs/default/bin/python"
@@ -105,8 +106,13 @@ ar_run_trial() {
   local cfg="$1" out_dir="$2" iter_log="$3" bs lr steps seed extra save_freq
   bs=$(echo "$cfg" | jq -r .batch_size); lr=$(echo "$cfg" | jq -r .lr)
   steps=$(echo "$cfg" | jq -r .steps); seed=$(echo "$cfg" | jq -r .seed)
+  seed=$(( seed + SEED_OFFSET ))
   extra=$(echo "$cfg" | jq -r '.extra // ""')
-  save_freq=$(( SECONDS_PER_EXP * 25 / 30 )); [ "$save_freq" -lt 200 ] && save_freq=200
+  # SECONDS_PER_EXP/4 (was *25/30): the old formula assumed >=1 step/s; diffusion
+  # runs ~0.8 step/s, so trials timed out ~100 steps short of their FIRST checkpoint
+  # (2026-07-17 diff-camp: 6 trials, zero ckpts, zero evals, all sentinel-0.0).
+  # /4 guarantees multiple saves even at ~0.3 step/s; extra saves cost seconds.
+  save_freq=$(( SECONDS_PER_EXP / 4 )); [ "$save_freq" -lt 200 ] && save_freq=200
   PATH="$ENV_BIN:$PATH" \
   timeout "$SECONDS_PER_EXP" "$PY" -m lerobot_isaac_autoresearch.train_wrapper \
     --target_arch "$ARCH" --dataset "$DATASET" --output_dir "$out_dir" \
