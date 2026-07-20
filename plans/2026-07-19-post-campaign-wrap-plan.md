@@ -44,6 +44,30 @@
 3. Output: single ranked candidate table in this plan + dashboard snapshot path. Honest caveat stays:
    offline MSE/pc proxies are SOFT rankings; the arm is the only real gate.
 
+> **Phase 2 DONE 2026-07-20.** Protocol: `_open_loop_eval.py`, n_episodes=4, held-out slice of each
+> candidate's OWN training dataset — a single common dataset is impossible (pickplace1 camera key
+> `observation.images.d435_rgb` vs pickplace-new `observation.images.overhead`), so the two groups
+> below are NOT cross-comparable. Raw JSONs: `outputs/phase2-eval-20260720/` (+ copies in
+> `outputs/eval/` for the dashboard loader).
+>
+> | rank | candidate | checkpoint | dataset (held-out) | MSE | pc_success |
+> |---|---|---|---|---|---|
+> | B1 | SmolVLA campaign winner | `autoresearch-lerobot-policy-smolvla/trial_7/checkpoints/041660` | pickplace1 (1673 fr) | **6.35** | **0.1360** |
+> | B2 | LoRA r64 α128 attn_qv | `…smolvla-lora/trial_4/checkpoints/merged` | pickplace1 (1673 fr) | 6.45 | 0.1342 |
+> | B3 | ACT sweep trial_0 | `…policy-act/trial_0/checkpoints/last` | pickplace1 (1673 fr) | 48.79 | 0.0201 |
+> | A1 | vla_jepa-020k | `vla_jepa_real_so101/checkpoints/020000` | pickplace-new (1584 fr) | **40.96** | **0.0238** |
+> | A2 | ACT-15k | `act_real_so101_15k/checkpoints/015000` | pickplace-new (1584 fr) | 52.24 | 0.0188 |
+> | A3 | SmolVLA-020k | `smolvla_real_so101/checkpoints/020000` | pickplace-new (1584 fr) | 58.33 | 0.0169 |
+>
+> Consistency vs prior numbers: trial_7 6.35/0.136 (was 6.73/0.129), LoRA 0.134 (was 0.144), ACT
+> sweep trial_0 pc 0.0201 (was 0.0208 — NB the plan's "0.0208" was pc_success, not MSE; on this
+> proxy ACT sweep trails both SmolVLA candidates by ~7×). Dashboard N-way report:
+> `outputs/reports/2026-07-20T161827-no-session/report.html`; **arm-session snapshot:**
+> `outputs/snapshots/2026-07-20T161828-2026-07-20T161827-no-session/` (known wart: events.parquet
+> written empty — mixed-type `commits` column; eval/training loaders intact).
+> Arm bake-off short-list per group: **SmolVLA trial_7 + LoRA trial_4** (B) and **vla_jepa-020k** (A),
+> keeping ACT-15k as the prior first-HW-success reference. Soft rankings; the arm decides.
+
 ## Phase 3 — Residual grasp unblock (GPU, ~3 h total, gated)
 
 1. **Diff the two scripted controllers** — demo-gen (`scripts/_gen_sim_demos.py`, LIFTS+PLACES at the
