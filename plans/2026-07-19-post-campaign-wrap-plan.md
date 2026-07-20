@@ -8,6 +8,12 @@
 
 ## Phase 1 — Infra merge-back (CPU, ~1 h, nothing is running so all files are safe to edit)
 
+> **Status 2026-07-20:** items 1–3 + 5 DONE (`9eccfca` merge/thresholds/tail-loop, `41b0b4d` grill
+> hardening: restart clobber guard + TAIL_MIN_FREE_GB disk floor; verification 8/8, meta 71 green).
+> Item 4 (push `feat/autoresearch-deterministic-runner` in `~/tools/claude_code`) still OPEN.
+> Grill accepted-without-fix list: `docs/.grill-accepted.log`. New knobs: `TAIL_HOPS` (default 2,
+> 0=unlimited), `SEED_OFFSET`, `AR_OUT_ROOT` (env-overridable).
+
 1. **Merge `save_freq` fix into the real dispatcher.** Apply the `SECONDS_PER_EXP/4` change from
    `scripts/run_autoresearch_policy_fixed.sh` to `scripts/run_autoresearch_policy.sh`, then DELETE the
    `_fixed` copy and repoint `scripts/gpu_campaign_ext2_diffusion.sh`/`ext3` (or delete the ext scripts
