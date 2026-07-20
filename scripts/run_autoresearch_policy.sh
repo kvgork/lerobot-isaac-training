@@ -105,7 +105,8 @@ EOF
 ar_run_trial() {
   local cfg="$1" out_dir="$2" iter_log="$3" bs lr steps seed extra save_freq
   bs=$(echo "$cfg" | jq -r .batch_size); lr=$(echo "$cfg" | jq -r .lr)
-  steps=$(echo "$cfg" | jq -r .steps); seed=$(echo "$cfg" | jq -r .seed)
+  steps=$(echo "$cfg" | jq -r .steps); seed=$(echo "$cfg" | jq -r '.seed // 42')
+  case "$seed" in (''|null|*[!0-9]*) seed=42 ;; esac   # guard: non-integer grid seed must not abort the sweep (set -u)
   seed=$(( seed + SEED_OFFSET ))
   extra=$(echo "$cfg" | jq -r '.extra // ""')
   # SECONDS_PER_EXP/4 (was *25/30): the old formula assumed >=1 step/s; diffusion
@@ -129,7 +130,7 @@ ar_eval_trial() {
   ckpt=$(find "$out_dir/checkpoints" -name pretrained_model -type d 2>/dev/null | sort | tail -1)
   { [ -n "$ckpt" ] && [ -d "$ckpt" ]; } || { echo ""; return 0; }
   eval_json="$AR_DIR/trial_${trial}-eval.json"
-  "$PY" "$WORKSPACE/scripts/_open_loop_eval.py" --policy_path "$ckpt" \
+  timeout 600 "$PY" "$WORKSPACE/scripts/_open_loop_eval.py" --policy_path "$ckpt" \
     --dataset_root "$DATASET" --n_episodes 3 --output_json "$eval_json" \
     --task_label "ar-$ARCH-trial-$trial" --run_id "${SESSION}-trial${trial}" >> "$iter_log" 2>&1 || true
   pc=$(jq -r .pc_success "$eval_json" 2>/dev/null)
