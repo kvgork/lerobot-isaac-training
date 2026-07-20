@@ -78,6 +78,14 @@
    demo regen post-hoc lines in `outputs/gpu_campaign/campaign.log`.
 2. **Port the demo-gen grasp sequence** into `scripted_grasp_phases`; unit-test phase progression
    (existing per-phase step-cap tests as template).
+> **Items 1–2 DONE 2026-07-20** (adapter `1a134ec` on `feature/wm-isaac-env`, NOT pushed).
+> Controller diff found 4 deltas vs the working demo: z_high 0.17→0.19 (CARRY_Z parity, cup-rim
+> clearance), rate-limited LIFT → direct z_high command (slip-at-oz-0.008 suspect), close cradle
+> 40→80-step ramp + new 25-step HOLD phase (demo's 80+25), schedule caps to demo durations
+> (DESCEND 90 / LIFT 60 / CARRY 60 / LOWER 40, STABILIZE 30); RELEASE ramps to PLACE_PART_OPEN.
+> No-stall invariant + bounded regrasp kept. Unit tests 25/25 (was 19), meta 71 green.
+> **Unit-test gate PASSED → re-gate is next (GPU).**
+
 3. **Re-gate** (~1.5 h GPU): `bash scripts/_residual_smoke_gate.sh` — PASS = oz>0.07 + CARRY reached.
 4. **If PASS → full residual run** (13 h GPU):
    `LEROBOT_ISAAC_RESIDUAL_RL_DECAY_STEPS=15000 bash scripts/launch_residual_rl.sh` (setsid detach,
