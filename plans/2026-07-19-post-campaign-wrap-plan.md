@@ -122,12 +122,27 @@
 > length, all 8 phases traced (de-aliasing confirmed). HOWEVER `max_oz=0.008` = the die never
 > physically lifted — `reached_lift` fired via the phase machine's force-advance caps, which the
 > stall fix made unconditional, so that gate criterion is now vacuous. The plan's stricter bar
-> (oz>0.07 + CARRY) is NOT met. The scripted base still doesn't grip under the residual blend
-> (demo-gen at identical geometry lifts ~80%). Remaining suspects: pre-`learning_starts` random
-> phase (first 200 steps) displacing the die before the scripted controller engages; residual
-> actor perturbation on the gripper channel during CLOSE; a still-unfound grip-sequence delta —
-> needs the step-5 frame diff (grip trajectory demo vs smoke ep-2) before authorising the 13 h
-> full run. **Full run NOT launched (user hold + soft-PASS caveat). Human decision.**
+> (oz>0.07 + CARRY) is NOT met. **The de-aliased transition trace isolates the physical blocker
+> precisely (this IS the step-5 frame diff):**
+>
+> - Ep 1: scripted control only engages at t≈209 (`learning_starts=200` random-action warmup
+>   holds the phase machine at APPROACH); DESCEND then drops ez 0.189→0.121 in 90 steps —
+>   demo-rate — but the ee **freezes at ez=0.121 (15 mm above grasp_z=0.106)** through
+>   STABILIZE/CLOSE/HOLD, so the fingers close ~15 mm above the die → no grip → bounded
+>   regrasp ×2 (machine mechanics all correct: order, dwells, caps, REGRASP lines).
+> - Round 1 (300-step episodes, fresh Isaac resets, learning barely started) DID reach full
+>   depth ez=0.106 during CLOSE — depth is achievable; the last 15 mm is lost under round-2
+>   conditions.
+> - Ep 2 is worse: DESCEND nearly frozen (0.190→0.175 in 90 steps) — descent authority
+>   **degrades across episodes** as training progresses (actor blend growing / world-model
+>   updates), pointing at the residual blend or post-reset state, not the schedule.
+>
+> Suspects, ordered: (1) pre-learning_starts flail — seed replay already has 12 demo episodes,
+> so try `algo.learning_starts` ≈ 0/64 in the smoke, or hold-pose during warmup; (2) residual
+> actor counteracting descent joints as its weight grows (check blend at fixed script_frac=1.0
+> to isolate); (3) post-reset state issue (isaac_env.py:236 inference_mode/DR note is explicitly
+> NOT GPU-verified). **Full run NOT launched (user hold + soft PASS). Human decision on next
+> smoke iteration.**
 
 4. **If PASS → full residual run** (13 h GPU):
    `LEROBOT_ISAAC_RESIDUAL_RL_DECAY_STEPS=15000 bash scripts/launch_residual_rl.sh` (setsid detach,
