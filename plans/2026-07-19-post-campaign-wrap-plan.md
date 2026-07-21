@@ -108,6 +108,13 @@
 > dbg — print on every phase TRANSITION (+ episode-relative step), not a fixed 150 cadence;
 > (c) optionally have the gate parser also read a per-episode max-phase line. Then re-gate
 > (~1 h GPU). Escalated per step 5 — human decision to proceed.
+>
+> **Fixes (a)+(b) landed 2026-07-21** (adapter `634d910`, user-approved): `_boot()` raises backing
+> `cfg.episode_length_s` when wrapper `max_episode_steps` exceeds backing `max_episode_length`
+> (demo-gen's approach; wrapper cap stays sole authority); `[script-dbg]` now prints per phase
+> TRANSITION with episode-relative `t=` via pure `format_phase_transition()` — gate-regex contract
+> unit-tested against `_residual_smoke_gate.sh`'s parser. Phase tests 28/28. Re-gate round 2
+> launched 2026-07-21T17:04Z → `outputs/gpu_campaign/c1_gate_20260721.log`.
 
 4. **If PASS → full residual run** (13 h GPU):
    `LEROBOT_ISAAC_RESIDUAL_RL_DECAY_STEPS=15000 bash scripts/launch_residual_rl.sh` (setsid detach,
