@@ -115,6 +115,19 @@
 > TRANSITION with episode-relative `t=` via pure `format_phase_transition()` — gate-regex contract
 > unit-tested against `_residual_smoke_gate.sh`'s parser. Phase tests 28/28. Re-gate round 2
 > launched 2026-07-21T17:04Z → `outputs/gpu_campaign/c1_gate_20260721.log`.
+>
+> **Round 2 result (2026-07-21): VERDICT PASS (rc=0) — but treat as SOFT.**
+> `phases=[APPROACH,DESCEND,STABILIZE,CLOSE,HOLD,LIFT,CARRY,LOWER] min_ez=0.118 max_oz=0.008
+> lifted=False reached_lift=True descended=True`. Both fixes verified working: episodes run full
+> length, all 8 phases traced (de-aliasing confirmed). HOWEVER `max_oz=0.008` = the die never
+> physically lifted — `reached_lift` fired via the phase machine's force-advance caps, which the
+> stall fix made unconditional, so that gate criterion is now vacuous. The plan's stricter bar
+> (oz>0.07 + CARRY) is NOT met. The scripted base still doesn't grip under the residual blend
+> (demo-gen at identical geometry lifts ~80%). Remaining suspects: pre-`learning_starts` random
+> phase (first 200 steps) displacing the die before the scripted controller engages; residual
+> actor perturbation on the gripper channel during CLOSE; a still-unfound grip-sequence delta —
+> needs the step-5 frame diff (grip trajectory demo vs smoke ep-2) before authorising the 13 h
+> full run. **Full run NOT launched (user hold + soft-PASS caveat). Human decision.**
 
 4. **If PASS → full residual run** (13 h GPU):
    `LEROBOT_ISAAC_RESIDUAL_RL_DECAY_STEPS=15000 bash scripts/launch_residual_rl.sh` (setsid detach,
