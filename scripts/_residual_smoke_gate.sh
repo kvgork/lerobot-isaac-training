@@ -7,7 +7,7 @@
 #   1. measure per-joint action scale (if outputs/action_scale.json absent)
 #   2. export LEROBOT_ISAAC_ACTION_SCALE_JSON so env + scripted controller rescale
 #   3. regenerate demos with the new scale (BC labels back in [-1,1])
-#   4. run the residual smoke (learning_starts=200 so the residual is exercised)
+#   4. run the residual smoke (64-step warmup floor so the residual is exercised)
 #   5. parse the smoke's [script-dbg] lines → ee descended AND obj lifted AND phase
 #      reached CARRY  ⇒  exit 0 (fix works → run full residual)  else exit 1 (skip).
 #
@@ -61,13 +61,21 @@ if [ ! -d "$DEMO_OUT" ]; then
     --obj_x 0.22 --obj_y -0.06 --grasp_z 0.106 || { echo "[c1-gate] FAIL: demo regen crashed"; exit 1; }
 fi
 
-# 4. residual smoke — learning_starts=200 so PlayerDV3.get_actions (the residual seam) runs.
-#    STEPS=1400 (>= learning_starts 200 + one full ~540-step pick->place) so LIFT/CARRY are reachable.
+# 4. residual smoke — warmup floor 64 so PlayerDV3.get_actions (the residual seam) runs
+#    almost immediately: 12 demo episodes (5820 transitions) are pre-seeded into the replay
+#    buffer, so the random-action warmup buys nothing — at 200 it held the phase machine in
+#    APPROACH for the first 200 steps of ep-1 and displaced the arm (2026-07-21 trace: first
+#    transition at t=209). 64 = num_envs(1) x seq_len(64) floor.
+#    STEPS=1400 (>= learning_starts 64 + one full ~540-step pick->place) so LIFT/CARRY are reachable.
+#    RESIDUAL_RL_DECAY_STEPS pinned to 1e7 pins script_frac≈1.0 for the SMOKE ONLY —
+#    isolates the scripted base from actor-blend interference (ep-2 descent freeze suspect);
+#    the full run uses its own decay.
 rm -rf "$WORKSPACE/.agent-state/$SMOKE_SESSION" "$WORKSPACE/outputs/wm-isaac-prod-$SMOKE_SESSION"
 echo "[c1-gate] running residual smoke (session=$SMOKE_SESSION) → train log $TRAIN_LOG ..."
-STEPS=1400 MAX_EPISODE_STEPS=700 SECONDS_PER_EXP=3600 SESSION_ID="$SMOKE_SESSION" \
+LEROBOT_ISAAC_RESIDUAL_RL_DECAY_STEPS=10000000 \
+  STEPS=1400 MAX_EPISODE_STEPS=700 SECONDS_PER_EXP=3600 SESSION_ID="$SMOKE_SESSION" \
   LEROBOT_ISAAC_DEMO_DATASET="$DEMO_OUT" \
-  EXTRA_HYDRA='algo.actor.ent_coef=1e-3 algo.horizon=25 algo.world_model.kl_free_nats=1.0 algo.mlp_keys.encoder=[state] algo.learning_starts=200' \
+  EXTRA_HYDRA='algo.actor.ent_coef=1e-3 algo.horizon=25 algo.world_model.kl_free_nats=1.0 algo.mlp_keys.encoder=[state] algo.learning_starts=64' \
   bash scripts/launch_residual_rl.sh > "$SMOKE_STDOUT" 2>&1 || true
 
 # 5. verdict from the [script-dbg] trace in the TRAINING log (NOT the wrapper stdout).
@@ -85,10 +93,11 @@ max_oz = max(float(d[2]) for d in dbg)
 lifted = any(d[1] == "True" for d in dbg)
 reached_lift = bool({"LIFT", "CARRY", "LOWER", "RELEASE"} & phases)
 descended = min_ez < 0.15          # was stuck hovering at ez~0.30; grasp_z target is 0.106
-# PASS = the C1 ee-descent fix works: arm reaches grasp depth AND the grasp progresses to a
-# lift attempt (obj actually lifted, OR the phase machine advanced into LIFT/CARRY). CARRY-in-a-
-# short-smoke is not required — the full run learns the place; the gate only de-risks the base.
-ok = descended and (lifted or reached_lift)
+# PASS bar (2026-07-22): reached_lift became VACUOUS once per-phase caps force-advance
+# unconditionally (round-2 formal PASS with max_oz=0.008). Require the PHYSICAL outcome:
+# die actually lifted (max_oz > 0.07, matches demo-gen's post-hoc bar) AND the machine
+# entered CARRY with it (transition prints capture oz at CARRY entry).
+ok = descended and max_oz > 0.07 and ("CARRY" in phases)
 print(f"[c1-gate] phases={sorted(phases)} min_ez={min_ez:.3f} max_oz={max_oz:.3f} "
       f"lifted={lifted} reached_lift={reached_lift} descended={descended}")
 print("[c1-gate] VERDICT:", "PASS" if ok else "FAIL")
