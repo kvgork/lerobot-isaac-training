@@ -143,6 +143,16 @@
 > to isolate); (3) post-reset state issue (isaac_env.py:236 inference_mode/DR note is explicitly
 > NOT GPU-verified). **Full run NOT launched (user hold + soft PASS). Human decision on next
 > smoke iteration.**
+>
+> **2026-07-22 — user authorized fix→smoke→13h chain (/orchestrate).** Geometry-bug fixes landed:
+> adapter `b731ac1` (`_DIE_REST_Z` 0.05→env-aware 0.008 — obj_lifted was blind below oz 0.09;
+> `_HOLD_TOL` 0.06→0.13 — old value flagged every REAL lift as a drop since a working grip
+> carries the die at constant ~0.096 below gripper_link → spurious regrasp 1-2 steps after LIFT
+> entry, exactly what rounds 1-2 traced). Workspace `1f06cec` (gate: PASS now = max_oz>0.07 AND
+> CARRY entered — non-vacuous; learning_starts 200→64 — demos pre-seeded, t=209 flail gone;
+> smoke-only DECAY pin 1e7 → script_frac≈1 isolates the base from the ep-2 actor-blend freeze
+> suspect). Smoke round 3 launched 2026-07-22T16:01Z → `outputs/gpu_campaign/c1_gate_20260722.log`.
+> PASS → 13 h full run (DECAY_STEPS=15000, setsid, TB place-rate is the readout). FAIL → escalate.
 
 4. **If PASS → full residual run** (13 h GPU):
    `LEROBOT_ISAAC_RESIDUAL_RL_DECAY_STEPS=15000 bash scripts/launch_residual_rl.sh` (setsid detach,
