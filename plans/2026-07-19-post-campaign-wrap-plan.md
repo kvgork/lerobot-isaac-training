@@ -153,6 +153,17 @@
 > smoke-only DECAY pin 1e7 → script_frac≈1 isolates the base from the ep-2 actor-blend freeze
 > suspect). Smoke round 3 launched 2026-07-22T16:01Z → `outputs/gpu_campaign/c1_gate_20260722.log`.
 > PASS → 13 h full run (DECAY_STEPS=15000, setsid, TB place-rate is the readout). FAIL → escalate.
+>
+> **Round 3 (2026-07-22): REAL PASS.** `phases=[all 9 incl RELEASE] min_ez=0.106 max_oz=0.093
+> lifted=True` — full grasp depth reached, die physically lifted to carry height (0.093 = z_high
+> 0.19 − 0.096 hang, exact geometry), full pick→place cycle traced. Geometry fixes + flail fix +
+> frac pin validated together; the non-vacuous bar (max_oz>0.07 AND CARRY) is what passed.
+> **13 h full run LAUNCHED** (session `residual-rl-v2`, 40k steps, decay 15000, w0=1.0,
+> replay_ratio 4, ep_len 700, demo-seeded, launcher 46800 s ceiling; setsid-detached; hourly
+> heartbeat monitor). Wrapper log `outputs/gpu_campaign/residual_full_20260722.log`; train log
+> `.agent-state/residual-rl-v2/autoresearch/wm-isaac-prod/train.log`. Readout: TB place-rate
+> (NOT `_sim_eval.py` — LeRobot-only, can't score sheeprl residual). Done = FULLRUN_RC=0 +
+> checkpoints on cadence.
 
 4. **If PASS → full residual run** (13 h GPU):
    `LEROBOT_ISAAC_RESIDUAL_RL_DECAY_STEPS=15000 bash scripts/launch_residual_rl.sh` (setsid detach,
