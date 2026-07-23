@@ -177,6 +177,24 @@
 > 2026-07-23T19:54Z → `outputs/gpu_campaign/c1_gate_20260723a.log`. PASS → relaunch 13 h as
 > `residual-rl-v3` (decay 15000). Session running under an 18 h full-autonomy window
 > (user directive 2026-07-23).
+>
+> **Smoke iteration trail (2026-07-23/24, autonomy window):**
+> - **R4** (phase-aware blend, decay 1000): FAIL — ee froze at 0.118-0.121 (at_depth boundary)
+>   from the FIRST high-frac attempt; blend-independent → DLS-IK equilibrium settles ~12-15 mm
+>   above command near the kinematic floor.
+> - **R5** (+`_DESCEND_BIAS` 0.012 → command grasp_z−bias; LIFT→grasp-critical): near-PASS —
+>   full 9-phase cycle, `lifted=True`, die carried to max_oz 0.069 vs 0.07 bar (1 mm).
+> - **R6** (+up-bias z_high+0.012 on LIFT/CARRY): REGRESSED (max_oz 0.008) — harder pull broke
+>   fresh grip; reverted (`6d2561a`).
+> - **Gate de-noised** (`7d5a355`): 1-episode smokes too noisy (4-6 attempts swung
+>   0.093/0.008/0.069/0.008 on near-identical mechanics) → 3 episodes (STEPS 2100), decay 4000
+>   (frac 1.0→0.48 in-smoke; a newborn actor carrying solo at decay 1000 is harsher than the
+>   full run ever is).
+> - **R7** (R5 mechanics, de-noised gate): FAIL — descent now EXACT (min_ez 0.106 — bias
+>   validated) but zero lifts in 6-9 attempts (max_oz 0.014) → grip itself weak.
+> - **R8** (adapter `8f19be9`: IK reset per phase SEGMENT not per step — demo-gen parity; the
+>   per-step reset re-seeded DLS every step so it never converged tightly during close):
+>   running. **PASS → launch v3; FAIL → stop, escalate — window budget spent on smokes.**
 
 4. **If PASS → full residual run** (13 h GPU):
    `LEROBOT_ISAAC_RESIDUAL_RL_DECAY_STEPS=15000 bash scripts/launch_residual_rl.sh` (setsid detach,
