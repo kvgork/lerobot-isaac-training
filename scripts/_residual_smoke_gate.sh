@@ -67,12 +67,14 @@ fi
 #    APPROACH for the first 200 steps of ep-1 and displaced the arm (2026-07-21 trace: first
 #    transition at t=209). 64 = num_envs(1) x seq_len(64) floor.
 #    STEPS=1400 (>= learning_starts 64 + one full ~540-step pick->place) so LIFT/CARRY are reachable.
-#    RESIDUAL_RL_DECAY_STEPS pinned to 1e7 pins script_frac≈1.0 for the SMOKE ONLY —
-#    isolates the scripted base from actor-blend interference (ep-2 descent freeze suspect);
-#    the full run uses its own decay.
+#    RESIDUAL_RL_DECAY_STEPS pinned to 1000 so the SMOKE exercises FULL handoff:
+#    script_frac→0 by step 1000; steps 1000-1400 run a pure-actor arm on the
+#    blend-safe phases while grasp-critical phases stay script-pure and the gripper
+#    channel stays scripted (phase-aware blend) — validates the blend under exactly
+#    the condition that killed residual-rl-v2. PASS bar stays max_oz>0.07 AND CARRY.
 rm -rf "$WORKSPACE/.agent-state/$SMOKE_SESSION" "$WORKSPACE/outputs/wm-isaac-prod-$SMOKE_SESSION"
 echo "[c1-gate] running residual smoke (session=$SMOKE_SESSION) → train log $TRAIN_LOG ..."
-LEROBOT_ISAAC_RESIDUAL_RL_DECAY_STEPS=10000000 \
+LEROBOT_ISAAC_RESIDUAL_RL_DECAY_STEPS=1000 \
   STEPS=1400 MAX_EPISODE_STEPS=700 SECONDS_PER_EXP=3600 SESSION_ID="$SMOKE_SESSION" \
   LEROBOT_ISAAC_DEMO_DATASET="$DEMO_OUT" \
   EXTRA_HYDRA='algo.actor.ent_coef=1e-3 algo.horizon=25 algo.world_model.kl_free_nats=1.0 algo.mlp_keys.encoder=[state] algo.learning_starts=64' \

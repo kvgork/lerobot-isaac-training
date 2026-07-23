@@ -660,8 +660,8 @@ def _patch_residual_rl_action() -> None:
         step = _state["step"]
         _state["step"] = step + 1
         script_frac = w0 * max(0.0, 1.0 - step / max(1, decay_steps))
-        if script_frac <= 1e-4:
-            return actions  # handed off to the policy — skip the IK cost entirely
+        # NO frac<=eps early-exit: even at full handoff, grasp-critical phases keep
+        # script authority (phase-aware blend below).
         try:
             import torch
 
@@ -685,6 +685,9 @@ def _patch_residual_rl_action() -> None:
                     )
                     _state["warned_nenvs"] = True
                 return actions
+            # Phase must be read BEFORE compute_scripted_action(): the call computes the
+            # action for the CURRENT phase, then may advance the machine.
+            ph_acted = getattr(wrapper, "_script_phase", None)
             a_script = wrapper.compute_scripted_action()
             if a_script is None:
                 _warn_inactive(
@@ -702,7 +705,21 @@ def _patch_residual_rl_action() -> None:
             a_scr = a_scr.reshape(a_pol.shape)
             # Clip to [-1,1]: the tanh actor can only reproduce in-range actions, so the
             # recorded/executed action must stay in range for the handoff to converge.
-            a_blend = torch.clamp(script_frac * a_scr + (1.0 - script_frac) * a_pol, -1.0, 1.0)
+            from lerobot_isaac_adapters import scripted_grasp_phases as _sgp
+
+            # Phase-aware authority (v2 post-mortem): decayed frac only on demo-gen's
+            # noise-safe phases; grasp-critical phases stay script-pure.
+            eff_frac = (
+                _sgp.blend_fraction(ph_acted, script_frac)
+                if ph_acted is not None
+                else script_frac
+            )
+            a_blend = torch.clamp(eff_frac * a_scr + (1.0 - eff_frac) * a_pol, -1.0, 1.0)
+            # Gripper channel is ALWAYS scripted during collection (demo-gen never
+            # perturbs the grip joint; an actor-opened gripper mid-CARRY drops the die).
+            gi = getattr(wrapper, "_script_grip_idx", None)
+            if gi is not None:
+                a_blend[..., gi] = a_scr[..., gi]
             # Keep the player's internal "last action" consistent with the executed action.
             self.actions = torch.cat([a_blend], -1)
             if not _state["blended_once"]:
@@ -715,6 +732,7 @@ def _patch_residual_rl_action() -> None:
             if step % 500 == 0:
                 print(
                     f"[residual-rl] step={step} script_frac={script_frac:.3f} "
+                    f"eff_frac={eff_frac:.3f} phase={ph_acted} "
                     f"(w0={w0}, decay={decay_steps})",
                     flush=True,
                 )
