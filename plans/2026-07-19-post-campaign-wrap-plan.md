@@ -164,6 +164,19 @@
 > `.agent-state/residual-rl-v2/autoresearch/wm-isaac-prod/train.log`. Readout: TB place-rate
 > (NOT `_sim_eval.py` — LeRobot-only, can't score sheeprl residual). Done = FULLRUN_RC=0 +
 > checkpoints on cadence.
+>
+> **residual-rl-v2 KILLED at step ~10k (2026-07-23, user-approved option 1).** Post-mortem:
+> uniform blend broke the grasp at ANY meaningful actor share — 0 CARRY entries in 10k steps,
+> max_oz 0.011, descent degrading with frac (arm closing at ez=0.29 by frac 0.40), reward
+> −93→−134. Retroactively explains round-2's ep-2 freeze (4-5% actor already degraded descent).
+> **Phase-aware blend refit landed:** adapter `21a4a83` (`BLEND_SAFE_PHASES` = demo-gen's DAgger
+> noise set {APPROACH,LIFT,CARRY,LOWER}; `blend_fraction()` keeps grasp-critical phases
+> script-pure), workspace `4692b7e` (get_actions seam uses eff_frac per acted-phase; gripper
+> channel always scripted; frac≤eps early-exit removed; smoke DECAY pin → 1000 so the gate now
+> exercises FULL handoff — the exact v2 killer). Tests 32/32. Smoke round 4 launched
+> 2026-07-23T19:54Z → `outputs/gpu_campaign/c1_gate_20260723a.log`. PASS → relaunch 13 h as
+> `residual-rl-v3` (decay 15000). Session running under an 18 h full-autonomy window
+> (user directive 2026-07-23).
 
 4. **If PASS → full residual run** (13 h GPU):
    `LEROBOT_ISAAC_RESIDUAL_RL_DECAY_STEPS=15000 bash scripts/launch_residual_rl.sh` (setsid detach,
