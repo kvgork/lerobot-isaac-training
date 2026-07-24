@@ -220,6 +220,27 @@
 > Session `residual-rl-v4`, decay 15000, logs `outputs/gpu_campaign/residual_full_20260724b.log`.
 > ETA ~17:30Z (past the autonomy window's ~13:40Z end — run is detached; report covers launch +
 > early heartbeats; completion lands in the next session).
+>
+> **v4 ABORTED ~06:40Z (heartbeat 3, new pathology):** min_ez=0.121 run-wide script-pure —
+> DESCEND caps out ~0.12 high from ez≈0.33 starts; regrasp APPROACH re-entry diverges upward
+> (0.175→0.333 targeting 0.19). Fix-and-relaunch loop STOPPED; switched to the probe fork.
+>
+> **Probe fork (`_probe_lift_stats.py`, N=30, residual geometry):**
+> - Run A (with `ACTION_SCALE_JSON` export): 0/30 — INVALID, my artifact (probe hardcodes the
+>   June `/0.5` action math; env applied C1 per-joint scales → ~2× command corruption).
+> - Run B (clean, June-consistent): **40% hold-rate** — ENV IS INTACT. June's 80% was at the
+>   easier (0.18,0.05) spot; 40% at (0.22,−0.06)+cup is geometry, not drift.
+> - Implication: v4's 0-of-8+ at p=0.4 is impossible by chance (p≈1.7%) — the sheeprl path
+>   degrades the scripted base ~4×. Largest remaining structural delta vs probe/demo: NO
+>   episode-start settle (both run ~30 zero-action open-grip steps post-reset; wrapper
+>   approached instantly on DR-perturbed joints).
+>
+> **SETTLE phase 0 landed** (adapter `f6294a6`): 10-phase order, 30-step zero-action open-grip
+> settle, IK bypassed, script-pure, grasp-target latch moved post-settle (die pose read after
+> the transient). Tests 34/34, meta 71. **residual-rl-v5 LAUNCHED ~09:50Z** (decay 15000,
+> logs `outputs/gpu_campaign/residual_full_20260724c.log`). Abort discipline: kill on
+> LIFTED-CARRY=0 at ~step 8k (hourly heartbeats, 3 checkpoints inside the window). ETA ~23:00Z
+> — completion + TB place-rate readout land in the NEXT session.
 
 4. **If PASS → full residual run** (13 h GPU):
    `LEROBOT_ISAAC_RESIDUAL_RL_DECAY_STEPS=15000 bash scripts/launch_residual_rl.sh` (setsid detach,
