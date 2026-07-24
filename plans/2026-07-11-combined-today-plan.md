@@ -119,6 +119,14 @@ step/s, ckpt written, rc=0. **My 0.6.0 runbook was wrong** ("keep batch small" o
 97 % util (**compute-bound, not decode-bound like ACT/SmolVLA**), ETA **~76 min**. Final ckpt =
 the 3rd bake-off candidate for the human's hardware eval (Phase 3, ACT vs SmolVLA vs vla_jepa).
 
+**Bonus GPU work — open-loop action-MSE eval of all 3 candidates (2026-07-11).**
+`scripts/_open_loop_eval.py`, same last-4-ep slice (1584 frames each, none capped):
+SmolVLA mse **40.89** ≈ vla_jepa **41.10** (tied) > ACT **52.24**. Verifies **vla_jepa
+inference (WM-dropped) works + checkpoint deployable** — the main derisk. CAVEATS: proxy not
+real success (per-frame MSE, no temporal alignment); under-rates ACT's chunking+ensembling
+(ACT already succeeded on hardware 2026-07-04); eval eps were seen in training. Doesn't
+separate SmolVLA/vla_jepa → real arm decides. JSONs: `outputs/ol_eval_{act,smolvla,vla_jepa}.json`.
+
 **Follow-ups:** (a) the vla_jepa fine-tune recipe is 3 manual flags + a config patch — the
 adapter could auto-inject freeze_qwen/reinit + handle camera-count adaptation for pretrained
 WM policies (system-improvement). (b) Runner repo `main` needs its own review/commit.
