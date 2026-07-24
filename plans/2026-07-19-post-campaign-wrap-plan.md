@@ -270,6 +270,22 @@
 > (jacobian indexing, frame transform inputs, ee body index, or executed-action pathway).**
 > All window artifacts: adapter commits 21a4a83→f6294a6 (8, unpushed), workspace gate/seam
 > commits, traces in outputs/gpu_campaign/c1_gate_2026072*.log + residual_full_2026072*.log.
+>
+> **ROOT CAUSE FOUND + FIXED (2026-07-24, user-directed diagnostic continuation).**
+> Instrumentation diff (`diag_approach_20260724.log`): wrapper IK math is BIT-IDENTICAL to
+> demo math (maxdiff 0.000000/dim over 50 same-state steps; both converge to z_high in ~10) —
+> but the working paths execute wrist actions of 3.4–4.2 (scale-0.5 units). The seam clamps to
+> [-1,1]. **`launch_residual_rl.sh` never set/exported `LEROBOT_ISAAC_ACTION_SCALE_JSON`** —
+> only the GATE did (its step 2). So every smoke ran with per-joint scales (wrist 2.53 →
+> action 0.67, clamp innocent → R3/R5/R8 grasped) while every directly-launched full run
+> (v2–v5) ran at scale 0.5 → wrist clamp-saturated at 1.0 (~0.5 rad of the needed ~1.7–2.1)
+> → DLS orientation error dominated → ee up-drift, descend crawl, 0 grips in 30+ attempts.
+> One mechanism explains all four dead runs AND the smoke/run split. The C1 fix (89bbbc3) was
+> correct but never plumbed into the launcher. Fix `9943ebe`: launcher derives + exports the
+> json, fails loudly (exit 3) if absent. **residual-rl-v6 LAUNCHED** — export VERIFIED in the
+> live training process environ (`/proc/<pid>/environ`). Logs
+> `outputs/gpu_campaign/residual_full_20260724d.log`; hourly LIFTED-CARRY heartbeat; same
+> abort bar (0 lifted-carries by ~8k → kill). Readout: TB place-rate on completion (~13 h).
 
 4. **If PASS → full residual run** (13 h GPU):
    `LEROBOT_ISAAC_RESIDUAL_RL_DECAY_STEPS=15000 bash scripts/launch_residual_rl.sh` (setsid detach,
