@@ -54,6 +54,21 @@ LEROBOT_TRAIN_TIMEOUT="${LEROBOT_TRAIN_TIMEOUT:-$SECONDS_PER_EXP}"
 LEROBOT_ISAAC_RESIDUAL_RL_WEIGHT="${LEROBOT_ISAAC_RESIDUAL_RL_WEIGHT:-1.0}"          # w0 (pure scripted at step 0)
 LEROBOT_ISAAC_RESIDUAL_RL_DECAY_STEPS="${LEROBOT_ISAAC_RESIDUAL_RL_DECAY_STEPS:-30000}"  # w0→0 handoff window
 
+# C1 per-joint action scale — MANDATORY for any residual run (2026-07-24 root cause
+# of v2-v5's zero grips): the seam clamps the executed action to [-1,1]; without
+# this json the wrapper/env fall back to scale 0.5 and the wrist needs |action|
+# 3.4-4.2 -> clamp saturates -> underdriven wrist -> DLS drifts the ee up, grasp
+# never seats. The GATE always exported it (why every smoke could pass while every
+# directly-launched full run failed). Fail loudly rather than launch an invalid run.
+_LAUNCH_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+LEROBOT_ISAAC_ACTION_SCALE_JSON="${LEROBOT_ISAAC_ACTION_SCALE_JSON:-$_LAUNCH_ROOT/outputs/action_scale.json}"
+[ -f "$LEROBOT_ISAAC_ACTION_SCALE_JSON" ] || {
+  echo "[launch-residual] FATAL: action scale json missing: $LEROBOT_ISAAC_ACTION_SCALE_JSON" >&2
+  echo "[launch-residual] run: LEROBOT_ISAAC_PLACE_REST_Z=-1 .pixi/envs/sim/bin/python scripts/_gen_sim_demos.py --measure_scale --obj_x 0.22 --obj_y -0.06 --grasp_z 0.106" >&2
+  exit 3
+}
+export LEROBOT_ISAAC_ACTION_SCALE_JSON
+
 # --- task geometry: real place into the cup (matches the cup0-wide demos) ----
 LEROBOT_ISAAC_OBJECT_SCALE="${LEROBOT_ISAAC_OBJECT_SCALE:-0.267}"   # 16 mm die
 LEROBOT_ISAAC_OBJECT_FRICTION="${LEROBOT_ISAAC_OBJECT_FRICTION:-3.0}"
