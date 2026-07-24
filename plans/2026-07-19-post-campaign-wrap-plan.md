@@ -194,7 +194,15 @@
 >   validated) but zero lifts in 6-9 attempts (max_oz 0.014) → grip itself weak.
 > - **R8** (adapter `8f19be9`: IK reset per phase SEGMENT not per step — demo-gen parity; the
 >   per-step reset re-seeded DLS every step so it never converged tightly during close):
->   running. **PASS → launch v3; FAIL → stop, escalate — window budget spent on smokes.**
+>   **PASS — decisively** (max_oz 0.107 > r3's 0.093; deeper grip seating from tight IK
+>   convergence; min_ez 0.106 exact; full 9-phase cycle). Per-segment IK reset was the root
+>   fix; the descend bias remains as belt-and-braces.
+>
+> **residual-rl-v3 LAUNCHED 2026-07-24T~00:55Z** — 40k steps, decay 15000, w0=1.0,
+> replay_ratio 4, ep_len 700, demo-seeded, 46800 s launcher ceiling, setsid-detached.
+> Logs: `outputs/gpu_campaign/residual_full_20260724.log` +
+> `.agent-state/residual-rl-v3/autoresearch/wm-isaac-prod/train.log`. 2-hourly heartbeat
+> (CARRY/RELEASE/REGRASP counts + frac). Readout: TB place-rate. ETA ~14:00Z.
 
 4. **If PASS → full residual run** (13 h GPU):
    `LEROBOT_ISAAC_RESIDUAL_RL_DECAY_STEPS=15000 bash scripts/launch_residual_rl.sh` (setsid detach,
