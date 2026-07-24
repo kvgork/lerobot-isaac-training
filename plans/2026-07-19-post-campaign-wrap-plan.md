@@ -294,6 +294,20 @@
 
 ## Phase 4 — Commit-debt review (CPU, human-judgment items)
 
+> **Phase 4 DONE 2026-07-24 (items 1–2 + adapter stack; item 3 stays human-review).**
+> Draft PRs, nothing merged, no sibling main touched:
+> - configs → `feat/task-configs-scenes` (`95e4c06`), 69/69 tests, **PR kvgork/lerobot-isaac-configs#1**.
+>   Review verdict: coherent scenes/task-asset feature; 2 warts flagged in the PR body (USD
+>   references an absolute /home/koen path — breaks portability; task yaml outside
+>   `load_config()` reach) — fix before undrafting.
+> - autoresearch → `feature/auto-wm` +2 commits (`cd34f23` 0.6.0 WM archs in train_wrapper,
+>   `3725423` TestDerivePlaceSuccess fix — lazy tensorboard import patched via sys.modules
+>   injection; the old module-attr patch silently masked itself in envs without tensorboard),
+>   158/158 both envs, **PR kvgork/lerobot-isaac-autoresearch#1**.
+> - adapters → `feature/wm-isaac-env` pushed (10 residual-fix commits),
+>   **PR kvgork/lerobot-isaac-adapters#1** (draft; do-not-merge-unattended note re frozen env).
+> - robot-data-recorder `feat/deploy-runner-hardening`: untouched — human-review PR per plan.
+
 1. `src/lerobot-isaac-configs` (5 modified files, main) — review, commit to a feature branch, PR.
 2. `src/lerobot-isaac-autoresearch` (2 modified files + 2 FAILING tests in
    `test_curriculum_campaign.py::TestDerivePlaceSuccess` — mock patch-target bug: module lazily imports
