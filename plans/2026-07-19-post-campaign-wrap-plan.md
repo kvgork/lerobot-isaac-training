@@ -257,6 +257,19 @@
 > (drop the orientation constraint — command_type="position" or orientation-weight 0 — so the
 > 5-DOF arm solves a well-posed 3-DOF problem; demo-gen tolerates the same math only because
 > its targets sit in the bigger basin). Alternative: pre-computed joint-space waypoints.
+>
+> **v5 ABORTED ~14:00Z at the pre-committed bar — WINDOW CLOSED.** LIFTED-CARRY=0 at ~10k
+> steps ≈ 13-14 independent die draws (p≈0.1% under the 40% basin model) → **the basin-lottery
+> model is FALSIFIED for the sheeprl path**: probe = 40% in the same env + DR, wrapper path ≈ 0.
+> A systematic wrapper-only defect remains; its signature is the deterministic APPROACH
+> up-drift (0.231→0.333 targeting 0.19, both v5 episodes — probe/demo approach descends).
+> **Next-session dossier action (scoped, ~30 min GPU): per-step instrumentation diff of the
+> APPROACH segment's first 50 steps — dump (target, pos_b, quat_b, q_des, action, executed
+> joint_pos, ee) in BOTH paths (probe step_to vs wrapper compute_scripted_action) and diff
+> line-by-line. The IK transcription looks identical; the divergence must be in an input
+> (jacobian indexing, frame transform inputs, ee body index, or executed-action pathway).**
+> All window artifacts: adapter commits 21a4a83→f6294a6 (8, unpushed), workspace gate/seam
+> commits, traces in outputs/gpu_campaign/c1_gate_2026072*.log + residual_full_2026072*.log.
 
 4. **If PASS → full residual run** (13 h GPU):
    `LEROBOT_ISAAC_RESIDUAL_RL_DECAY_STEPS=15000 bash scripts/launch_residual_rl.sh` (setsid detach,
