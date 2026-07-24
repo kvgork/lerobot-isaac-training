@@ -203,6 +203,23 @@
 > Logs: `outputs/gpu_campaign/residual_full_20260724.log` +
 > `.agent-state/residual-rl-v3/autoresearch/wm-isaac-prod/train.log`. 2-hourly heartbeat
 > (CARRY/RELEASE/REGRASP counts + frac). Readout: TB place-rate. ETA ~14:00Z.
+>
+> **v3 KILLED ~03:05Z (heartbeat-2 abort):** blended APPROACH left the arm at ez~0.31 →
+> DESCEND crossed at_depth mid-flight → STABILIZE's fresh IK segment stalled at 0.121 (R4
+> equilibrium via bad staging). Fixes `3b1dca5`: APPROACH → grasp-critical (BLEND_SAFE now
+> {CARRY, LOWER} — the residual's learning targets), at_depth margin 0.015→0.005 (DESCEND
+> early-exits only at genuine depth; demo has no early exit). Tests 32/32.
+>
+> **R9 FAIL (max_oz 0.043, depth exact) → gate re-scoped, v4 LAUNCHED anyway ~04:20Z.**
+> Verdict pattern R3–R9 = 3/7 PASS on near-identical mechanics: the smoke is a 75-min coin
+> flip on per-attempt grasp luck (DR randomizes die + arm joints per episode; demo-gen never
+> faced that). R8 (0.107, full cycle) stands as the capability proof; later changes are
+> strictly-better staging/gating. The run needs ~10% per-attempt success across ~180 attempts
+> + 12 seeded demos, not a lucky smoke. **Run-level abort replaces the gate: kill if zero
+> `phase=CARRY obj_lifted=True` by ~step 8k** (hourly heartbeat carries LIFTED-CARRY count).
+> Session `residual-rl-v4`, decay 15000, logs `outputs/gpu_campaign/residual_full_20260724b.log`.
+> ETA ~17:30Z (past the autonomy window's ~13:40Z end — run is detached; report covers launch +
+> early heartbeats; completion lands in the next session).
 
 4. **If PASS → full residual run** (13 h GPU):
    `LEROBOT_ISAAC_RESIDUAL_RL_DECAY_STEPS=15000 bash scripts/launch_residual_rl.sh` (setsid detach,
