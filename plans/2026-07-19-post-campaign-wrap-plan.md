@@ -241,6 +241,22 @@
 > logs `outputs/gpu_campaign/residual_full_20260724c.log`). Abort discipline: kill on
 > LIFTED-CARRY=0 at ~step 8k (hourly heartbeats, 3 checkpoints inside the window). ETA ~23:00Z
 > — completion + TB place-rate readout land in the NEXT session.
+>
+> **CLOSING SYNTHESIS (2026-07-24 ~11:00Z) — the IK-basin lottery.** v5 trace: script-pure
+> APPROACH deterministically RISES 0.231→0.333 (target 0.19) before DESCEND caps out at 0.121.
+> Cause: the pose command is OVERDETERMINED — 6-DOF target (xyz + straight-down quat) on the
+> 5-DOF SO-101; DLS resolves to a position/orientation compromise whose basin depends on the
+> die-position draw (DR jitters obj xy per episode; SETTLE already re-homes joints — zero
+> action = q_default). Unifies every observation: probe 40% at (0.22,−0.06) ≈ good-basin
+> probability; June 80% at the nearer (0.18,0.05); R8 PASS = favorable draw; R9/v4 fails =
+> unlucky runs of draws (v4 0/8 ≈ 3 episode draws, p≈0.22); regrasp re-entries start from
+> post-grasp wrist poses = worse basin. **v5 continues to the 8k checkpoint (~8-10 independent
+> draws; 0 lifted-carries there = p<0.01 at 40% → abort).** At 40%/attempt over 40k steps the
+> buffer accumulates real successes either way — the run remains viable for its purpose.
+> **Durable fix (NEXT session, not mid-run): position-only IK command during APPROACH/DESCEND**
+> (drop the orientation constraint — command_type="position" or orientation-weight 0 — so the
+> 5-DOF arm solves a well-posed 3-DOF problem; demo-gen tolerates the same math only because
+> its targets sit in the bigger basin). Alternative: pre-computed joint-space waypoints.
 
 4. **If PASS → full residual run** (13 h GPU):
    `LEROBOT_ISAAC_RESIDUAL_RL_DECAY_STEPS=15000 bash scripts/launch_residual_rl.sh` (setsid detach,
