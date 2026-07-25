@@ -286,6 +286,18 @@
 > live training process environ (`/proc/<pid>/environ`). Logs
 > `outputs/gpu_campaign/residual_full_20260724d.log`; hourly LIFTED-CARRY heartbeat; same
 > abort bar (0 lifted-carries by ~8k → kill). Readout: TB place-rate on completion (~13 h).
+>
+> **v6 COMPLETE (rc=0, 2026-07-25, wall ceiling at step 28085 of 40k).** 42 episodes, **4
+> placements** (+230 @6.5k, +219 @13.2k, +221 @16.2k, +197 @19k) ≈ 9.5% place-rate. **The
+> residual claim held: place-rate SURVIVED full handoff** (10.0% pure-actor post-15k vs 9.1%
+> blended pre-15k — no handoff collapse, the failure that killed every prior design). Not yet
+> rising: post-handoff mean reward −106 vs −67 (two knock-away episodes, no script recovery);
+> 28k steps too few for improvement to show. Trace totals: 24 lifted carries, 2 traced
+> releases (placements under-counted by the trace — env place-termination ends episodes before
+> RELEASE prints; per-episode rewards are the truth). Checkpoints 5k/15k/25k:
+> `logs/runs/dreamer_v3/isaac_so101/2026-07-24_13-46-16_dreamer_v3_isaac_so101_42/version_0/
+> checkpoint/`. ckpt_25000 = sim-only bake-off candidate + resume point for the remaining 12k
+> steps. TB scalars too coarse (n=5 windows) — per-episode series from train.log is canonical.
 
 4. **If PASS → full residual run** (13 h GPU):
    `LEROBOT_ISAAC_RESIDUAL_RL_DECAY_STEPS=15000 bash scripts/launch_residual_rl.sh` (setsid detach,
