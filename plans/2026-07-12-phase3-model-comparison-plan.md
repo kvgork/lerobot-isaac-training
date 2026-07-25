@@ -86,6 +86,27 @@ robot-data-run \
 - **Sim-trained policies are NOT in this bake-off** — sim2real ≈ 0 for this task; only the three
   real-data candidates compete.
 
+## Session 1 (2026-07-25) — stopped mid-ACT, state saved
+
+- **Preconditions all passed** after fixes: record env upgraded to lerobot 0.6.0 (pins mirrored
+  from train-policy: transformers 5.5.4, num2words 0.5.14, accelerate 1.14.0 — open-ended pip
+  constraint spins the resolver, use exact pins); all 3 candidates load (ACT 51.6M / SmolVLA
+  450M / vla_jepa 2.28B WM-dropped); follower + D435 green (leader /dev/ttyACM1 unplugged —
+  only needed for demo recording); overhead = /dev/video4.
+- **CAMERA HAD DRIFTED MASSIVELY vs training: 62px/−98px + 40% darker.** Caught only after 3
+  scattered-stage failures. Realigned iteratively (ORB median-feature-shift metric) to
+  dx −5.4 / dy +4.9; brightness 78/101 accepted (uniform across candidates). **NEW MANDATORY
+  PRECONDITION: quantitative framing gate (feature shift <10px) BEFORE episode 1 — the
+  eyeball blend composite was not acted on and 6 episodes were burned.**
+- **Clamp ladder result: scoring clamp = 5.0.** At 1.0 the arm cannot complete reach in 20s;
+  at 3.0 reach+grasp work but carry starves. Shakedown (non-scoring): 1.0 ×2, 3.0 ×2, all FAIL.
+- **ACT-15k score so far: 0/4** (grasp ×3, carry/release ×1) + ep 5 ran clean but UNVERIFIED
+  (stopped before verdict). Mixed stages at center spots even post-realign — consistent with
+  the narrow-tolerance risk; brightness deficit may contribute.
+- Scoreboard: `outputs/bakeoff-20260725/scoreboard.md`. Spots: 1-8 center, 9-16 ±2cm NSEW,
+  17-20 ±3cm diag. **Resume: verify/rerun ep5 → ACT 6-20 → SmolVLA ×20 → vla_jepa ×20,
+  clamp 5.0, same spot order; re-run the framing gate at session start.**
+
 ## Related
 - `plans/2026-07-11-combined-today-plan.md` (Phase 3 origin) · `plans/2026-06-28-act-real-campaign-plan.md`
 - memory: `[[act-real-campaign-result]]` (deploy cmd + first HW success + mapper fixes) ·
