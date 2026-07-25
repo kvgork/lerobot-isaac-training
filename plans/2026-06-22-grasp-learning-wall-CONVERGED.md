@@ -66,3 +66,164 @@ gripper open and makes grip hard to explore/sustain. Rules out "broken action pa
 
 **PAUSED for user direction on the fork — autonomous knob-tuning + cheap diagnostics are exhausted; the
 next moves (action re-parameterization / residual-RL / P2E) are design choices. GPU idle, no run active.**
+
+---
+
+## 2026-06-23 — grasp-knob space EXHAUSTED + both pivots scoped
+
+**Lever 0 (gripper re-param) verdict.** Swept `LEROBOT_ISAAC_GRIPPER_ACTION_SCALE` 0.5→3→5 with
+`GRASP_STAGE=1` (grip+lift sole objective) + `LIFT_HOLD_STEPS` 10→3. Clean monotonic grip-signal climb
+(rew peak −14 → −1 → −0.0 = firmer grip commandable), but at scale 5 + hold 3, past the deterministic
+divergence (~step 13000), `ep_len` stayed PINNED at 300 (MIN-ever 300) — the grip FIRES but never SUSTAINS a
+3-step held-lift. **Control failure (momentary bump, not a controlled raise), not firmness/discovery/reward.**
+Gripper re-param broke the reward ceiling but did not solve the sustain → knob space done. (memory
+[[carryplace-place-wall-plateau]].)
+
+**Lever 2 (P2E) — VALIDATED RUNNABLE (not yet a grasp bet).** `p2e_dv3_exploration` now runs end-to-end on
+the Isaac SO-101 env (intrinsic/ensemble/wm losses log, fits 10GB) after fixing 3 bugs (obs key `rgb`,
+forced-compact model, `32-true` precision). Recipe + the bf16+fabric.backward follow-up that a full-size
+grasp bet needs: `plans/2026-06-22-plan2explore-integration.md` + [[dreamerv3-carryplace-launch-gotchas]].
+P2E targets DISCOVERY; the grasp wall is CONTROL → lever 1 is higher-EV for the sustain.
+
+**Lever 1 (residual RL) — CORRECTED design (scoping found a model-based-RL footgun).** Naive mechanism
+"blend inside `IsaacSO101Env.step`" is WRONG: sheeprl dreamer_v3 records the action to the replay buffer
+at `rb.add` (dreamer_v3.py:587) BEFORE `envs.step` (:590), and stores the POLICY action (:577 `real_actions
+= actions = player.get_actions`). Blending inside env.step → buffer-action (policy) ≠ executed-action
+(blended) → **WM learns wrong dynamics → silently broken**. CORRECT injection:
+1. Expose `IsaacSO101Env.compute_scripted_action()` — scene-side (robot articulation, object pose, IK from
+   `_gen_sim_demos.py:step_to`), returns a `(6,)` scripted action for the CURRENT pre-step state. Sim-only;
+   on hardware returns identity/zeros so weight→0 (dual-mode boundary lives here).
+2. Patch the `player.get_actions` seam (dreamer_v3.py:577, BEFORE rb.add) — NOT env.step — so a single
+   blended action feeds BOTH the buffer and the env: `a_applied = (1−p_t)·a_script + p_t·a_policy`.
+3. **Decay direction: p_t (policy weight) RISES 0→1** over warmup (DAgger/residual handoff) — script-dominant
+   early (WM+actor see successful carry-place), policy-dominant late (actor flies solo; WM converges to pure
+   policy actions). The scoping agent's decay was inverted.
+4. Gate `LEROBOT_ISAAC_RESIDUAL_RL_WEIGHT` (default 0.0=OFF) + `_DECAY_STEPS`, mirroring `_patch_bc_actor_loss`
+   / `_patch_seed_demo_buffer` in `scripts/_wm_isaac_entry.py`. Action format at the seam is a list-of-tensors
+   (cat at :578) — blend must respect that shape. Verify get_actions is a clean monkeypatch seam (player obj).
+This is the next focused BUILD (orchestration pipeline: plan→implement→grill→verify). NOT a monitoring-tick edit.
+
+### Residual RL — BUILT + GRILLED (2026-06-23, default-OFF, GPU-validation pending)
+Implemented per the corrected design:
+- `IsaacSO101Env.compute_scripted_action()` (`sheeprl_plugin/isaac_env.py`) — reactive grasp
+  state-machine (approach→descend→close→carry→place inferred from live state), reuses the IK
+  math from `_gen_sim_demos.step_to`. Sim-only → None on hardware (residual auto-OFF).
+- `_patch_residual_rl_action()` (`scripts/_wm_isaac_entry.py`) — blends at the `player.get_actions`
+  seam (before rb.add), gated `LEROBOT_ISAAC_RESIDUAL_RL_WEIGHT` (w0, default 0.0=OFF) +
+  `_DECAY_STEPS` (default 50000); script_frac decays w0→0 (policy takes over).
+- 7 CPU/torch tests pass; ruff clean.
+
+**Grill (3 adversarial attackers) caught + FIXED:** (1) eval leak — sheeprl calls
+`test(greedy=False)` so the greedy flag doesn't mark eval → now wrap dreamer_v3's `test()` with an
+`in_eval` guard; (2) `self.actions`/action shape by broadcast-luck → reshape to `a_pol.shape`
+exactly; (3) decay clock froze on skipped steps + sticky init-fail silently disabled residual →
+step now advances every non-eval call, init retries 3× before latching, per-step warnings throttled;
+(4) num_envs>1 would poison the buffer → guarded+warned; (5) `lifted` had no grasp-confirmation
+(empty-gripper carry on a knocked-up die) → `holding` now also requires ee↔die co-location; (6)
+`_LAST_WRAPPER` set for all runs → gated on the env var (true no-op when OFF); magic numbers named;
+test sys.modules pollution → monkeypatch.setitem.
+
+**OPEN efficacy risks for the GPU run (the approach's real uncertainty, not code bugs):**
+- Actions clipped to [-1,1] (actor-reproducibility) → the REACTIVE controller rate-limits to ≤0.5 rad/step
+  vs the open-loop demo's |a|>1 single moves; relies on multi-step convergence — VERIFY the clamped
+  reactive controller still grasps within an episode.
+- MUST run with `LEROBOT_ISAAC_INCLUDE_OBJECT_POSE=1` (actor needs the object location to learn to
+  reproduce the grasp) and RESUME a ckpt (`resume_from`) so residual fires from step 0 (fresh runs
+  skip the ~1024-step random prefill where get_actions isn't called).
+- The reactive phase thresholds are GPU-untested; first run should log a few `compute_scripted_action`
+  outputs to sanity-check phase sequencing before a long run.
+**Launch sketch (when GPU frees from P2E):** resume the reach/lift ckpt_10000, GRASP_STAGE=1 +
+LEROBOT_ISAAC_RESIDUAL_RL_WEIGHT=1.0 + _DECAY_STEPS≈30000 + INCLUDE_OBJECT_POSE=1 + BC + seed, watch
+ep_len<300 (held-lift) emerging earlier than the from-scratch runs.
+
+### 2026-06-23 (cont.) — residual run FAILED, root-caused to the scripted controller
+First residual validation run (residual-grasp-20260623-021443, resume ckpt_10000, w0=1.0 decay=15000,
+no-BC): ep_len stayed 300, reward −60→−72 (WORSE than reach baseline) at script_frac=0.90. Killed +
+diagnosed with a standalone GPU probe (`scratchpad/_probe_scripted.py`, applies ONLY the scripted action):
+- **The reactive controller PUSHED the die.** It closed the gripper at ~1.3cm xy error → knocked the 16mm
+  die to (0.31,0.33), beyond the 0.346 m reach → arm flailed (|a|=12). FIXED by rewriting
+  `compute_scripted_action` to a demo-ordered, state-gated phase machine (APPROACH align-high → DESCEND
+  vertical → CLOSE gradual-ramp → LIFT gradual). Probe now aligns to ~1mm — no more pushing. (commit 3f6bad2)
+- **But the grasp does NOT yet CAPTURE/HOLD.** Even with ~1mm alignment + gradual close + gradual lift, the
+  die slips out at ~0.066 m (below the 0.09 lift threshold) every cycle. Not alignment/timing — it's grasp
+  PHYSICS: grasp_z=0.106 may put the fingertips slightly above the die, or scale-0.5 grip is too weak to
+  hold through the lift (cf. gs5: scale 5.0 grips firmer). The die rises ~5cm dragged by the fingertips,
+  then falls out.
+- **Probe escalation (commits 3f6bad2, 266618c):** added STABILIZE + gradual close + gradual lift — all
+  demo-faithful, none captured. The die hits a hard ceiling at max_obj_z=0.066 every variant.
+- **Kinematic-floor finding (REFUTES "lower grasp_z"):** `LEROBOT_ISAAC_GRASP_Z=0.065` → the arm CANNOT
+  descend, stuck at z=0.106 ⇒ **z=0.106 is the gripper_link kinematic floor** (arm reach / table). At that
+  floor the fingertips sit ~0.066, ~4.8 cm above a 16 mm die (top ~0.018) → the die hangs from the tips and
+  slips. So grasp_z is NOT tunable lower, and the slip is a contact-geometry issue at the floor.
+- **The paradox:** `_gen_sim_demos` grasps the SAME die at grasp_z=0.106 ([[scripted-grasp-infeasible]]
+  SOLVED). So a working grasp EXISTS at the floor — my controller has a subtle reconstruction gap at the
+  contact moment (open-loop contact dynamics, or the demo's fingers close with the die between the finger
+  SIDES while pressing toward the table, not pinched at the tips).
+- **NEXT (real path):** instrument `_gen_sim_demos` to log, frame-by-frame at the grasp moment, the gripper
+  joint position + finger body poses + die pose, and diff against `_probe_scripted.py`. Find what the demo
+  does at contact that captures the die. Likely answers: the demo's full grip-close width (joint range) vs
+  mine, OR the descend pressing into table-contact before close, OR the die needs to be nudged between the
+  fingers. THEN fix compute_scripted_action to match. Probe (`_probe_scripted.py`, ~4 min/cycle) before any
+  multi-hour residual run. [[so101-gripper-kinematic-floor]]
+**Status: residual MECHANISM done+validated+committed; scripted GRASP CONTROLLER aligns perfectly but the
+contact doesn't capture the die at the kinematic floor — a focused grasp-physics investigation (frame-by-frame
+vs the working demo) is the remaining blocker. GPU idle, no run active.**
+
+### 2026-06-23 (cont.) — frame-by-frame done → ENV GRASP-FEASIBILITY REGRESSION (the real bedrock)
+Instrumented the EXACT _gen_sim_demos open-loop grasp (scripts/_probe_demo_grasp.py, logs gripper joint +
+die/ee geometry) — i.e. the SUPPOSEDLY-working demo, not my controller. **It ALSO fails to hold the die:**
+- 16mm die: max_die_z=0.071 (<0.09 lift thresh). Same at X=0.18 (the 2026-06-13 SOLVED position) AND X=0.22
+  → object position NOT the cause. Same at gripper scale 0.5 AND 5.0 → **gripper scale IRRELEVANT** (gripJOINT
+  clamps to −0.175 rad, a USD joint limit; target −5.0 can't exceed it). 27mm die: 0.096 (crosses 0.09) but
+  still slips (final 0.013).
+- Mechanism: the jaw tip reaches the die (grasp_z floor 0.106, jaw ~9.6cm → tip at die level), grips, lifts
+  3–5cm, then the die SLIPS OUT — the closed grip at the −0.175 limit is too LOOSE for a 16mm die.
+**THE REFRAME (supersedes "RL grasp wall"):** the grasp is ENV-INFEASIBLE in the current config — REGRESSED
+from 2026-06-13 ([[scripted-grasp-infeasible]] SOLVED, where a 16mm die was picked up). No RL/residual/P2E can
+learn a grasp the physics won't reliably support → explains all 13 grasp-stage runs that never got ep_len<300,
+and the 25 demos were likely SLIDES not true grasps. The residual lever (mechanism built+grilled+validated) is
+BLOCKED at its foundation until the scripted grasp holds.
+**NEXT (env-physics, needs a direction decision — surfaced to user):** (1) git-diff gripper USD /
+payloads/instances.usda collider / die CuboidCfg / actuator (stiffness/effort_limit/friction) vs the
+2026-06-13 SOLVED commit to find the regression; (2) firmer grip — widen the gripper joint close range in USD
+(close past −0.175) +/- die physics_material friction>1.0 + solver_position_iteration_count↑; (3) bigger die
+(≥27mm) + (2). Iterate with scripts/_probe_scripted_grasp.py / _probe_demo_grasp.py (~6 min, no training).
+**Status: residual mechanism done; carry-place BLOCKED on an env grasp-feasibility regression (scripted grasp
+doesn't hold the die). Needs an env-physics fix + likely a user steer on direction. GPU idle, no run active.**
+
+### 2026-06-23 (final) — RECONCILED: MARGINAL grasp, NOT a regression
+git-diff RULED OUT a regression: no gripper/collider/die/actuator commits after the SOLVED 6569587, and
+`instances.usda` still has the convexDecomposition fix (the `.bak` is the pre-fix convexHull). The SOLVED
+grasper `_scripted_pickplace.py` uses near-identical params (grasp_z 0.108 / dwell 30 / close 80) to my probe.
+The truth: **the grasp is MARGINAL** — it grips + lifts the die to **0.071 (~2cm above rest 0.05)** = exactly
+the 2026-06-13 "die picks up" — then SLIPS (grip at the −0.175 closed limit too loose for a sustained lift).
+The grasp-stage success / `lift_termination` needs rest+0.04 = **0.09 (4cm)**, which is ABOVE the 0.071
+ceiling → grasp-stage success is physically UNREACHABLE by the current grip. This fully explains the 13
+grasp-stage RL runs (the 2cm lift = "grip fires"/lift_shaping; never the 4cm hold = ep_len stays 300) — a
+MARGINAL-GRASP physics limit, NOT an RL-learning wall.
+**NEXT — two paths (see [[scripted-grasp-infeasible]]):** (QUICK) lower `lift_termination` lift_margin
+0.04→0.015 (threshold 0.065 < 0.071) so the marginal lift COUNTS → grasp-stage success reachable → RL/residual
+finally get signal → learn it → then harden. Add a LEROBOT_ISAAC_LIFT_MARGIN knob if not tunable. (REAL FIX)
+firmer grip — widen the gripper USD joint close range past −0.175 +/- die friction>1.0 + 27mm die. Iterate via
+scripts/_probe_demo_grasp.py.
+**Status: carry-place blocker FULLY understood (marginal grasp, config unchanged). Clear cheap unblock +
+real fix defined. GPU idle, no run active. Residual mechanism committed+pushed and ready once the grasp holds.**
+
+### 2026-06-23 (END OF AUTONOMOUS SESSION) — every autonomous path exhausted; AWAITING USER FORK DECISION
+- Grip-fix tried (sibling a969d79): friction 1→5 + solver 32 + offsets + die 16→30mm → lift PEAK 0.071→0.096
+  but NEVER HOLDS (slips, final ~0.013). The −0.175 closed grip is the hard physical root.
+- Band-aid tried (LIFT_HOLD_STEPS=1, residual run residual-hold1-20260623-044414): DID NOT trigger ep_len<300 —
+  the residual clamps the scripted action to [−1,1] (actor-reproducibility), but the unclamped grasp only
+  peaks ~0.066–0.071 (needs |a|>1); clamped it falls below the 0.07 threshold. Killed.
+- **The residual lever is DOUBLY blocked (marginal grasp + clamp), both reducing to the sim-gripper model.**
+**DECISION REQUIRED FROM USER — pick a fork (all autonomous knob/probe space is exhausted):**
+  (A) Fix the SO-101 sim gripper MODEL — widen the gripper joint close-range in the USD (close past −0.175) or
+      fix the jaw collider/geometry. The real fix, but a risky robot-asset edit + a sim2real-validity question
+      (is −0.175 the real hardware fully-closed?). NOT done autonomously by design.
+  (B) Accept SLIDE-place as the task (the 25 demos are slides; the env already rewards slide-into-bin if the
+      lift-gate is off) — pragmatic if a true grasp isn't required for the use case.
+  (C) Redesign the manipulation object so the −0.175 closed jaw actually clamps it (breaks ckpt_10000's 16mm
+      assumption → fresh training).
+  (D) Park carry-place; the residual MECHANISM (built+grilled+GPU-validated) + P2E (validated runnable) are
+      reusable for other tasks once a graspable setup exists.
+**Everything committed+pushed. GPU idle, arm untouched. Loop ended pending direction.**

@@ -1,0 +1,8 @@
+2026-07-20 grill(9eccfca) accepted-without-fix:
+- A5/MEDIUM run_autoresearch_policy.sh save_freq=SECONDS/4 is a step count from a seconds budget — checkpoint-dense if --arch smolvla (~10 step/s) is run through this dispatcher; act/diffusion unaffected. Revisit if smolvla moves onto the general dispatcher.
+- dry-run tail coverage: --dry-run emits one generic act_tail line, does not exercise per-hop SEED_OFFSET/AR_OUT_ROOT resolution.
+- A10 save_freq formula duplicated in run_autoresearch_policy.sh + _run_autoresearch_smolvla.sh (no shared helper).
+- B5 no automatic AR_TRIAL_START resume of a stale-killed mid-sweep hop (manual capability retained in engine).
+- C2 $WORKSPACE interpolated into bash -c cmd strings — breaks on paths with spaces (none today).
+- orphan scripts/_wm_keepalive.sh (added 7293e5f, unreferenced after ext-script deletion) — user decision: wire or delete.
+- NITs: --print-cmd ignores SEED_OFFSET; smolvla_A=6300 vs formula's 5900 (safe direction); TAIL_HOPS=2 default underived; act grid 6 configs vs TRIALS=8 (pre-existing).

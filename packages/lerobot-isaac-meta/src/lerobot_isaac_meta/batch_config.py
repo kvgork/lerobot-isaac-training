@@ -44,7 +44,14 @@ from typing import Any
 
 # Mirrors lerobot_isaac_adapters.train._ALL_ARCHS but without importing it
 # (keeps batch_config importable without the adapters package on hand).
-_VALID_ARCHS = ("smolvla", "act", "diffusion", "dreamerv3", "le_world_model")
+# MANUAL SYNC REQUIRED: keep in lockstep with the adapter's _ALL_ARCHS
+# (_POLICY_ARCHS + _WM_POLICY_ARCHS + _WM_ARCHS). The vla_jepa/fastwam/lingbot_va
+# world-model policies were added in lerobot 0.6.0.
+_VALID_ARCHS = (
+    "smolvla", "act", "diffusion",         # plain policies
+    "vla_jepa", "fastwam", "lingbot_va",   # lerobot 0.6.0 world-model policies
+    "dreamerv3", "le_world_model",         # predictive world-model backends
+)
 _VALID_FAILURE_POLICIES = ("continue", "abort")
 _VALID_COMPARE_MODES = ("2way", "nway")
 

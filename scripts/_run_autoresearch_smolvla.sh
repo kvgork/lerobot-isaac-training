@@ -95,7 +95,7 @@ for cfg in "${CONFIGS[@]:0:$TRIALS}"; do
     iter_log="$AR_DIR/trial_${trial}.log"
     start_ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     start_s=$(date +%s)
-    save_freq=$(( SECONDS_PER_EXP * 25 / 30 ))
+    save_freq=$(( SECONDS_PER_EXP / 4 ))   # was *25/30 — assumed >=1 step/s; /4 guarantees saves at any rate
     [ "$save_freq" -lt 200 ] && save_freq=200
 
     PATH="$WORKSPACE/.pixi/envs/train-policy/bin:$PATH" \
@@ -127,6 +127,7 @@ for cfg in "${CONFIGS[@]:0:$TRIALS}"; do
             >> "$iter_log" 2>&1
         pc=$(jq -r .pc_success "$eval_json" 2>/dev/null)
         mse=$(jq -r ._metadata.mse "$eval_json" 2>/dev/null)
+        [ "$mse" = "null" ] && mse=""
     fi
     if [ -z "$pc" ] || [ "$pc" = "null" ]; then pc="0.0"; fi
 
@@ -135,7 +136,9 @@ for cfg in "${CONFIGS[@]:0:$TRIALS}"; do
     [ "$rc" -eq 124 ] && status="timeout-ok"
 
     raw_loss=$(grep -oE 'loss:[0-9.]+' "$iter_log" | tail -1 | sed 's/loss://')
-    [ -z "$raw_loss" ] && raw_loss=null
+    # None (not null) — this value is interpolated into a python heredoc;
+    # bare `null` raised NameError and silently dropped the history record.
+    [ -z "$raw_loss" ] && raw_loss=None
 
     "$WORKSPACE/.pixi/envs/default/bin/python" - <<PY >> "$AR_DIR/history.jsonl"
 import json
@@ -150,7 +153,7 @@ print(json.dumps({
     "duration_s": $dur,
     "status": "$status",
     "raw_loss": $raw_loss,
-    "mse": ${mse:-null},
+    "mse": ${mse:-None},
     "exit_code": $rc,
     "ckpt": "$ckpt",
 }))

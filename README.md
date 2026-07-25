@@ -185,7 +185,72 @@ pixi run -e dashboard dashboard        # http://localhost:8501
 ```
 
 The autoresearch loop (`lerobot-isaac-autoresearch`) wraps `lerobot-isaac-train`
-to run mutation-driven hyperparameter search over any of the four backends.
+to run mutation-driven hyperparameter search over any of the eight backends.
+
+### Interchangeable components
+
+The pipeline is a **fixed data spine** with **swappable slots** plugged into it.
+Swaps are safe because the glue is a handful of stable data contracts
+(LeRobotDataset Parquet · HDF5/npz/webdataset · checkpoint dir · `metric=value`
+stdout line · eval JSON). Amber = swappable; the rest is the fixed pipe.
+
+```mermaid
+flowchart TB
+    DS["① Data sources"]
+    QF["② Quality filter · opt"]
+    MG["③ Merge · opt"]
+    BR["④ WM bridge · predictive-WM only"]
+    TR["⑤ Training dispatch"]
+    EV["⑥ Evaluation"]
+    DP["⑦ Deploy · real SO-101 / sim"]
+    DB["⑧ Dashboard · read-only"]
+
+    DS -->|"LeRobotDataset Parquet + meta/"| QF
+    QF -->|"filtered Parquet"| MG
+    MG -->|"canonical Parquet (+ source)"| BR
+    BR -->|"HDF5 / npz / webdataset"| TR
+    MG -.->|"6 policy archs bypass bridge"| TR
+    TR -->|"checkpoint + metric=value"| EV
+    EV -->|"eval JSON · pc_success"| DP
+    DP -.->|"observe"| DB
+
+    AR(["↻ Autoresearch · wraps ④–⑥"])
+    AR -.->|"propose → train → keep-if-better"| TR
+    EV -.->|"best metric"| AR
+
+    S1{{"S1 · data source"}} -.-> DS
+    S3{{"S3 · --target_arch<br/>CENTRAL · 8 archs"}} -.-> TR
+    S4{{"S4 · WM format"}} -.-> BR
+    S8{{"S8 · eval target"}} -.-> EV
+    S9{{"S9 · deploy topology"}} -.-> DP
+
+    classDef swap fill:#fff6ea,stroke:#d5820f,stroke-width:2px,color:#7c4204;
+    classDef loop fill:#eef1f5,stroke:#8b97a6,color:#39424d;
+    class S1,S3,S4,S8,S9 swap;
+    class AR loop;
+```
+
+All 13 swappable slots:
+
+| # | Slot | Selector | Options |
+|---|------|----------|---------|
+| S1 | Data source | ingestion tool run (no single flag) | real teleop · Isaac DR replay · MimicGen \* · sim demo-gen (13-dim, not merge-compatible) |
+| S2 | Image storage dtype | `meta/info.json` feature dtype | `video` (MP4, legacy) · `image` (PNG inline, current) |
+| S3 | **Training backend** `--target_arch` | argparse `_ALL_ARCHS` (3-way manual sync) | **Policy** `smolvla`·`act`·`diffusion` → `pc_success ↑` · **WM-policy** `vla_jepa`·`fastwam`·`lingbot_va` → `pc_success ↑` · **Predictive-WM** `dreamerv3` → `recon_loss ↓` · `le_world_model` \* → `pred_loss ↓` |
+| S4 | WM bridge output format | `lerobot_to_worldmodel(output_format=)` | `hdf5` · `npz` (V-JEPA) · `webdataset` (Cosmos/GAIA) |
+| S5 | WM image-size preset | `image_size=(H,W)` | 64² (default) · 96² · 128²/256² |
+| S6 | `le_world_model` sub-backend | `LEROBOT_ISAAC_LEWM_BACKEND` | `_lewm_minimal` (default) · `hf` \* |
+| S7 | Policy training wrapper | `--cache_frames` / `--use_lora` | bare `lerobot-train` · `cli_train_cached` (~7× throughput / LoRA) |
+| S8 | Eval mode / deploy target | which eval entrypoint | open-loop MSE (default) · closed-loop real arm · closed-loop Isaac sim |
+| S9 | Deploy topology | runbook-12 path | hybrid desktop+laptop · single-system |
+| S10 | Autoresearch program | `program.md` path | `lerobot-policy` · `dreamerv3` · `leworldmodel` · `lerobot-policy-short` |
+| S11 | Mutation operator | proposer picks 1/experiment | `tweak_lr` · `tweak_batch` · `tweak_steps` · `tweak_arch_param` · `tweak_data_aug` · `random_restart` |
+| S12 | Pixi environment | `pixi run -e <env>` | `default` · `frozen` · `train-policy` · `train-dreamer` · `train-lewm` · `sim` · `dashboard` · `full` |
+| S13 | Sibling source mode | env feature (mutually exclusive) | editable path deps from `src/` (dev) · `git+https` (frozen/repro) |
+
+\* MimicGen is **deferred** (`LEROBOT_MIMICGEN_ENABLED=1`; raises `NotImplementedError`);
+the `le_world_model` HF backend is **upstream-blocked** (`lerobot.scripts.train_world_model`
+is not shipped) and falls back to the in-process `_lewm_minimal` stub.
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full diagram, coupling rules,
 and spinout mechanics.

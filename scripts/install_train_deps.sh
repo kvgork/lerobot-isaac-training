@@ -33,10 +33,18 @@ set -uo pipefail
 WORKSPACE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$WORKSPACE_ROOT"
 
-# smolvla → policy backbone; feetech → SO-101 servo SDK (scservo_sdk) needed by
-# the hardware deploy path (lerobot-isaac-deploy session). Without `feetech`,
-# robot setup fails with `No module named 'scservo_sdk'` at the dry-run loop.
-LEROBOT_EXTRAS="${LEROBOT_EXTRAS:-smolvla,feetech}"
+# lerobot 0.6.0 split the install into extras: `training` pulls the trainer deps
+# (implicit in 0.5.x), `vla_jepa` pulls the world-model policy backbone (Qwen3-VL
+# + qwen-vl-utils). smolvla → policy backbone; feetech → SO-101 servo SDK
+# (scservo_sdk) needed by the hardware deploy path (lerobot-isaac-deploy). Without
+# `feetech`, robot setup fails with `No module named 'scservo_sdk'` at dry-run.
+# fastwam / lingbot_va extras are intentionally NOT default — those world-model
+# policies need >>10 GB VRAM; add them on capable HW via
+#   LEROBOT_EXTRAS=training,smolvla,feetech,vla_jepa,fastwam bash scripts/install_train_deps.sh
+LEROBOT_EXTRAS="${LEROBOT_EXTRAS:-training,smolvla,feetech,vla_jepa}"
+# Minimum lerobot version. 0.6.0 is the first release shipping the world-model
+# policies (vla_jepa/fastwam/lingbot_va); below this the script upgrades.
+LEROBOT_MIN_VERSION="${LEROBOT_MIN_VERSION:-0.6.0}"
 SHEEPRL_GIT_URL="${SHEEPRL_GIT_URL:-git+https://github.com/Eclectic-Sheep/sheeprl.git}"
 
 DO_POLICY=true
@@ -75,19 +83,42 @@ _have_module() {
     "$py" -c "import $mod" >/dev/null 2>&1
 }
 
+_lerobot_version() {
+    local py="$1"
+    "$py" -c "import lerobot;print(getattr(lerobot,'__version__','?'))" 2>/dev/null || echo "none"
+}
+
+# Return 0 iff lerobot is installed AND >= LEROBOT_MIN_VERSION.
+_lerobot_current_ok() {
+    local py="$1"
+    "$py" - "$LEROBOT_MIN_VERSION" <<'PY' 2>/dev/null
+import sys
+want = sys.argv[1]
+try:
+    import lerobot
+    try:
+        from packaging.version import Version as V
+    except Exception:  # packaging absent — fall back to a naive numeric compare
+        def V(s):
+            return tuple(int(p) for p in s.split("+")[0].split(".") if p.isdigit())
+    sys.exit(0 if V(getattr(lerobot, "__version__", "0")) >= V(want) else 1)
+except Exception:
+    sys.exit(1)
+PY
+}
+
 # --- 1. train-policy : lerobot[smolvla] --------------------------------------
 if [ "$DO_POLICY" = true ]; then
     py=$(_env_python "train-policy") || exit $?
-    if _have_module "$py" "lerobot"; then
-        ver=$("$py" -c "import lerobot; print(getattr(lerobot, '__version__', '?'))" 2>/dev/null)
-        success "train-policy : lerobot already present (version=$ver)"
+    if _lerobot_current_ok "$py"; then
+        success "train-policy : lerobot $(_lerobot_version "$py") OK (>= ${LEROBOT_MIN_VERSION})"
     else
-        info "train-policy : installing lerobot[${LEROBOT_EXTRAS}]..."
-        "$py" -m pip install "lerobot[${LEROBOT_EXTRAS}]" || {
+        info "train-policy : installing/upgrading lerobot[${LEROBOT_EXTRAS}] (>= ${LEROBOT_MIN_VERSION}; was $(_lerobot_version "$py"))..."
+        "$py" -m pip install -U "lerobot[${LEROBOT_EXTRAS}]>=${LEROBOT_MIN_VERSION}" || {
             error "lerobot install failed in train-policy"
             exit 1
         }
-        success "train-policy : lerobot installed"
+        success "train-policy : lerobot upgraded to $(_lerobot_version "$py")"
     fi
 fi
 
@@ -131,19 +162,24 @@ if [ "$DO_DREAMER" = true ]; then
     esac
 fi
 
-# --- 3. train-lewm : lerobot (for HF LeWorldModel + train_world_model) -------
+# --- 3. train-lewm : lerobot 0.6.0 (world-model policies via lerobot-train) --
+# Historically the home of `lerobot.scripts.train_world_model` (never shipped in
+# 0.5.x). lerobot 0.6.0 instead ships world models as POLICIES (vla_jepa etc.)
+# trained through the ordinary `lerobot-train` CLI, so this env installs the same
+# extras as train-policy. The predictive `le_world_model` adapter target still
+# falls back to the in-process `_lewm_minimal` trainer (upstream never resurrected
+# a standalone WM script) — see src/.../targets/wm_leworldmodel.py.
 if [ "$DO_LEWM" = true ]; then
     py=$(_env_python "train-lewm") || exit $?
-    if _have_module "$py" "lerobot"; then
-        ver=$("$py" -c "import lerobot; print(getattr(lerobot, '__version__', '?'))" 2>/dev/null)
-        success "train-lewm : lerobot already present (version=$ver)"
+    if _lerobot_current_ok "$py"; then
+        success "train-lewm : lerobot $(_lerobot_version "$py") OK (>= ${LEROBOT_MIN_VERSION})"
     else
-        info "train-lewm : installing lerobot (no extras — HF model pulled on first use)..."
-        "$py" -m pip install "lerobot" || {
+        info "train-lewm : installing/upgrading lerobot[${LEROBOT_EXTRAS}] (>= ${LEROBOT_MIN_VERSION}; was $(_lerobot_version "$py"))..."
+        "$py" -m pip install -U "lerobot[${LEROBOT_EXTRAS}]>=${LEROBOT_MIN_VERSION}" || {
             error "lerobot install failed in train-lewm"
             exit 1
         }
-        success "train-lewm : lerobot installed"
+        success "train-lewm : lerobot upgraded to $(_lerobot_version "$py")"
     fi
 fi
 
