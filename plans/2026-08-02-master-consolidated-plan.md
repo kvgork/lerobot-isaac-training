@@ -220,6 +220,33 @@ pending below.
 
 ### B-SAFETY — blockers that must be closed first
 
+> ## Status 2026-08-02 — S1/S3/S4/S5/S7 + C1 IMPLEMENTED
+> Committed as **`703f62f`** on `src/robot-data-runner` branch `feat/deploy-runner-hardening`
+> (local only — not pushed; see E1).
+>
+> | Item | What landed |
+> |---|---|
+> | S3 | `safety_limits.py` — two-layer joint-limit clamp ported from `arm_motor_writer.py`, cal ∩ hardcoded floor, `elbow_flex [-10,90]` preserved. Applied at **all four** `send_action` sites via `_clamp_and_warn`; warns once per joint per episode |
+> | S4 | `ramped_home()` ported; used at **all four** home sites before torque-off. False "ramps" docstrings removed |
+> | S1 | `use_degrees` defaults **True** on all three real-motor entry points (`--as-normalized` reverts); `cli_sweep` stays normalized **by design**, commented. Startup banner prints resolved °/step + °/s. `max_deg_per_s_ceiling=90` **refuses to start** unless `--allow-fast` |
+> | S5 | `require_interactive()` refuses to start the eval loop on a non-tty; mid-run `EOFError` aborts instead of fabricating a verdict. Gated on `run_episodes` only — `run_policy`/`replay`/`sweep` have no designed interlock and are intentionally unattended |
+> | S7 | New **ABORTED** outcome, excluded from `pc_success`/`mean_ep_len`/`intervention_rate`, reported separately; arithmetic factored into a pure testable `_aggregate_records()`. Banner states there is no software e-stop |
+> | C1 | `--save-frames DIR` — one frame per episode + manifest with shape, dtype, per-channel **mean pixel value** (the signal that would have caught the 78-vs-101 brightness drift) |
+>
+> Tests **61 passed / 3 skipped** (was 37/3), ruff clean.
+>
+> ⚠️ **NOT hardware-verified — no arm was attached.** Every change is fake/unit-tested only. Safety
+> code that has never driven the thing it protects is a hypothesis: the first real session must treat
+> these as untested paths and ladder up from 1.0 regardless.
+>
+> ⚠️ **Expect the ceiling to reject your first command.** The old `5.0` resolves to ~135–150 °/s under
+> either unit system, so `robot-data-run --max-relative-target 5.0` now **refuses to start**. That is
+> intended (it forces the S2 re-derivation) but will read as a bug to whoever hits it first.
+>
+> **Still open: S2** (re-derive the ladder — needs the arm) and **S6** (workspace clearance, operator
+> position, supervisor, power-disconnect method, per-checkpoint dry-run — procedural, belongs in the
+> session checklist, not in code).
+
 **S1. The clamp ladder is not in degrees.** `--use-degrees` is never passed
 (`config.py:89 use_degrees: bool = False`), so body joints normalize to `RANGE_M100_100`
 (`so_follower.py:50`) and `--max-relative-target 5.0` means **2.5 % of each joint's calibrated range
