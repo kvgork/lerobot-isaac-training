@@ -1,5 +1,54 @@
 # Next Steps — lerobot-isaac-training
 
+## Open safety bugs found 2026-09-10 (adversarial review, NOT yet fixed)
+
+Both predate the SO-101 safety-fix work and were found by a grill review of it. Each
+was confirmed by a defender against the actual code; neither was touched, because
+they are outside that change's scope.
+
+### 1. `resolve_joint_limits` can WIDEN past the safety floor  (HIGH — do this first)
+
+`src/robot-data-runner/src/robot_data_runner/safety_limits.py` (also the deploy twin
+in `lerobot_isaac_deploy.arm_motor_writer`). Pre-existing as of `703f62f`.
+
+When a joint's calibration span lies entirely outside the hardcoded floor, the
+intersection inverts:
+
+```
+cal span (100, 150) deg   vs   floor (-90, 90)
+lo = max(-90, min(100,150)) = 100
+hi = min( 90, max(100,150)) =  90        ->  lo > hi
+```
+
+`clamp_action` then swaps the pair to `(90, 100)` and permits commands up to **100
+deg against a 90 deg floor** — directly violating that module's own documented
+invariant that calibration "can only TIGHTEN, never widen". No warning is logged for
+the degenerate case.
+
+Fix shape: detect `lo > hi` explicitly, log loudly, and fall back to the hardcoded
+floor rather than swapping. Add a test with an out-of-range calibration.
+
+### 2. `SafetyMonitor._same()` can never flag a constant-NaN action  (MEDIUM)
+
+`src/robot-data-runner/src/robot_data_runner/safety.py`. Pre-existing as of `b079489`
+(2026-05-14), untouched by the 2026-09-10 watchdog work.
+
+`_same()` compares with `abs(a[k] - b[k]) < epsilon`. For NaN that is always False, so
+the streak resets every step and the stuck-action warning — whose own text says
+*"policy may be stuck or returning NaN"* — can never fire for the NaN half of its own
+claim. A policy emitting constant NaN runs to completion unflagged.
+
+Fix shape: treat two non-finite values at the same index as "same", or check
+finiteness separately before the epsilon comparison.
+
+### 3. `test_dr_replay_delegates_dry_run` fails  (LOW, pre-existing)
+
+`packages/lerobot-isaac-meta/src/lerobot_isaac_meta/cli.py:92` calls
+`replay_runner.main(argv)` but `main()` takes 0 positional arguments. Same class as
+the `python -m` invocation pitfall in CLAUDE.md.
+
+---
+
 Last updated: 2026-05-21
 
 ## Immediate (blocker — system-level)
