@@ -24,6 +24,8 @@ still passes in a partial environment.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from lerobot_isaac_env.joint_limits import (
@@ -75,12 +77,36 @@ def test_parity_with_deploy_arm_motor_writer():
         )
 
 
+def _load_runner_safety_limits():
+    """Import robot_data_runner.safety_limits, adding the sibling checkout to sys.path.
+
+    robot-data-runner is deliberately NOT a meta dependency (it is opt-in via
+    `pixi run sync-runner`), so a plain importorskip here skipped PERMANENTLY in the
+    default env and in CI — meaning the one parity assertion covering the repo that
+    actually owns the hardware clamp never ran. Adversarial review 2026-09-10 caught
+    that the guard was decorative for this pair.
+
+    The module is pure-stdlib+numpy by its own docstring, so importing it straight off
+    the sibling checkout is safe and needs no install. Skip only when the checkout is
+    genuinely absent.
+    """
+    import sys
+
+    src = Path(__file__).resolve().parents[3] / "src" / "robot-data-runner" / "src"
+    if not (src / "robot_data_runner" / "safety_limits.py").is_file():
+        pytest.skip(f"robot-data-runner checkout not present at {src}")
+    if str(src) not in sys.path:
+        sys.path.insert(0, str(src))
+    try:
+        from robot_data_runner import safety_limits
+    except Exception as exc:  # noqa: BLE001
+        pytest.skip(f"robot_data_runner.safety_limits not importable: {exc}")
+    return safety_limits
+
+
 def test_parity_with_robot_data_runner_safety_limits():
     """Sim copy must equal the runner's client-side clamp table."""
-    sl = pytest.importorskip(
-        "robot_data_runner.safety_limits",
-        reason="robot-data-runner not installed in this environment",
-    )
+    sl = _load_runner_safety_limits()
     assert list(sl.SO101_JOINT_NAMES) == list(SIM_NAMES), (
         "canonical joint ORDER diverged"
     )
