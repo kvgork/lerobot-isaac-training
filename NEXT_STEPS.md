@@ -6,6 +6,31 @@ Both predate the SO-101 safety-fix work and were found by a grill review of it. 
 was confirmed by a defender against the actual code; neither was touched, because
 they are outside that change's scope.
 
+### 0. `connect()` leaves the arm PARTIALLY TORQUED on a single dropped packet  (HIGH)
+
+Observed live 2026-09-11 during the servo-control check, on the real arm.
+
+`SO101Follower.connect()` -> `configure()` writes several registers per motor, and
+lerobot's `MotorsBus.write()` defaults to **`num_retry=0`**. One dropped status packet
+therefore aborts `connect()` mid-way:
+
+```
+ConnectionError: Failed to write 'Torque_Enable' on id_=4 ... [TxRxResult] There is no status packet!
+```
+
+Servos 1-3 had already been energised; 4-6 had not. Because the exception escapes
+`connect()`, any caller whose `disconnect()` sits in a `try/finally` *after* the connect
+call never runs it — the arm is left **torqued and holding, with no live session**. A
+subsequent raw-bus ping confirmed all six servos were healthy and that 1-3 were still
+at `Torque_Enable=1`.
+
+This is not a dead servo; it is a transient bus glitch with an unsafe failure mode.
+
+Fix shape: pass `num_retry>=2` on the configure path, and/or wrap `connect()` so a
+partial failure releases torque on every servo that was already enabled before
+re-raising. Any bring-up script should also do its own `Torque_Enable=0` sweep on
+failure rather than relying on `disconnect()`.
+
 ### 1. `resolve_joint_limits` can WIDEN past the safety floor  (HIGH — do this first)
 
 `src/robot-data-runner/src/robot_data_runner/safety_limits.py` (also the deploy twin
