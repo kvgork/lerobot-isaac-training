@@ -31,7 +31,7 @@ partial failure releases torque on every servo that was already enabled before
 re-raising. Any bring-up script should also do its own `Torque_Enable=0` sweep on
 failure rather than relying on `disconnect()`.
 
-### 1. `resolve_joint_limits` can WIDEN past the safety floor  (HIGH — do this first)
+### 1. ~~`resolve_joint_limits` can WIDEN past the safety floor~~ — **FIXED 2026-09-11**
 
 `src/robot-data-runner/src/robot_data_runner/safety_limits.py` (also the deploy twin
 in `lerobot_isaac_deploy.arm_motor_writer`). Pre-existing as of `703f62f`.
@@ -50,8 +50,20 @@ deg against a 90 deg floor** — directly violating that module's own documented
 invariant that calibration "can only TIGHTEN, never widen". No warning is logged for
 the degenerate case.
 
-Fix shape: detect `lo > hi` explicitly, log loudly, and fall back to the hardcoded
-floor rather than swapping. Add a test with an out-of-range calibration.
+**FIXED 2026-09-11** — `robot-data-runner@dcd9125`, `lerobot-isaac-deploy@fbad690`.
+
+Both copies now detect the empty intersection, log an ERROR naming the joint, and keep the
+hardcoded floor for it. `clamp_action` no longer swaps an inverted pair — a swap can only
+ever widen — and falls back to the module's floor instead.
+
+The twin turned out to fail *differently*, which is why it had survived its own
+"never wider than the floor" test: that test uses an over-wide symmetric calibration, which
+intersects fine. With `np.clip(x, lo, hi)` and `lo > hi`, numpy returns `hi`, so a span
+entirely ABOVE the floor pinned to the floor max (safe by luck) while a span entirely BELOW
+it pinned to a target outside the floor. Only a non-overlapping calibration triggers it, and
+only in one direction.
+
+Tests: runner 88 -> 95, deploy 36 -> 42; all written to fail against the old code first.
 
 ### 2. `SafetyMonitor._same()` can never flag a constant-NaN action  (MEDIUM)
 
