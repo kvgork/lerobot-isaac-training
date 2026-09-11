@@ -271,6 +271,43 @@ own `config_so_follower.py:42` defaults `use_degrees = True`; only the runner pa
 anyone switching to lerobot-native `lerobot-record`/`lerobot-rollout` silently changes what the clamp
 number means **again, in the opposite direction**.
 
+> ## S2 status 2026-09-11 — RE-DERIVED AND HARDWARE-VERIFIED (arm attached)
+>
+> Done with the arm connected, calibration loaded, `check_rate_ceiling()` called directly.
+>
+> | clamp | arm deg/s | gripper deg/s | verdict |
+> |---|---|---|---|
+> | 1.0 | 30 | 38.9 | accepted |
+> | 2.0 | 60 | 77.9 | accepted |
+> | **2.311** | 69 | 89.6 | **accepted — the true maximum at 30 Hz** |
+> | 3.0 | 90 | **116.8** | **REFUSED** |
+>
+> **The gripper is the binding joint, not any arm joint.** It stays `RANGE_0_100`
+> percent-of-jaw regardless of `use_degrees`; this arm's jaw spans 129.8 deg, so 1 unit =
+> 1.298 deg. Every prior derivation in this plan — including S1's table — reasoned from the
+> arm joints and therefore got the ceiling wrong.
+>
+> **S2's own bound is unreachable as written.** "Do not exceed 3.0" cannot be exceeded: the
+> tool refuses at 3.0. The effective limit is ~2.31 and it is already enforced in code, so
+> the policy rule is subsumed by the ceiling check. No separate discipline is needed.
+>
+> **The limit moves with `--rate-hz`** (verified): max clamp 3.47 @20 Hz, 2.31 @30 Hz,
+> 1.39 @50 Hz. Changing the control rate silently changes what a clamp number means.
+>
+> **The ceiling only fires with `--execute`** — dry runs always proceed by design. A passing
+> dry run is not evidence the real run will start.
+>
+> **Independent of the clamp:** a per-servo control check the same day found `shoulder_pan`
+> achieving only ~63% of a commanded move at **12.8 deg/s**, a third of the slowest rung.
+> For that joint the binding constraint is friction, not rate. All six servos respond;
+> `shoulder_pan` draws the highest current and has the worst return error (-22 counts).
+>
+> **Still open in S2:** whether 2.3 is *rate-limited in task terms* still needs a
+> post-realignment policy episode — that is Track B proper, not a bench measurement.
+> Docs corrected: `docs/runbook/10-deploy-to-hardware.md` ladder table (its old
+> 5.0/10.0/30.0 rungs were unreachable, not merely aggressive). `cli_eval.py` was already
+> correct from S1.
+
 **S2. Clamp 5.0 has no supporting evidence and contradicts the scoreboard.** The 5.0 lock rests on
 episodes 1-6, which line 11 of the scoreboard **voids** ("CAMERA REALIGNED … all prior eps void") —
 and those episodes ran while the camera was 62 px / −98 px off, so the policy was consuming OOD
