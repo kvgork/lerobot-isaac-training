@@ -79,7 +79,7 @@ only in one direction.
 
 Tests: runner 88 -> 95, deploy 36 -> 42; all written to fail against the old code first.
 
-### 2. `SafetyMonitor._same()` can never flag a constant-NaN action  (MEDIUM)
+### 2. ~~`SafetyMonitor._same()` can never flag a constant-NaN action~~ — **FIXED 2026-09-12**
 
 `src/robot-data-runner/src/robot_data_runner/safety.py`. Pre-existing as of `b079489`
 (2026-05-14), untouched by the 2026-09-10 watchdog work.
@@ -89,14 +89,46 @@ the streak resets every step and the stuck-action warning — whose own text say
 *"policy may be stuck or returning NaN"* — can never fire for the NaN half of its own
 claim. A policy emitting constant NaN runs to completion unflagged.
 
-Fix shape: treat two non-finite values at the same index as "same", or check
-finiteness separately before the epsilon comparison.
+**FIXED 2026-09-12** — `robot-data-runner@f70e50e`. Investigating it found the filed
+bug was the least of three.
 
-### 3. `test_dr_replay_delegates_dry_run` fails  (LOW, pre-existing)
+1. (filed) `_same()` now treats two non-finite values as unchanged, so a constant-NaN
+   stream accumulates a streak and the warning that names NaN can actually fire.
+2. (found) **A NaN action passed straight through `clamp_action` to `send_action`** —
+   `min(max(nan, lo), hi)` returns `nan`, because every comparison with NaN is False.
+   The absolute joint clamp, which the master plan calls "the highest-value
+   hardware-safety change available", did not contain the one input that is never valid.
+3. (found) `clamp_action` **reported** NaN as clamped while not clamping it, since
+   `clipped != value` is True for NaN. Worse than silent — it claimed the guard acted.
+
+`SafetyMonitor.observe()` now trips `stop_flag` immediately on any non-finite action
+(waiting 30 steps means ~1 s of garbage commands first). `clamp_action` substitutes
+the in-range value nearest zero for NaN only — infinities already clamp correctly, and
+routing them through the substitution would replace a correct bound with 0.
+
+Tests: runner 104 -> 111.
+
+### 3. ~~`test_wm_dryrun` fails in the default env~~ — **FIXED 2026-09-12**
+
+**FIXED 2026-09-12** — `lerobot-isaac-deploy@1546dfb`.
+
+Diagnosed as an ordering bug, not a test-environment problem: `run_dryrun` imported
+the loader (and hit `wm_loader`'s torch guard) *before* checking whether the checkpoint
+path existed, so a missing path surfaced as `ModuleNotFoundError: torch` in any env
+without torch. Moving the existence check first also fixed a side effect — every failed
+call created an empty `outputs/wm-dryrun-<ts>/`.
+
+Fixed by correcting the order rather than adding a skip marker, so it passes in BOTH
+`default` (no torch) and `train-policy`. Deploy suite: 166 passed / 1 failed -> 169 passed.
+
+**Note:** the original filing above described the wrong test. The `lerobot_isaac_meta`
+`replay_runner.main(argv)` arity mismatch is a SEPARATE, still-open issue — see item 4.
+
+### 4. `test_dr_replay_delegates_dry_run` fails — `main()` arity  (LOW, still open)
 
 `packages/lerobot-isaac-meta/src/lerobot_isaac_meta/cli.py:92` calls
-`replay_runner.main(argv)` but `main()` takes 0 positional arguments. Same class as
-the `python -m` invocation pitfall in CLAUDE.md.
+`replay_runner.main(argv)` but `main()` takes 0 positional arguments. Same class as the
+`python -m` invocation pitfall in CLAUDE.md. Untouched.
 
 ---
 
