@@ -27,6 +27,9 @@
 # =============================================================================
 set -euo pipefail
 
+# A0.5: fail closed on a missing action-scale JSON (see _action_scale_guard.sh).
+source "$(dirname "${BASH_SOURCE[0]}")/_action_scale_guard.sh"
+
 # --- run identity / budget --------------------------------------------------
 SESSION_ID="${SESSION_ID:-wm-warmstart-full-v1}"
 STEPS="${STEPS:-50000}"

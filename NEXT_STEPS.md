@@ -124,11 +124,20 @@ Fixed by correcting the order rather than adding a skip marker, so it passes in 
 **Note:** the original filing above described the wrong test. The `lerobot_isaac_meta`
 `replay_runner.main(argv)` arity mismatch is a SEPARATE, still-open issue — see item 4.
 
-### 4. `test_dr_replay_delegates_dry_run` fails — `main()` arity  (LOW, still open)
+### 4. ~~`test_dr_replay_delegates_dry_run` fails — `main()` arity~~ — **FIXED 2026-09-12**
 
-`packages/lerobot-isaac-meta/src/lerobot_isaac_meta/cli.py:92` calls
-`replay_runner.main(argv)` but `main()` takes 0 positional arguments. Same class as the
-`python -m` invocation pitfall in CLAUDE.md. Untouched.
+**FIXED 2026-09-12** — `lerobot-isaac-synthetic` PR #1 + workspace test correction.
+
+`replay_runner.main` was the outlier: the meta CLI forwards argv to three targets, and
+the other two (`adapters.train.main`, `robot_data_recorder.cli.main`) both accept it.
+
+**The arity error was masking a second bug.** The test also asserted passthrough of
+`--camera_key d435_rgb`, a flag `replay_runner` has *never* accepted — `git log -S
+camera_key` finds it only in the test, added by `3dce29d`. The `TypeError` fired before
+argparse could reject the flag, so the stale contract stayed invisible. The test now
+proves passthrough with `--n_variants`, which the parser really does accept.
+
+Meta suite: 81 -> 88 passed, 0 failed.
 
 ---
 
