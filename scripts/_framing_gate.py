@@ -187,6 +187,72 @@ def measure(
     return float(dx), float(dy), float(np.median(bs)), shift_sd, int(min(ns))
 
 
+def realign_hint(dx: float, dy: float, w: int, h: int) -> list[str]:
+    """Translate a measured feature shift into a physical camera move.
+
+    Sign convention, established EMPIRICALLY against synthetic shifts rather than
+    reasoned about - this is exactly where such things get inverted:
+
+      * a camera moved RIGHT makes the scene appear LEFT  -> dx < 0
+      * a camera moved UP    makes the scene appear LOWER -> dy > 0 (image y grows down)
+
+    The corrective move is therefore in the SAME direction as the measured shift:
+    dx = -51 means move the camera LEFT.
+    """
+    out: list[str] = []
+    if abs(dx) >= 1.0:
+        where, move = ("RIGHT", "LEFT") if dx < 0 else ("LEFT", "RIGHT")
+        out.append(
+            f"camera is too far {where} by ~{abs(dx):.0f} px "
+            f"({abs(dx) / w * 100:.1f}% of frame width) -> move it {move}"
+        )
+    if abs(dy) >= 1.0:
+        where, move = ("UP", "DOWN") if dy > 0 else ("DOWN", "UP")
+        out.append(
+            f"camera is too far {where} by ~{abs(dy):.0f} px "
+            f"({abs(dy) / h * 100:.1f}% of frame height) -> move it {move}"
+        )
+    if not out:
+        out.append(
+            "translation is within a pixel; any residual is rotation/zoom, not pan"
+        )
+    return out
+
+
+def save_baseline(
+    path: Path, frame, brightness: float, camera: str, samples: int
+) -> None:
+    """Record the CURRENT rig as the reference this gate measures against."""
+    import json
+    from datetime import datetime
+
+    path.mkdir(parents=True, exist_ok=True)
+    cv2.imwrite(str(path / "reference.png"), frame)
+    (path / "baseline.json").write_text(
+        json.dumps(
+            {
+                "brightness": round(brightness, 3),
+                "camera": camera,
+                "samples": samples,
+                "created": datetime.now().isoformat(timespec="seconds"),
+                "frame_shape": list(frame.shape),
+            },
+            indent=2,
+        )
+        + "\n"
+    )
+
+
+def load_baseline(path: Path):
+    import json
+
+    img = cv2.imread(str(path / "reference.png"), cv2.IMREAD_COLOR)
+    if img is None:
+        raise FileNotFoundError(f"no reference.png under {path}")
+    meta = json.loads((path / "baseline.json").read_text())
+    return img, float(meta["brightness"]), meta
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(
         prog="_framing_gate.py",
@@ -199,6 +265,18 @@ def main(argv: list[str] | None = None) -> int:
         "rig has known camera-index instability and 8 video nodes.",
     )
     p.add_argument("--reference-dataset", default=DEFAULT_DATASET, type=Path)
+    p.add_argument(
+        "--baseline",
+        type=Path,
+        default=None,
+        help="use a saved baseline directory instead of the training dataset",
+    )
+    p.add_argument(
+        "--save-baseline",
+        type=Path,
+        default=None,
+        help="capture the CURRENT rig as a new baseline, then exit",
+    )
     p.add_argument("--camera-key", default=DEFAULT_CAMERA_KEY)
     p.add_argument("--max-shift-px", type=float, default=10.0)
     p.add_argument(
@@ -238,13 +316,67 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = p.parse_args(argv)
 
-    try:
-        ref, ref_bright = load_reference(
-            args.reference_dataset, args.camera_key, args.ref_frames
+    if args.save_baseline is not None:
+        try:
+            frames = [
+                grab_v4l2(args.camera, args.warmup) for _ in range(max(1, args.samples))
+            ]
+        except Exception as exc:  # noqa: BLE001
+            print(f"[framing-gate] FATAL: capture failed: {exc}", file=sys.stderr)
+            return 2
+        bright = float(np.median([f.mean() for f in frames]))
+        save_baseline(args.save_baseline, frames[-1], bright, args.camera, args.samples)
+        print(f"[framing-gate] baseline written: {args.save_baseline}")
+        print(f"[framing-gate]   camera={args.camera} brightness={bright:.1f}")
+        print("[framing-gate]")
+        print(
+            "[framing-gate] WARNING - a baseline defines what 'correct framing' MEANS."
         )
-    except Exception as exc:  # noqa: BLE001
-        print(f"[framing-gate] FATAL: could not load reference: {exc}", file=sys.stderr)
-        return 2
+        print(
+            "[framing-gate]   Every policy already trained saw the OLD framing. Measuring"
+        )
+        print(
+            "[framing-gate]   against this new one reports PASS while those policies still"
+        )
+        print(
+            "[framing-gate]   see out-of-distribution images. Adopt a new baseline only"
+        )
+        print("[framing-gate]   when you are about to RETRAIN against it, or you have")
+        print(
+            "[framing-gate]   deliberately repositioned and accept that prior checkpoints"
+        )
+        print("[framing-gate]   are no longer comparable.")
+        print(f"[framing-gate]   Use it with: --baseline {args.save_baseline}")
+        return 0
+
+    if args.baseline is not None:
+        try:
+            ref, ref_bright, meta = load_baseline(args.baseline)
+        except Exception as exc:  # noqa: BLE001
+            print(
+                f"[framing-gate] FATAL: could not load baseline: {exc}", file=sys.stderr
+            )
+            return 2
+        print(
+            f"[framing-gate] baseline   : {args.baseline} "
+            f"(captured {meta.get('created', '?')} from {meta.get('camera', '?')})"
+        )
+        print(
+            "[framing-gate]   NOTE: measuring against a saved baseline, NOT the training "
+            "set - a PASS here does not prove the rig matches what the policy saw."
+        )
+        args.reference_dataset = None
+    else:
+        try:
+            ref, ref_bright = load_reference(
+                args.reference_dataset, args.camera_key, args.ref_frames
+            )
+        except Exception as exc:  # noqa: BLE001
+            print(
+                f"[framing-gate] FATAL: could not load reference: {exc}",
+                file=sys.stderr,
+            )
+            return 2
     if args.brightness_ref is not None:
         ref_bright = args.brightness_ref
 
@@ -264,7 +396,10 @@ def main(argv: list[str] | None = None) -> int:
         abs(live_bright - ref_bright) / ref_bright if ref_bright else float("inf")
     )
 
-    print(f"[framing-gate] reference  : {args.reference_dataset} :: {args.camera_key}")
+    if args.baseline is None:
+        print(
+            f"[framing-gate] reference  : {args.reference_dataset} :: {args.camera_key}"
+        )
     print(f"[framing-gate] camera     : {args.camera} (V4L2 — the runner's own path)")
     print(f"[framing-gate] ORB matches: {n}")
     print(
@@ -280,6 +415,16 @@ def main(argv: list[str] | None = None) -> int:
         f"[framing-gate] brightness : live={live_bright:.1f} ref={ref_bright:.1f} "
         f"delta={bright_delta * 100:.1f}% (bar <= {args.brightness_tol * 100:.0f}%)"
     )
+
+    print("[framing-gate] realign    :")
+    for line in realign_hint(dx, dy, ref.shape[1], ref.shape[0]):
+        print(f"[framing-gate]   - {line}")
+    if bright_delta > args.brightness_tol:
+        direction = "brighter" if live_bright < ref_bright else "darker"
+        print(
+            f"[framing-gate]   - lighting: make the scene {direction} "
+            f"(live {live_bright:.1f} -> target {ref_bright:.1f})"
+        )
 
     if args.compare_paths:
         try:
