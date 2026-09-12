@@ -243,9 +243,11 @@ pending below.
 > either unit system, so `robot-data-run --max-relative-target 5.0` now **refuses to start**. That is
 > intended (it forces the S2 re-derivation) but will read as a bug to whoever hits it first.
 >
-> **Still open: S2** (re-derive the ladder — needs the arm) and **S6** (workspace clearance, operator
-> position, supervisor, power-disconnect method, per-checkpoint dry-run — procedural, belongs in the
-> session checklist, not in code).
+> **S2 and S6 both CLOSED.** S2: re-derived and hardware-verified, see its status block
+> below. S6: `docs/runbook/13-hardware-session-checklist.md` (2026-09-12) — workspace
+> clearance, operator position, supervisor, power-disconnect method and the mandatory
+> per-checkpoint dry-run, plus the code-enforced ladder and the known hazards that code
+> cannot catch. **Track B's code blockers are now all closed; what remains is running it.**
 
 **S1. The clamp ladder is not in degrees.** `--use-degrees` is never passed
 (`config.py:89 use_degrees: bool = False`), so body joints normalize to `RANGE_M100_100`
