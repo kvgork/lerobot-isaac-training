@@ -6,7 +6,7 @@ Both predate the SO-101 safety-fix work and were found by a grill review of it. 
 was confirmed by a defender against the actual code; neither was touched, because
 they are outside that change's scope.
 
-### 0. `connect()` leaves the arm PARTIALLY TORQUED on a single dropped packet  (HIGH)
+### 0. ~~`connect()` leaves the arm PARTIALLY TORQUED on a single dropped packet~~ — **FIXED 2026-09-12**
 
 Observed live 2026-09-11 during the servo-control check, on the real arm.
 
@@ -26,10 +26,24 @@ at `Torque_Enable=1`.
 
 This is not a dead servo; it is a transient bus glitch with an unsafe failure mode.
 
-Fix shape: pass `num_retry>=2` on the configure path, and/or wrap `connect()` so a
-partial failure releases torque on every servo that was already enabled before
-re-raising. Any bring-up script should also do its own `Torque_Enable=0` sweep on
-failure rather than relying on `disconnect()`.
+**FIXED 2026-09-12** — `robot-data-runner@40b115d`.
+
+`safety.safe_connect()` wraps `robot.connect()`; on any failure it sweeps
+`Torque_Enable=0` across every reachable motor, logs which it released and which it
+could not (cut power if any failed), then re-raises the original exception unchanged.
+Catches `BaseException`, so Ctrl-C during energising also drops torque.
+
+Wired into all four call sites. Two canaries guard it: one asserts no module calls
+`robot.connect()` directly, the other asserts `safe_connect` is present in both run
+paths — both verified to fail when a site is un-wired.
+
+Note the upstream cause is unchanged: lerobot still defaults `num_retry=0` on the
+configure path. This wrapper contains the consequence rather than preventing the
+dropped packet. A bring-up script that does not use `robot-data-runner` still needs
+its own `Torque_Enable=0` sweep on failure.
+
+Tests: runner 95 -> 104, including a characterisation test pinning the original
+behaviour (3 servos left energised).
 
 ### 1. ~~`resolve_joint_limits` can WIDEN past the safety floor~~ — **FIXED 2026-09-11**
 
