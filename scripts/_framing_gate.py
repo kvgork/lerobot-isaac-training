@@ -157,7 +157,51 @@ def grab_realsense():
 
 
 # ------------------------------------------------------------------------ measure
-def fit_transform(ref, live, max_matches: int):
+
+
+def build_static_mask(dataset: Path, camera_key: str, n_episodes: int, keep_pct: float):
+    """Mask of the regions that do NOT change between training episodes.
+
+    For DATA COLLECTION the cup and die are deliberately placed differently every
+    episode. A gate that matches on the whole frame reads that intended variation as
+    camera misalignment, which is exactly backwards: camera POSE must stay fixed while
+    scene CONTENT varies.
+
+    The training set answers which is which for free. Stack frames sampled across
+    episodes and take the per-pixel standard deviation: low variance is fixed structure
+    (table, fixtures, mounts), high variance is where the arm and objects move. Keeping
+    the lowest *keep_pct* of variance gives a mask that measures viewpoint while being
+    blind to object placement.
+
+    Measured on this dataset: train-vs-train through this mask scores 76% inliers with
+    dx=0.0 px, so the mask preserves a genuine match. Note that it does NOT rescue a
+    live feed whose *static structure* differs from training — that is a different
+    problem and no mask can fix it.
+    """
+    import pyarrow.parquet as pq
+
+    files = sorted(
+        glob.glob(str(dataset / "data" / "**" / "*.parquet"), recursive=True)
+    )
+    if not files:
+        raise FileNotFoundError(f"no parquet under {dataset / 'data'}")
+    grays = []
+    for f in files[:n_episodes]:
+        table = pq.read_table(f, columns=[camera_key])
+        for i in (0, table.num_rows // 2):
+            cell = table.column(camera_key)[int(i)].as_py()
+            raw = cell["bytes"] if isinstance(cell, dict) else cell
+            img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_GRAYSCALE)
+            if img is not None:
+                grays.append(img)
+    if len(grays) < 4:
+        raise ValueError(f"need >=4 frames to estimate variance, got {len(grays)}")
+    std = np.stack(grays).astype(np.float32).std(axis=0)
+    thr = float(np.percentile(std, keep_pct))
+    return ((std <= thr) * 255).astype(np.uint8), thr, len(grays)
+
+
+def fit_transform(ref, live, max_matches: int, mask=None):
     """RANSAC similarity fit between two frames.
 
     Returns ``(dx, dy, scale, rot_deg, inlier_ratio, n_matches)``. The inlier ratio is
@@ -166,8 +210,8 @@ def fit_transform(ref, live, max_matches: int):
     g1 = cv2.cvtColor(ref, cv2.COLOR_BGR2GRAY)
     g2 = cv2.cvtColor(live, cv2.COLOR_BGR2GRAY)
     orb = cv2.ORB_create(nfeatures=3000)
-    k1, d1 = orb.detectAndCompute(g1, None)
-    k2, d2 = orb.detectAndCompute(g2, None)
+    k1, d1 = orb.detectAndCompute(g1, mask)
+    k2, d2 = orb.detectAndCompute(g2, mask)
     if d1 is None or d2 is None or len(k1) < 8 or len(k2) < 8:
         return 0.0, 0.0, 1.0, 0.0, 0.0, 0
 
@@ -190,14 +234,14 @@ def fit_transform(ref, live, max_matches: int):
     return float(M[0, 2]), float(M[1, 2]), scale, rot, ratio, len(matches)
 
 
-def measure(ref, device: str, warmup: int, samples: int, max_matches: int):
+def measure(ref, device: str, warmup: int, samples: int, max_matches: int, mask=None):
     """Median fit over *samples* independent captures."""
     rows, brights = [], []
     for _ in range(max(1, samples)):
         live = grab_v4l2(device, warmup)
         if live.shape[:2] != ref.shape[:2]:
             live = cv2.resize(live, (ref.shape[1], ref.shape[0]))
-        rows.append(fit_transform(ref, live, max_matches))
+        rows.append(fit_transform(ref, live, max_matches, mask))
         brights.append(float(live.mean()))
     a = np.array([r[:5] for r in rows], dtype=float)
     dx, dy, scale, rot, ratio = np.median(a, axis=0)
@@ -280,6 +324,21 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--warmup", type=int, default=10)
     p.add_argument("--samples", type=int, default=9)
     p.add_argument("--max-matches", type=int, default=400)
+    p.add_argument(
+        "--static-mask",
+        action="store_true",
+        help="measure camera pose ONLY on regions that stay fixed between "
+        "training episodes. Use this during data COLLECTION, where the "
+        "cup and die are deliberately moved every episode and would "
+        "otherwise read as misalignment.",
+    )
+    p.add_argument(
+        "--mask-keep-pct",
+        type=float,
+        default=40.0,
+        help="percentile of lowest per-pixel variance kept as static",
+    )
+    p.add_argument("--mask-episodes", type=int, default=24)
     p.add_argument("--save-dir", type=Path, default=None)
     p.add_argument("--compare-paths", action="store_true")
     args = p.parse_args(argv)
@@ -342,9 +401,36 @@ def main(argv: list[str] | None = None) -> int:
     if args.brightness_ref is not None:
         ref_bright = args.brightness_ref
 
+    mask = None
+    if args.static_mask:
+        if args.baseline is not None:
+            print(
+                "[framing-gate] --static-mask needs the training dataset; ignoring "
+                "it in --baseline mode",
+                file=sys.stderr,
+            )
+        else:
+            try:
+                mask, thr, nfr = build_static_mask(
+                    args.reference_dataset,
+                    args.camera_key,
+                    args.mask_episodes,
+                    args.mask_keep_pct,
+                )
+                print(
+                    f"[framing-gate] static mask: lowest {args.mask_keep_pct:.0f}% variance "
+                    f"(std<={thr:.1f}) from {nfr} frames, covers "
+                    f"{mask.mean() / 255 * 100:.0f}% of frame"
+                )
+            except Exception as exc:  # noqa: BLE001
+                print(
+                    f"[framing-gate] static mask unavailable ({exc}); using full frame",
+                    file=sys.stderr,
+                )
+
     try:
         dx, dy, scale, rot, ratio, live_bright, sd, n = measure(
-            ref, args.camera, args.warmup, args.samples, args.max_matches
+            ref, args.camera, args.warmup, args.samples, args.max_matches, mask
         )
         live = grab_v4l2(args.camera, args.warmup)
         if live.shape[:2] != ref.shape[:2]:
