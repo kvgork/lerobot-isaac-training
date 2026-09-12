@@ -1,5 +1,146 @@
 # Next Steps — lerobot-isaac-training
 
+## Open safety bugs found 2026-09-10 (adversarial review, NOT yet fixed)
+
+Both predate the SO-101 safety-fix work and were found by a grill review of it. Each
+was confirmed by a defender against the actual code; neither was touched, because
+they are outside that change's scope.
+
+### 0. ~~`connect()` leaves the arm PARTIALLY TORQUED on a single dropped packet~~ — **FIXED 2026-09-12**
+
+Observed live 2026-09-11 during the servo-control check, on the real arm.
+
+`SO101Follower.connect()` -> `configure()` writes several registers per motor, and
+lerobot's `MotorsBus.write()` defaults to **`num_retry=0`**. One dropped status packet
+therefore aborts `connect()` mid-way:
+
+```
+ConnectionError: Failed to write 'Torque_Enable' on id_=4 ... [TxRxResult] There is no status packet!
+```
+
+Servos 1-3 had already been energised; 4-6 had not. Because the exception escapes
+`connect()`, any caller whose `disconnect()` sits in a `try/finally` *after* the connect
+call never runs it — the arm is left **torqued and holding, with no live session**. A
+subsequent raw-bus ping confirmed all six servos were healthy and that 1-3 were still
+at `Torque_Enable=1`.
+
+This is not a dead servo; it is a transient bus glitch with an unsafe failure mode.
+
+**FIXED 2026-09-12** — `robot-data-runner@40b115d`.
+
+`safety.safe_connect()` wraps `robot.connect()`; on any failure it sweeps
+`Torque_Enable=0` across every reachable motor, logs which it released and which it
+could not (cut power if any failed), then re-raises the original exception unchanged.
+Catches `BaseException`, so Ctrl-C during energising also drops torque.
+
+Wired into all four call sites. Two canaries guard it: one asserts no module calls
+`robot.connect()` directly, the other asserts `safe_connect` is present in both run
+paths — both verified to fail when a site is un-wired.
+
+Note the upstream cause is unchanged: lerobot still defaults `num_retry=0` on the
+configure path. This wrapper contains the consequence rather than preventing the
+dropped packet. A bring-up script that does not use `robot-data-runner` still needs
+its own `Torque_Enable=0` sweep on failure.
+
+Tests: runner 95 -> 104, including a characterisation test pinning the original
+behaviour (3 servos left energised).
+
+### 1. ~~`resolve_joint_limits` can WIDEN past the safety floor~~ — **FIXED 2026-09-11**
+
+`src/robot-data-runner/src/robot_data_runner/safety_limits.py` (also the deploy twin
+in `lerobot_isaac_deploy.arm_motor_writer`). Pre-existing as of `703f62f`.
+
+When a joint's calibration span lies entirely outside the hardcoded floor, the
+intersection inverts:
+
+```
+cal span (100, 150) deg   vs   floor (-90, 90)
+lo = max(-90, min(100,150)) = 100
+hi = min( 90, max(100,150)) =  90        ->  lo > hi
+```
+
+`clamp_action` then swaps the pair to `(90, 100)` and permits commands up to **100
+deg against a 90 deg floor** — directly violating that module's own documented
+invariant that calibration "can only TIGHTEN, never widen". No warning is logged for
+the degenerate case.
+
+**FIXED 2026-09-11** — `robot-data-runner@dcd9125`, `lerobot-isaac-deploy@fbad690`.
+
+Both copies now detect the empty intersection, log an ERROR naming the joint, and keep the
+hardcoded floor for it. `clamp_action` no longer swaps an inverted pair — a swap can only
+ever widen — and falls back to the module's floor instead.
+
+The twin turned out to fail *differently*, which is why it had survived its own
+"never wider than the floor" test: that test uses an over-wide symmetric calibration, which
+intersects fine. With `np.clip(x, lo, hi)` and `lo > hi`, numpy returns `hi`, so a span
+entirely ABOVE the floor pinned to the floor max (safe by luck) while a span entirely BELOW
+it pinned to a target outside the floor. Only a non-overlapping calibration triggers it, and
+only in one direction.
+
+Tests: runner 88 -> 95, deploy 36 -> 42; all written to fail against the old code first.
+
+### 2. ~~`SafetyMonitor._same()` can never flag a constant-NaN action~~ — **FIXED 2026-09-12**
+
+`src/robot-data-runner/src/robot_data_runner/safety.py`. Pre-existing as of `b079489`
+(2026-05-14), untouched by the 2026-09-10 watchdog work.
+
+`_same()` compares with `abs(a[k] - b[k]) < epsilon`. For NaN that is always False, so
+the streak resets every step and the stuck-action warning — whose own text says
+*"policy may be stuck or returning NaN"* — can never fire for the NaN half of its own
+claim. A policy emitting constant NaN runs to completion unflagged.
+
+**FIXED 2026-09-12** — `robot-data-runner@f70e50e`. Investigating it found the filed
+bug was the least of three.
+
+1. (filed) `_same()` now treats two non-finite values as unchanged, so a constant-NaN
+   stream accumulates a streak and the warning that names NaN can actually fire.
+2. (found) **A NaN action passed straight through `clamp_action` to `send_action`** —
+   `min(max(nan, lo), hi)` returns `nan`, because every comparison with NaN is False.
+   The absolute joint clamp, which the master plan calls "the highest-value
+   hardware-safety change available", did not contain the one input that is never valid.
+3. (found) `clamp_action` **reported** NaN as clamped while not clamping it, since
+   `clipped != value` is True for NaN. Worse than silent — it claimed the guard acted.
+
+`SafetyMonitor.observe()` now trips `stop_flag` immediately on any non-finite action
+(waiting 30 steps means ~1 s of garbage commands first). `clamp_action` substitutes
+the in-range value nearest zero for NaN only — infinities already clamp correctly, and
+routing them through the substitution would replace a correct bound with 0.
+
+Tests: runner 104 -> 111.
+
+### 3. ~~`test_wm_dryrun` fails in the default env~~ — **FIXED 2026-09-12**
+
+**FIXED 2026-09-12** — `lerobot-isaac-deploy@1546dfb`.
+
+Diagnosed as an ordering bug, not a test-environment problem: `run_dryrun` imported
+the loader (and hit `wm_loader`'s torch guard) *before* checking whether the checkpoint
+path existed, so a missing path surfaced as `ModuleNotFoundError: torch` in any env
+without torch. Moving the existence check first also fixed a side effect — every failed
+call created an empty `outputs/wm-dryrun-<ts>/`.
+
+Fixed by correcting the order rather than adding a skip marker, so it passes in BOTH
+`default` (no torch) and `train-policy`. Deploy suite: 166 passed / 1 failed -> 169 passed.
+
+**Note:** the original filing above described the wrong test. The `lerobot_isaac_meta`
+`replay_runner.main(argv)` arity mismatch is a SEPARATE, still-open issue — see item 4.
+
+### 4. ~~`test_dr_replay_delegates_dry_run` fails — `main()` arity~~ — **FIXED 2026-09-12**
+
+**FIXED 2026-09-12** — `lerobot-isaac-synthetic` PR #1 + workspace test correction.
+
+`replay_runner.main` was the outlier: the meta CLI forwards argv to three targets, and
+the other two (`adapters.train.main`, `robot_data_recorder.cli.main`) both accept it.
+
+**The arity error was masking a second bug.** The test also asserted passthrough of
+`--camera_key d435_rgb`, a flag `replay_runner` has *never* accepted — `git log -S
+camera_key` finds it only in the test, added by `3dce29d`. The `TypeError` fired before
+argparse could reject the flag, so the stale contract stayed invisible. The test now
+proves passthrough with `--n_variants`, which the parser really does accept.
+
+Meta suite: 81 -> 88 passed, 0 failed.
+
+---
+
 Last updated: 2026-05-21
 
 ## Immediate (blocker — system-level)

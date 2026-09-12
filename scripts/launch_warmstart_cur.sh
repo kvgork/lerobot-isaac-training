@@ -46,6 +46,9 @@
 # =============================================================================
 set -euo pipefail
 
+# A0.5: fail closed on a missing action-scale JSON (see _action_scale_guard.sh).
+source "$(dirname "${BASH_SOURCE[0]}")/_action_scale_guard.sh"
+
 # ======================= EDIT THIS PER-STAGE BLOCK ==========================
 # Stage-0 defaults (cup 0.03 + die-in-cup, trivial carry):
 STAGE="${STAGE:-0}"

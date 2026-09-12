@@ -116,12 +116,44 @@ Server-side clip enforced inside the `FeetechMotorsBus.send_action()` call.
 Any action that would move a joint more than this delta in one step is
 clipped silently. **Smaller = safer.** Recommended ladder:
 
-| Trust level                                   | `--max-relative-target` |
-|-----------------------------------------------|-------------------------|
-| First execute-mode run on a brand-new policy  | `2.0` deg               |
-| Policy validated for a few seconds, no drift  | `5.0` deg               |
-| Mature policy, known-safe environment         | `10.0` deg              |
-| Replay of recorded teleop (no policy)         | `30.0` deg              |
+> **Ladder re-derived 2026-09-11 against the live arm, and VERIFIED by calling
+> `check_rate_ceiling()` with the real calibration loaded (master plan S2).**
+> The old table (`2.0 / 5.0 / 10.0 / 30.0`) dates from when the runner normalized to
+> `RANGE_M100_100`, where the number meant *percent of each joint's range*. The real-motor
+> entry points now pin `use_degrees=True` (S1), so for the five arm joints it means
+> **degrees per step**, and the implied rate is `clamp x rate_hz`.
+
+| Trust level                                   | `--max-relative-target` | arm deg/s | gripper deg/s | accepted? |
+|-----------------------------------------------|-------------------------|-----------|---------------|-----------|
+| First execute-mode run on a brand-new policy  | `1.0`                   | 30        | 38.9          | yes       |
+| Policy validated for a few seconds, no drift  | `2.0`                   | 60        | 77.9          | yes       |
+| Maximum the ceiling permits at 30 Hz          | `2.3`                   | 69        | 89.6          | yes (max) |
+| ~~Mature policy~~ / ~~replay~~                | `3.0`                   | 90        | **116.8**     | **REFUSED** |
+
+> **The gripper is the binding joint — not any arm joint.** It is always `RANGE_0_100`
+> percent-of-jaw regardless of `use_degrees`, and this arm's jaw spans 129.8 deg of servo
+> rotation, so 1 unit = 1.298 deg. At clamp `3.0` the gripper implies **116.8 deg/s** and
+> `check_rate_ceiling()` refuses the run, while the arm joints are still only at 90. The
+> practical maximum at 30 Hz is **2.311**, where the arm reaches just 69 deg/s — 77% of the
+> ceiling. Sizing the clamp from the arm alone gives the wrong answer.
+
+> **The limit moves with `--rate-hz`.** Verified on this arm: max clamp **3.47** at 20 Hz,
+> **2.31** at 30 Hz, **1.39** at 50 Hz. Changing the control rate silently changes what any
+> given clamp number means.
+
+> **The master plan's S2 bound is unreachable as written.** S2 says "do not exceed 3.0";
+> the tool refuses at 3.0. The effective bound is ~2.3, and it is enforced in code, so the
+> policy rule is already subsumed by the ceiling check. Exceeding it needs `--allow-fast`
+> (verified: `--allow-fast` accepts 5.0), which disables the guard rather than raising it.
+
+> **The ceiling only fires with `--execute`.** Dry runs always proceed, deliberately, so
+> smoke tests and CI are not blocked by a calibration-dependent limit. A dry run passing
+> tells you nothing about whether the real run will be refused.
+
+> **A clamp is an upper bound, not a guarantee of motion.** Measured on this arm 2026-09-11,
+> `shoulder_pan` achieved only ~63% of a commanded move at **12.8 deg/s** — a third of the
+> slowest rung — so for that joint friction, not the clamp, is the binding constraint. If a
+> joint under-travels, lowering the clamp will not help and raising it may not either.
 
 ### Layer 3 — Rate limit
 

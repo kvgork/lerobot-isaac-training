@@ -53,6 +53,9 @@
 # =============================================================================
 set -uo pipefail
 
+# A0.5: fail closed on a missing action-scale JSON (see _action_scale_guard.sh).
+source "$(dirname "${BASH_SOURCE[0]}")/_action_scale_guard.sh"
+
 WORKSPACE="${WORKSPACE:-${LEROBOT_ISAAC_WORKSPACE:-$(cd "$(dirname "$0")/.." && pwd)}}"
 cd "$WORKSPACE"
 
